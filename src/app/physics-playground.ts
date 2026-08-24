@@ -82,6 +82,7 @@ export interface SelectedObjectUpdate {
 const PIXELS_PER_METER = 48;
 const FIXED_STEP = 1 / 120;
 const FLOOR_HEIGHT = 48;
+const RESTING_REBOUND_SPEED = 10;
 const COLORS = ["#5b7cfa", "#f27a54", "#25a77a", "#a069dc", "#e2a62b"];
 
 /** Connects browser input and rendering to the renderer-independent physics core. */
@@ -394,12 +395,12 @@ export class PhysicsPlayground {
         if (body.state.velocity.y < 0) {
           body.state.velocity.y *= -restitution;
         }
-      } else if (body.state.position.y > bottom) {
+      } else if (body.state.position.y >= bottom) {
         body.state.position.y = bottom;
         if (body.state.velocity.y > 0) {
-          body.state.velocity.y *= -restitution;
+          const reboundSpeed = body.state.velocity.y * restitution;
+          body.state.velocity.y = reboundSpeed < RESTING_REBOUND_SPEED ? 0 : -reboundSpeed;
           body.state.velocity.x *= 0.992;
-          if (Math.abs(body.state.velocity.y) < 10) body.state.velocity.y = 0;
         }
       }
     }
