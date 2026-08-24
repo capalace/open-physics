@@ -225,7 +225,7 @@ canvas { display: block; width: 100%; height: auto; aspect-ratio: 8 / 5; touch-a
   display: flex;
   align-items: center;
   gap: 8px;
-  min-height: 58px;
+  min-height: 48px;
   border: 2px solid #e2e7ef;
   border-radius: 11px;
   padding: 7px 8px;
@@ -236,15 +236,12 @@ canvas { display: block; width: 100%; height: auto; aspect-ratio: 8 / 5; touch-a
 }
 .material-options button:hover { border-color: #b8c8f5; transform: translateY(-1px); }
 .material-options button.is-active { border-color: var(--accent); background: #eef3ff; box-shadow: 0 0 0 3px #365eea12; }
-.material-options strong, .material-options small { display: block; }
-.material-options strong { color: #354259; font-size: 13px; }
-.material-options small { margin-top: 2px; color: #8793a5; font-size: 12px; }
+.material-options strong { display: block; color: #354259; font-size: 13px; }
 .material-swatch { flex: 0 0 25px; width: 25px; height: 25px; border-radius: 8px; box-shadow: inset 0 0 0 2px #ffffff66, 0 2px 5px #26344f18; }
 .material-swatch.rubber { border-radius: 50%; background: radial-gradient(circle at 35% 30%, #ffb35b, #ef704c 68%); }
 .material-swatch.wood { background: repeating-linear-gradient(15deg, #bd7b43 0 3px, #d79a5e 3px 7px); }
 .material-swatch.steel { background: linear-gradient(135deg, #f3f6fa, #8794a6 52%, #d9e0e8); }
 .material-swatch.clay { background: radial-gradient(circle at 35% 30%, #d58b73, #a95949); }
-.material-description { margin: 0; border-radius: 8px; padding: 9px 10px; background: #f2f5fb; color: #748197; font-size: 12px; line-height: 1.5; }
 .mass-options { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
 .mass-options button {
   min-height: 48px;

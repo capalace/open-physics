@@ -7,14 +7,12 @@ export type PlaygroundPreset = "free-fall" | "projectile" | "collision";
 export type PlaygroundMaterial = "rubber" | "wood" | "steel" | "clay";
 
 export const MATERIALS: Readonly<Record<PlaygroundMaterial, {
-  label: string;
-  description: string;
   restitution: number;
 }>> = {
-  rubber: { label: "고무", description: "탄성이 높아 충돌 후에도 운동을 많이 유지합니다.", restitution: 0.88 },
-  wood: { label: "나무", description: "중간 정도의 탄성으로 충돌합니다.", restitution: 0.5 },
-  steel: { label: "금속", description: "단단하고 비교적 탄성 있게 충돌합니다.", restitution: 0.72 },
-  clay: { label: "점토", description: "충돌 에너지를 흡수해 거의 튀지 않습니다.", restitution: 0.08 },
+  rubber: { restitution: 0.88 },
+  wood: { restitution: 0.5 },
+  steel: { restitution: 0.72 },
+  clay: { restitution: 0.08 },
 };
 
 export interface PlaygroundObject {

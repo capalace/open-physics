@@ -1,5 +1,4 @@
 import {
-  MATERIALS,
   PhysicsPlayground,
   type PlaygroundMaterial,
   type PlaygroundPreset,
@@ -127,7 +126,6 @@ function renderSnapshot(snapshot: PlaygroundSnapshot): void {
 
   syncInput(objectLabel, selected.label);
   syncInput(objectMass, selected.mass.toFixed(1));
-  required<HTMLElement>("#material-description").textContent = MATERIALS[selected.material].description;
   document.querySelectorAll<HTMLButtonElement>("[data-material]").forEach((button) => {
     setActive(button, button.dataset.material === selected.material);
   });
