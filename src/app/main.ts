@@ -17,6 +17,8 @@ const playButton = required<HTMLButtonElement>("#play");
 const stepButton = required<HTMLButtonElement>("#step");
 const addObjectButton = required<HTMLButtonElement>("#add-object");
 const deleteButton = required<HTMLButtonElement>("#delete-object");
+const focusButton = required<HTMLButtonElement>("#focus-mode");
+const appLayout = required<HTMLElement>(".app-layout");
 const inspectorEmpty = required<HTMLElement>("#inspector-empty");
 const inspectorForm = required<HTMLFormElement>("#inspector-form");
 const objectLabel = required<HTMLInputElement>("#object-label");
@@ -32,6 +34,7 @@ stepButton.addEventListener("click", () => playground.stepOnce());
 required<HTMLButtonElement>("#reset").addEventListener("click", () => playground.reset());
 addObjectButton.addEventListener("click", () => playground.addObject());
 deleteButton.addEventListener("click", () => playground.removeSelected());
+focusButton.addEventListener("click", () => setFocusMode(!appLayout.classList.contains("is-focus-mode")));
 
 bindToggle("#show-grid", "grid");
 bindToggle("#show-trails", "trails");
@@ -66,6 +69,10 @@ document.querySelectorAll<HTMLButtonElement>("[data-mass]").forEach((button) => 
 objectColor.addEventListener("input", () => playground.updateSelected({ color: objectColor.value }));
 
 window.addEventListener("keydown", (event) => {
+  if (event.code === "Escape" && appLayout.classList.contains("is-focus-mode")) {
+    setFocusMode(false);
+    return;
+  }
   const target = event.target as HTMLElement | null;
   if (target?.matches("input, textarea, select")) return;
   if (event.code === "Space") {
@@ -76,6 +83,10 @@ window.addEventListener("keydown", (event) => {
   } else if (event.code === "ArrowRight" && playground.paused) {
     playground.stepOnce();
   }
+});
+
+window.addEventListener("resize", () => {
+  if (window.innerWidth <= 940 && appLayout.classList.contains("is-focus-mode")) setFocusMode(false);
 });
 
 function bindToggle(
@@ -129,6 +140,13 @@ function renderSnapshot(snapshot: PlaygroundSnapshot): void {
 function setActive(button: HTMLButtonElement, active: boolean): void {
   button.classList.toggle("is-active", active);
   button.setAttribute("aria-pressed", String(active));
+}
+
+function setFocusMode(enabled: boolean): void {
+  appLayout.classList.toggle("is-focus-mode", enabled);
+  focusButton.setAttribute("aria-pressed", String(enabled));
+  focusButton.textContent = enabled ? "▦ 설정 보기" : "⛶ 크게 보기";
+  focusButton.title = enabled ? "설정 패널 다시 열기 (Esc)" : "설정 패널을 접고 실험 공간 크게 보기";
 }
 
 function syncInput(input: HTMLInputElement, value: string): void {

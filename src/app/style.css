@@ -153,6 +153,7 @@ button:focus-visible, input:focus-visible { outline: 3px solid #91a8ff; outline-
 .primary-button[data-running="true"] { border-color: #d86144; background: var(--orange); box-shadow: 0 5px 12px #ef775433; }
 .icon-button { width: 34px; color: #5d6a80; }
 .icon-button.text-button { width: auto; padding: 0 11px; }
+.focus-button { min-width: 104px; }
 .icon-button:hover, .creation-controls button:hover { border-color: #b8c5d8; background: #f5f7fb; }
 button:disabled { opacity: .45; cursor: not-allowed; }
 .toolbar-divider { align-self: stretch; width: 1px; margin: 3px 2px; background: #e4e9f0; }
@@ -295,6 +296,8 @@ canvas { display: block; width: 100%; height: auto; aspect-ratio: 8 / 5; touch-a
 
 @media (min-width: 941px) {
   .app-layout { height: calc(100vh - 68px); min-height: 0; }
+  .app-layout.is-focus-mode { grid-template-columns: minmax(0, 1fr); }
+  .app-layout.is-focus-mode > .panel { display: none; }
   .panel { overflow-y: auto; }
   .workspace { display: flex; min-height: 0; flex-direction: column; }
   .canvas-frame { min-height: 0; flex: 1; }
@@ -314,6 +317,7 @@ canvas { display: block; width: 100%; height: auto; aspect-ratio: 8 / 5; touch-a
   .inspector-form, .empty-selection { grid-column: 2; grid-row: 1 / span 2; }
   .environment-section, .visualization-section { grid-column: 3; }
   .visualization-section { margin-top: 0; }
+  .focus-button { display: none; }
 }
 @media (max-width: 700px) {
   .subject-nav button { padding: 8px 10px; }
