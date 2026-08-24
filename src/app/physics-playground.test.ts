@@ -202,6 +202,31 @@ describe("PhysicsPlayground extended mechanics", () => {
     expect(body.state.position.x).toBeLessThan(initialX);
   });
 
+  it("shows energy exchange inside the spring experience", () => {
+    vi.stubGlobal("requestAnimationFrame", () => 0);
+    const { canvas, fillText } = createRenderingCanvas();
+    const playground = new PhysicsPlayground(canvas, { width: 960, height: 600 });
+    playground.loadPreset("spring");
+    const renderer = playground as unknown as { render(): void };
+
+    renderer.render();
+
+    expect(fillText).toHaveBeenCalledWith("움직임 에너지", expect.any(Number), expect.any(Number));
+    expect(fillText).toHaveBeenCalledWith("용수철 에너지", expect.any(Number), expect.any(Number));
+  });
+
+  it("shows momentum inside the collision experience", () => {
+    vi.stubGlobal("requestAnimationFrame", () => 0);
+    const { canvas, fillText } = createRenderingCanvas();
+    const playground = new PhysicsPlayground(canvas, { width: 960, height: 600 });
+    playground.loadPreset("collision");
+    const renderer = playground as unknown as { render(): void };
+
+    renderer.render();
+
+    expect(fillText).toHaveBeenCalledWith("운동량 p = mv", expect.any(Number), expect.any(Number));
+  });
+
   it("removes the spring connection when another quick start is loaded", () => {
     vi.stubGlobal("requestAnimationFrame", () => 0);
     const playground = new PhysicsPlayground(createCanvas(), { width: 960, height: 600 });
@@ -275,8 +300,8 @@ describe("PhysicsPlayground extended mechanics", () => {
     vi.stubGlobal("requestAnimationFrame", () => 0);
     const playground = new PhysicsPlayground(createCanvas(), { width: 960, height: 600 });
     const presets = [
-      "free-fall", "projectile", "collision", "momentum", "energy", "spring", "friction",
-      "circular", "rotation", "pendulum", "orbit", "buoyancy", "constraints", "pulley",
+      "free-fall", "projectile", "collision", "spring", "friction",
+      "rotation", "orbit", "buoyancy", "constraints", "pulley",
     ] as const;
 
     for (const preset of presets) {
@@ -287,32 +312,13 @@ describe("PhysicsPlayground extended mechanics", () => {
     }
   });
 
-  it("keeps circular motion on its guide while acceleration points inward", () => {
+  it("includes pendulum motion in the rope and rod experience", () => {
     vi.stubGlobal("requestAnimationFrame", () => 0);
     const playground = new PhysicsPlayground(createCanvas(), { width: 960, height: 600 });
     const advance = playground as unknown as { advance(dt: number): void };
-    playground.loadPreset("circular");
+    playground.loadPreset("constraints");
     const body = playground.simulation.allBodies[0];
-    const center = { x: 480, y: playground.floorY * 0.5 };
-    const initialRadius = Math.hypot(body.state.position.x - center.x, body.state.position.y - center.y);
-
-    for (let frame = 0; frame < 240; frame += 1) advance.advance(1 / 120);
-
-    const radial = {
-      x: body.state.position.x - center.x,
-      y: body.state.position.y - center.y,
-    };
-    expect(Math.hypot(radial.x, radial.y)).toBeCloseTo(initialRadius, 4);
-    expect(radial.x * body.state.acceleration.x + radial.y * body.state.acceleration.y).toBeLessThan(0);
-  });
-
-  it("swings a pendulum while preserving the rope length", () => {
-    vi.stubGlobal("requestAnimationFrame", () => 0);
-    const playground = new PhysicsPlayground(createCanvas(), { width: 960, height: 600 });
-    const advance = playground as unknown as { advance(dt: number): void };
-    playground.loadPreset("pendulum");
-    const body = playground.simulation.allBodies[0];
-    const anchor = { x: 480, y: 105 };
+    const anchor = { x: 960 * 0.34, y: 105 };
     const initialX = body.state.position.x;
     const length = Math.hypot(body.state.position.x - anchor.x, body.state.position.y - anchor.y);
 
@@ -421,6 +427,11 @@ describe("PhysicsPlayground extended mechanics", () => {
 
     const nextRadius = Math.hypot(orbiting.state.position.x - center.x, orbiting.state.position.y - center.y);
     expect(Math.abs(nextRadius - radius) / radius).toBeLessThan(0.06);
+    const radial = {
+      x: orbiting.state.position.x - center.x,
+      y: orbiting.state.position.y - center.y,
+    };
+    expect(radial.x * orbiting.state.acceleration.x + radial.y * orbiting.state.acceleration.y).toBeLessThan(0);
   });
 });
 

@@ -7,7 +7,6 @@ import {
 } from "../physics/laws/world-mechanics";
 import { PhysicsSimulation } from "../physics/simulation";
 import {
-  CircularMotionModel,
   PendulumModel,
   PulleyModel,
   RotationBalanceModel,
@@ -19,13 +18,9 @@ export type PlaygroundPreset =
   | "free-fall"
   | "projectile"
   | "collision"
-  | "momentum"
-  | "energy"
   | "spring"
   | "friction"
-  | "circular"
   | "rotation"
-  | "pendulum"
   | "orbit"
   | "buoyancy"
   | "constraints"
@@ -116,8 +111,6 @@ const SPRING_MOUNT_CLEARANCE = 8;
 const COLORS = ["#5b7cfa", "#f27a54", "#25a77a", "#a069dc", "#e2a62b"];
 
 type GuidedMechanicsScene =
-  | { kind: "circular"; bodyId: string; model: CircularMotionModel }
-  | { kind: "pendulum"; bodyId: string; model: PendulumModel }
   | {
     kind: "rotation";
     leftId: string;
@@ -284,27 +277,12 @@ export class PhysicsPlayground {
         material: "rubber",
         velocity: { x: -1.7, y: 0 },
       });
-    } else if (preset === "momentum") {
-      this.replaceGravity(0);
-      this.addCircle(270, this.floorY * 0.52, 30, {
-        label: "빠른 공",
-        color: "#5b7cfa",
-        mass: 1,
-        material: "rubber",
-        velocity: { x: 5, y: 0 },
-      });
-      this.addCircle(620, this.floorY * 0.52, 38, {
-        label: "무거운 공",
-        color: "#f27a54",
-        mass: 3,
-        material: "wood",
-      });
-    } else if (preset === "spring" || preset === "energy") {
+    } else if (preset === "spring") {
       this.replaceGravity(0);
       const anchor = { x: this.canvas.width * 0.22, y: this.floorY * 0.52 };
       const restLength = this.canvas.width * 0.28;
       const object = this.addCircle(anchor.x + restLength + this.canvas.width * 0.12, anchor.y, 28, {
-        label: preset === "energy" ? "에너지 공" : "용수철 공",
+        label: "용수철 공",
         color: "#a069dc",
         mass: 1,
         material: "wood",
@@ -314,7 +292,7 @@ export class PhysicsPlayground {
         anchor,
         restLength,
         stiffness: 5,
-        damping: preset === "energy" ? 0.03 : 0.45,
+        damping: 0.45,
       });
       this.simulation.addLaw(this.springLaw);
       this.simulation.refreshAccelerations();
@@ -335,24 +313,6 @@ export class PhysicsPlayground {
       });
       this.simulation.addLaw(this.frictionLaw);
       this.simulation.refreshAccelerations();
-    } else if (preset === "circular") {
-      this.replaceGravity(0);
-      const model = new CircularMotionModel(
-        { x: this.canvas.width * 0.5, y: this.floorY * 0.5 },
-        Math.min(this.canvas.width * 0.22, this.floorY * 0.32),
-        1.45,
-        -Math.PI / 2,
-      );
-      const pose = model.pose();
-      const object = this.addCircle(pose.position.x, pose.position.y, 27, {
-        label: "도는 공",
-        color: "#25a77a",
-        mass: 1,
-        material: "steel",
-        fixed: true,
-      });
-      this.guidedScene = { kind: "circular", bodyId: object.id, model };
-      this.setBodyPose(object.id, pose);
     } else if (preset === "rotation") {
       this.replaceGravity(9.81);
       const model = new RotationBalanceModel(
@@ -377,23 +337,6 @@ export class PhysicsPlayground {
       this.guidedScene = { kind: "rotation", leftId: left.id, rightId: right.id, model };
       this.setBodyPose(left.id, poses.left);
       this.setBodyPose(right.id, poses.right);
-    } else if (preset === "pendulum") {
-      this.replaceGravity(9.81);
-      const model = new PendulumModel(
-        { x: this.canvas.width * 0.5, y: 105 },
-        Math.min(250, this.floorY * 0.48),
-        0.72,
-      );
-      const pose = model.pose();
-      const object = this.addCircle(pose.position.x, pose.position.y, 29, {
-        label: "진자 추",
-        color: "#a069dc",
-        mass: 1,
-        material: "steel",
-        fixed: true,
-      });
-      this.guidedScene = { kind: "pendulum", bodyId: object.id, model };
-      this.setBodyPose(object.id, pose);
     } else if (preset === "orbit") {
       this.replaceGravity(0);
       const center = { x: this.canvas.width * 0.5, y: this.floorY * 0.5 };
@@ -674,7 +617,6 @@ export class PhysicsPlayground {
   private guidedBodyIds(): string[] {
     const scene = this.guidedScene;
     if (!scene) return [];
-    if (scene.kind === "circular" || scene.kind === "pendulum") return [scene.bodyId];
     if (scene.kind === "rotation" || scene.kind === "pulley") return [scene.leftId, scene.rightId];
     return [scene.ropeId, scene.rodId];
   }
@@ -692,9 +634,7 @@ export class PhysicsPlayground {
   private applyGuidedScenePoses(): void {
     const scene = this.guidedScene;
     if (!scene) return;
-    if (scene.kind === "circular" || scene.kind === "pendulum") {
-      this.setBodyPose(scene.bodyId, scene.model.pose());
-    } else if (scene.kind === "rotation") {
+    if (scene.kind === "rotation") {
       const poses = scene.model.poses();
       this.setBodyPose(scene.leftId, poses.left);
       this.setBodyPose(scene.rightId, poses.right);
@@ -712,11 +652,7 @@ export class PhysicsPlayground {
     const scene = this.guidedScene;
     if (!scene) return;
     const gravity = this.gravity * PIXELS_PER_METER;
-    if (scene.kind === "circular") {
-      scene.model.step(dt);
-    } else if (scene.kind === "pendulum") {
-      scene.model.step(dt, gravity);
-    } else if (scene.kind === "rotation") {
+    if (scene.kind === "rotation") {
       const leftMass = this.simulation.getBody(scene.leftId)?.state.mass ?? 1;
       const rightMass = this.simulation.getBody(scene.rightId)?.state.mass ?? 1;
       scene.model.step(dt, gravity, leftMass, rightMass);
@@ -734,11 +670,7 @@ export class PhysicsPlayground {
   private dragGuidedBody(id: string, point: Vector2): boolean {
     const scene = this.guidedScene;
     if (!scene || !this.isGuidedBody(id)) return false;
-    if (scene.kind === "circular") {
-      scene.model.moveTo(point);
-    } else if (scene.kind === "pendulum") {
-      scene.model.moveTo(point);
-    } else if (scene.kind === "rotation") {
+    if (scene.kind === "rotation") {
       scene.model.moveEndpoint(id === scene.leftId ? -1 : 1, point);
     } else if (scene.kind === "constraints") {
       (id === scene.ropeId ? scene.rope : scene.rod).moveTo(point);
@@ -753,9 +685,7 @@ export class PhysicsPlayground {
   private resizeGuidedScene(scaleX: number, scaleY: number): void {
     const scene = this.guidedScene;
     if (!scene) return;
-    if (scene.kind === "circular" || scene.kind === "pendulum") {
-      scene.model.resize(scaleX, scaleY);
-    } else if (scene.kind === "rotation" || scene.kind === "pulley") {
+    if (scene.kind === "rotation" || scene.kind === "pulley") {
       scene.model.resize(scaleX, scaleY);
     } else {
       scene.rope.resize(scaleX, scaleY);
@@ -873,7 +803,7 @@ export class PhysicsPlayground {
     this.simulation.step(dt);
     this.advanceGuidedScene(dt);
     this.resolveSpringMount(springPreviousPosition);
-    if (this.currentPreset === "momentum" && this.simulation.collisionEvents.length > 0) {
+    if (this.currentPreset === "collision" && this.simulation.collisionEvents.length > 0) {
       this.impulseFlash = 1;
     } else {
       this.impulseFlash = Math.max(0, this.impulseFlash - dt * 2.5);
@@ -885,7 +815,7 @@ export class PhysicsPlayground {
   }
 
   private applyPresetDamping(dt: number): void {
-    if (this.currentPreset !== "collision" && this.currentPreset !== "momentum") return;
+    if (this.currentPreset !== "collision") return;
     const damping = Math.exp(-COLLISION_WORLD_DAMPING * dt);
     for (const body of this.simulation.allBodies) {
       if (body.fixed) continue;
@@ -1038,8 +968,8 @@ export class PhysicsPlayground {
     if (this.springLaw) this.drawSpringConnection();
     this.drawTrajectoryPreview();
     for (const object of this.objects.values()) this.drawObject(object);
-    if (this.currentPreset === "momentum") this.drawMomentumVisualization();
-    if (this.currentPreset === "energy") this.drawEnergyVisualization();
+    if (this.currentPreset === "collision") this.drawMomentumVisualization();
+    if (this.currentPreset === "spring") this.drawEnergyVisualization();
   }
 
   private drawWaterRegion(): void {
@@ -1093,24 +1023,7 @@ export class PhysicsPlayground {
     ctx.lineCap = "round";
     ctx.lineJoin = "round";
 
-    if (scene.kind === "circular") {
-      ctx.strokeStyle = "#8291aa";
-      ctx.lineWidth = 2;
-      ctx.setLineDash([7, 7]);
-      ctx.beginPath();
-      ctx.arc(scene.model.center.x, scene.model.center.y, scene.model.radius, 0, Math.PI * 2);
-      ctx.stroke();
-      ctx.setLineDash([]);
-      const pose = scene.model.pose();
-      ctx.beginPath();
-      ctx.moveTo(scene.model.center.x, scene.model.center.y);
-      ctx.lineTo(pose.position.x, pose.position.y);
-      ctx.stroke();
-      this.drawPivot(scene.model.center, "중심");
-    } else if (scene.kind === "pendulum") {
-      this.drawConstraintLink(scene.model.anchor, scene.model.pose().position, false, "줄 길이는 그대로");
-      this.drawPivot(scene.model.anchor, "고정점");
-    } else if (scene.kind === "rotation") {
+    if (scene.kind === "rotation") {
       const poses = scene.model.poses();
       ctx.strokeStyle = "#46546a";
       ctx.lineWidth = 12;

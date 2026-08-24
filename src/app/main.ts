@@ -40,49 +40,29 @@ const PRESET_GUIDES: Record<PlaygroundPreset, { title: string; description: stri
     equation: "x = x₀ + v₀t + ½at²",
   },
   collision: {
-    title: "충돌과 운동량",
-    description: "물체가 부딪히면 질량과 속도에 따라 움직임을 서로 주고받습니다.",
-    equation: "p = mv",
-  },
-  momentum: {
-    title: "운동량과 충격량",
-    description: "충돌하는 짧은 순간의 힘이 물체의 운동량을 바꿉니다.",
-    equation: "J = Δp",
-  },
-  energy: {
-    title: "일과 에너지",
-    description: "용수철에 저장된 에너지와 움직임 에너지가 서로 바뀝니다.",
-    equation: "E = ½mv² + ½kx²",
+    title: "충돌·운동량·충격량",
+    description: "부딪히는 순간 운동량이 전달되고, 짧게 작용한 힘이 움직임을 바꿉니다.",
+    equation: "p = mv · J = Δp",
   },
   spring: {
-    title: "용수철 힘",
-    description: "용수철은 제자리에서 멀어진 만큼 더 세게 되돌려 보냅니다.",
-    equation: "F = −kx",
+    title: "용수철과 에너지",
+    description: "용수철의 복원력이 저장된 에너지와 움직임 에너지를 서로 바꿉니다.",
+    equation: "F = −kx · E = ½mv² + ½kx²",
   },
   friction: {
     title: "마찰력",
     description: "마찰력은 움직이는 반대 방향으로 작용해 물체를 천천히 멈춥니다.",
     equation: "F = μN",
   },
-  circular: {
-    title: "원운동",
-    description: "속도 방향은 계속 바뀌고, 가속도는 원의 중심을 향합니다.",
-    equation: "a = v²/r",
-  },
   rotation: {
     title: "회전과 토크",
     description: "회전축에서 떨어진 곳에 작용하는 힘이 막대를 돌립니다.",
     equation: "τ = Iα",
   },
-  pendulum: {
-    title: "진자 운동",
-    description: "중력이 추를 가장 낮은 곳으로 되돌려 왕복 운동을 만듭니다.",
-    equation: "T ≈ 2π√(L/g)",
-  },
   orbit: {
-    title: "만유인력과 궤도",
-    description: "중력이 계속 안쪽으로 당겨 작은 별이 큰 별 주위를 돕니다.",
-    equation: "F = GMm/r²",
+    title: "원운동·만유인력·궤도",
+    description: "중력이 중심 가속도가 되어 작은 별의 속도 방향을 계속 바꿉니다.",
+    equation: "a = v²/r · F = GMm/r²",
   },
   buoyancy: {
     title: "부력",
@@ -90,9 +70,9 @@ const PRESET_GUIDES: Record<PlaygroundPreset, { title: string; description: stri
     equation: "Fᵦ = ρgV",
   },
   constraints: {
-    title: "줄과 막대의 구속",
-    description: "줄과 막대는 물체가 고정점에서 일정한 거리를 유지하게 합니다.",
-    equation: "|A − B| = L",
+    title: "진자와 줄·막대",
+    description: "길이가 고정된 연결 안에서 중력이 추를 왕복 운동하게 합니다.",
+    equation: "|A − B| = L · T ≈ 2π√(L/g)",
   },
   pulley: {
     title: "도르래",
