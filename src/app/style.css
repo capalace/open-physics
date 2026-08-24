@@ -1,0 +1,15 @@
+* { box-sizing: border-box; }
+body { margin: 0; font-family: system-ui, sans-serif; background: #f6f7f9; color: #17191c; }
+header { height: 56px; display: flex; align-items: center; gap: 20px; padding: 0 20px; background: white; border-bottom: 1px solid #ddd; }
+header strong { font-size: 18px; }
+nav { display: flex; gap: 4px; }
+nav button { border: 0; background: transparent; padding: 8px 12px; border-radius: 7px; cursor: pointer; }
+nav button:first-child { background: #17191c; color: white; }
+main { max-width: 1200px; margin: 24px auto; padding: 0 20px; }
+.toolbar { display: flex; gap: 8px; align-items: center; margin-bottom: 12px; }
+button { border: 1px solid #cdd1d6; background: white; border-radius: 7px; padding: 8px 12px; cursor: pointer; }
+button:hover { background: #f0f1f3; }
+canvas { width: 100%; display: block; background: white; border: 1px solid #d9dde2; border-radius: 10px; touch-action: none; }
+.controls { display: flex; gap: 18px; align-items: center; margin-top: 12px; padding: 12px 14px; background: white; border: 1px solid #d9dde2; border-radius: 10px; }
+label { display: flex; gap: 8px; align-items: center; }
+input { width: 90px; }
