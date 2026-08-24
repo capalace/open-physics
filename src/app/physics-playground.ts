@@ -4,6 +4,18 @@ import { PhysicsSimulation } from "../physics/simulation";
 
 export type PlaygroundShape = "circle" | "box";
 export type PlaygroundPreset = "free-fall" | "projectile" | "collision";
+export type PlaygroundMaterial = "rubber" | "wood" | "steel" | "clay";
+
+export const MATERIALS: Readonly<Record<PlaygroundMaterial, {
+  label: string;
+  description: string;
+  restitution: number;
+}>> = {
+  rubber: { label: "고무", description: "잘 튀고 충돌 뒤에도 운동을 많이 유지해요.", restitution: 0.88 },
+  wood: { label: "나무", description: "적당히 튀는 일상적인 움직임을 보여줘요.", restitution: 0.5 },
+  steel: { label: "금속", description: "단단하고 비교적 탄성 있게 충돌해요.", restitution: 0.72 },
+  clay: { label: "점토", description: "충돌 에너지를 흡수해 거의 튀지 않아요.", restitution: 0.08 },
+};
 
 export interface PlaygroundObject {
   id: string;
@@ -15,13 +27,14 @@ export interface PlaygroundObject {
   height: number;
   radius: number;
   color: string;
+  material: PlaygroundMaterial;
 }
 
 export interface PlaygroundObjectOptions {
   label?: string;
   color?: string;
   mass?: number;
-  restitution?: number;
+  material?: PlaygroundMaterial;
   velocity?: Vector2;
 }
 
@@ -39,7 +52,7 @@ export interface PlaygroundSnapshot {
     shape: PlaygroundShape;
     color: string;
     mass: number;
-    restitution: number;
+    material: PlaygroundMaterial;
     height: number;
     velocity: Vector2;
     acceleration: Vector2;
@@ -65,7 +78,7 @@ export interface SelectedObjectUpdate {
   label?: string;
   color?: string;
   mass?: number;
-  restitution?: number;
+  material?: PlaygroundMaterial;
   velocityX?: number;
   velocityY?: number;
 }
@@ -138,6 +151,7 @@ export class PhysicsPlayground {
       height: radius * 2,
       radius,
       color: options.color ?? this.nextColor(),
+      material: options.material ?? "rubber",
     };
     this.addObject(object, options);
     return object;
@@ -155,6 +169,7 @@ export class PhysicsPlayground {
       height,
       radius: Math.min(width, height) / 2,
       color: options.color ?? this.nextColor(),
+      material: options.material ?? "wood",
     };
     this.addObject(object, options);
     return object;
@@ -173,16 +188,16 @@ export class PhysicsPlayground {
 
     if (preset === "free-fall") {
       this.replaceGravity(9.81);
-      this.addCircle(350, 125, 24, { label: "가벼운 공", color: "#5b7cfa", mass: 0.5, restitution: 0.62 });
-      this.addCircle(480, 125, 24, { label: "기준 공", color: "#25a77a", mass: 1, restitution: 0.62 });
-      this.addCircle(610, 125, 24, { label: "무거운 공", color: "#f27a54", mass: 3, restitution: 0.62 });
+      this.addCircle(350, 125, 24, { label: "가벼운 공", color: "#5b7cfa", mass: 0.5, material: "wood" });
+      this.addCircle(480, 125, 24, { label: "기준 공", color: "#25a77a", mass: 1, material: "wood" });
+      this.addCircle(610, 125, 24, { label: "무거운 공", color: "#f27a54", mass: 3, material: "wood" });
     } else if (preset === "projectile") {
       this.replaceGravity(9.81);
       this.addCircle(145, this.floorY - 42, 22, {
         label: "발사체",
         color: "#5b7cfa",
         mass: 1,
-        restitution: 0.68,
+        material: "rubber",
         velocity: { x: 5.6, y: -7.2 },
       });
     } else {
@@ -191,14 +206,14 @@ export class PhysicsPlayground {
         label: "물체 A",
         color: "#5b7cfa",
         mass: 1,
-        restitution: 0.92,
+        material: "rubber",
         velocity: { x: 3.4, y: 0 },
       });
       this.addCircle(675, 300, 40, {
         label: "물체 B",
         color: "#f27a54",
         mass: 2,
-        restitution: 0.92,
+        material: "rubber",
         velocity: { x: -1.7, y: 0 },
       });
     }
@@ -258,8 +273,9 @@ export class PhysicsPlayground {
     if (update.mass !== undefined && Number.isFinite(update.mass)) {
       body.state.mass = Math.max(0.1, Math.min(20, update.mass));
     }
-    if (update.restitution !== undefined && Number.isFinite(update.restitution)) {
-      body.restitution = Math.max(0, Math.min(1, update.restitution));
+    if (update.material !== undefined) {
+      object.material = update.material;
+      body.restitution = MATERIALS[update.material].restitution;
     }
     if (update.velocityX !== undefined && Number.isFinite(update.velocityX)) {
       body.state.velocity.x = update.velocityX * PIXELS_PER_METER;
@@ -287,7 +303,7 @@ export class PhysicsPlayground {
           shape: object.shape,
           color: object.color,
           mass: body.state.mass,
-          restitution: body.restitution ?? 1,
+          material: object.material,
           height: Math.max(0, (this.floorY - body.state.position.y - halfHeight) / PIXELS_PER_METER),
           velocity,
           acceleration,
@@ -318,7 +334,7 @@ export class PhysicsPlayground {
     this.simulation.addBody({
       id: object.id,
       radius: object.radius,
-      restitution: options.restitution ?? (object.shape === "circle" ? 0.72 : 0.48),
+      restitution: MATERIALS[object.material].restitution,
       state: {
         position: { x: object.x, y: object.y },
         velocity: this.toPixels(options.velocity ?? { x: 0, y: 0 }),

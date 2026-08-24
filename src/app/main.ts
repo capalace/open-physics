@@ -1,6 +1,8 @@
 import "./style.css";
 import {
+  MATERIALS,
   PhysicsPlayground,
+  type PlaygroundMaterial,
   type PlaygroundPreset,
   type PlaygroundSnapshot,
 } from "./physics-playground";
@@ -20,7 +22,7 @@ const inspectorEmpty = required<HTMLElement>("#inspector-empty");
 const inspectorForm = required<HTMLFormElement>("#inspector-form");
 const objectLabel = required<HTMLInputElement>("#object-label");
 const objectMass = required<HTMLInputElement>("#object-mass");
-const objectRestitution = required<HTMLInputElement>("#object-restitution");
+const objectMaterial = required<HTMLSelectElement>("#object-material");
 const velocityX = required<HTMLInputElement>("#velocity-x");
 const velocityY = required<HTMLInputElement>("#velocity-y");
 const objectColor = required<HTMLInputElement>("#object-color");
@@ -55,8 +57,8 @@ document.querySelectorAll<HTMLButtonElement>("[data-time-scale]").forEach((butto
 
 objectLabel.addEventListener("change", () => playground.updateSelected({ label: objectLabel.value }));
 objectMass.addEventListener("input", () => playground.updateSelected({ mass: Number(objectMass.value) }));
-objectRestitution.addEventListener("input", () => {
-  playground.updateSelected({ restitution: Number(objectRestitution.value) });
+objectMaterial.addEventListener("change", () => {
+  playground.updateSelected({ material: objectMaterial.value as PlaygroundMaterial });
 });
 velocityX.addEventListener("change", () => {
   playground.updateSelected({ velocityX: Number(velocityX.value) });
@@ -128,7 +130,8 @@ function renderSnapshot(snapshot: PlaygroundSnapshot): void {
 
   syncInput(objectLabel, selected.label);
   syncInput(objectMass, selected.mass.toFixed(1));
-  syncInput(objectRestitution, selected.restitution.toFixed(2));
+  objectMaterial.value = selected.material;
+  required<HTMLElement>("#material-description").textContent = MATERIALS[selected.material].description;
   syncInput(velocityX, selected.velocity.x.toFixed(2));
   syncInput(velocityY, selected.velocity.y.toFixed(2));
   if (document.activeElement !== objectColor) objectColor.value = selected.color;

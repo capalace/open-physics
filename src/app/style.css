@@ -221,9 +221,10 @@ canvas { display: block; width: 100%; height: auto; aspect-ratio: 8 / 5; touch-a
 .field { display: grid; gap: 6px; }
 .field > span, fieldset legend { color: #68758a; font-size: 9px; font-weight: 750; }
 .field small { color: #a2abba; font-weight: 500; }
-.field input { width: 100%; height: 34px; border: 1px solid #d9e0ea; border-radius: 8px; padding: 0 9px; background: #fbfcfe; color: #26334a; font-size: 11px; }
-.field input:focus { border-color: #7892ef; background: white; }
+.field input, .field select { width: 100%; height: 34px; border: 1px solid #d9e0ea; border-radius: 8px; padding: 0 9px; background: #fbfcfe; color: #26334a; font-size: 11px; }
+.field input:focus, .field select:focus { border-color: #7892ef; background: white; }
 .field-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; }
+.material-description { margin: -4px 0 0; border-radius: 8px; padding: 8px 10px; background: #f2f5fb; color: #748197; font-size: 9px; line-height: 1.5; }
 fieldset { margin: 0; border: 0; padding: 2px 0 0; }
 fieldset legend { margin-bottom: 8px; padding: 0; }
 .selection-readouts { display: grid; grid-template-columns: 1fr 1fr; overflow: hidden; border: 1px solid #dfe5ee; border-radius: 10px; }
