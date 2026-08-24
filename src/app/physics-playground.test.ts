@@ -247,6 +247,26 @@ describe("PhysicsPlayground extended mechanics", () => {
 
     expect(lineTo.mock.calls.length).toBeGreaterThan(300);
   });
+
+  it("keeps a hard-thrown spring body from passing through its fixed mount", () => {
+    vi.stubGlobal("requestAnimationFrame", () => 0);
+    const playground = new PhysicsPlayground(createCanvas(), { width: 960, height: 600 });
+    const advance = playground as unknown as { advance(dt: number): void };
+    playground.loadPreset("spring");
+    const object = [...playground.objects.values()][0];
+    const body = playground.simulation.getBody(object.id)!;
+    const anchorX = 960 * 0.22;
+    body.state.position = { x: 900, y: body.state.position.y };
+    body.state.velocity = { x: -430, y: 0 };
+
+    let minimumX = body.state.position.x;
+    for (let frame = 0; frame < 3 * 120; frame += 1) {
+      advance.advance(1 / 120);
+      minimumX = Math.min(minimumX, body.state.position.x);
+    }
+
+    expect(minimumX).toBeGreaterThanOrEqual(anchorX + object.radius);
+  });
 });
 
 describe("PhysicsPlayground canvas sizing", () => {

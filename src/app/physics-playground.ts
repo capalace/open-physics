@@ -89,6 +89,7 @@ const VELOCITY_IDLE_EPSILON = 0.01;
 const VELOCITY_ANGLE_SNAP_RADIANS = 15 * Math.PI / 180;
 const TRAJECTORY_PREVIEW_STEP = 0.08;
 const TRAJECTORY_PREVIEW_STEPS = 45;
+const SPRING_MOUNT_CLEARANCE = 8;
 const COLORS = ["#5b7cfa", "#f27a54", "#25a77a", "#a069dc", "#e2a62b"];
 
 /** Connects browser input and rendering to the renderer-independent physics core. */
@@ -481,7 +482,10 @@ export class PhysicsPlayground {
   }
 
   private advance(dt: number): void {
+    const springBody = this.springLaw ? this.simulation.getBody(this.springLaw.bodyId) : undefined;
+    const springPreviousPosition = springBody ? { ...springBody.state.position } : null;
     this.simulation.step(dt);
+    this.resolveSpringMount(springPreviousPosition);
     this.applyPresetDamping(dt);
     this.resolveWorldBounds();
     this.trailTick += 1;
@@ -499,6 +503,66 @@ export class PhysicsPlayground {
         body.state.velocity = { x: 0, y: 0 };
       }
     }
+  }
+
+  private resolveSpringMount(previousPosition: Vector2 | null): void {
+    const law = this.springLaw;
+    if (!law || !previousPosition) return;
+    const body = this.simulation.getBody(law.bodyId);
+    const object = this.objects.get(law.bodyId);
+    if (!body || !object) return;
+
+    const minimumDistance = object.radius + SPRING_MOUNT_CLEARANCE;
+    const start = {
+      x: previousPosition.x - law.anchor.x,
+      y: previousPosition.y - law.anchor.y,
+    };
+    const end = {
+      x: body.state.position.x - law.anchor.x,
+      y: body.state.position.y - law.anchor.y,
+    };
+    const movement = { x: end.x - start.x, y: end.y - start.y };
+    const endDistance = Math.hypot(end.x, end.y);
+    let normal: Vector2 | null = null;
+
+    if (endDistance < minimumDistance) {
+      const startDistance = Math.hypot(start.x, start.y);
+      const direction = endDistance > 0.0001 ? end : start;
+      const directionLength = endDistance > 0.0001 ? endDistance : startDistance;
+      normal = directionLength > 0.0001
+        ? { x: direction.x / directionLength, y: direction.y / directionLength }
+        : { x: 1, y: 0 };
+    } else {
+      const a = movement.x ** 2 + movement.y ** 2;
+      if (a === 0) return;
+      const b = 2 * (start.x * movement.x + start.y * movement.y);
+      const c = start.x ** 2 + start.y ** 2 - minimumDistance ** 2;
+      const discriminant = b ** 2 - 4 * a * c;
+      if (discriminant < 0) return;
+      const contactTime = (-b - Math.sqrt(discriminant)) / (2 * a);
+      if (contactTime < 0 || contactTime > 1) return;
+      const contact = {
+        x: start.x + movement.x * contactTime,
+        y: start.y + movement.y * contactTime,
+      };
+      const contactLength = Math.hypot(contact.x, contact.y);
+      if (contactLength === 0) return;
+      normal = { x: contact.x / contactLength, y: contact.y / contactLength };
+      if (movement.x * normal.x + movement.y * normal.y >= 0) return;
+    }
+
+    body.state.position = {
+      x: law.anchor.x + normal.x * minimumDistance,
+      y: law.anchor.y + normal.y * minimumDistance,
+    };
+    const inwardSpeed = body.state.velocity.x * normal.x + body.state.velocity.y * normal.y;
+    if (inwardSpeed < 0) {
+      body.state.velocity = {
+        x: body.state.velocity.x - normal.x * inwardSpeed,
+        y: body.state.velocity.y - normal.y * inwardSpeed,
+      };
+    }
+    this.simulation.refreshAccelerations();
   }
 
   private resolveWorldBounds(): void {
@@ -1072,6 +1136,7 @@ export class PhysicsPlayground {
       const object = this.objects.get(this.draggedId);
       const body = this.simulation.getBody(this.draggedId);
       if (!object || !body) return;
+      const previousPosition = { ...body.state.position };
       const halfWidth = object.shape === "circle" ? object.radius : object.width / 2;
       const halfHeight = object.shape === "circle" ? object.radius : object.height / 2;
       body.state.position = {
@@ -1079,6 +1144,7 @@ export class PhysicsPlayground {
         y: Math.max(14 + halfHeight, Math.min(this.floorY - halfHeight, point.y)),
       };
       body.state.velocity = { x: 0, y: 0 };
+      this.resolveSpringMount(previousPosition);
       object.x = body.state.position.x;
       object.y = body.state.position.y;
       this.trails.set(object.id, [{ ...body.state.position }]);
