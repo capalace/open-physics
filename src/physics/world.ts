@@ -6,7 +6,7 @@ export interface Body {
   readonly id: string;
   state: BodyState;
   readonly radius?: number;
-  readonly restitution?: number;
+  restitution?: number;
   readonly fixed?: boolean;
 }
 
@@ -57,6 +57,12 @@ export class MultiBodyWorld {
   get allBodies(): readonly Body[] { return [...this.bodies.values()]; }
   get currentTime(): number { return this.time; }
 
+  clear(): void {
+    this.bodies.clear();
+    this.collisions.length = 0;
+    this.time = 0;
+  }
+
   step(dt: number): void {
     if (dt <= 0) throw new RangeError("Time step must be greater than zero.");
     const context: PhysicsContext = { time: this.time, dt };
@@ -66,12 +72,15 @@ export class MultiBodyWorld {
     this.time += dt;
   }
 
-  /** Advances body states using the configured numerical solver. */
-  protected integrateBodies(dt: number, context: PhysicsContext): void {
+  /** Advances body states using forces evaluated for each body in this world. */
+  protected integrateBodies(_dt: number, context: PhysicsContext): void {
     for (const body of this.allBodies) {
       if (body.fixed) continue;
-      body.state = this.solver.step(body.state, this.laws, context);
-      void dt;
+      const bodyLaws: ForceLaw[] = this.laws.map((law) => ({
+        id: law.id,
+        force: () => law.forceOnBody(body, this.allBodies, context),
+      }));
+      body.state = this.solver.step(body.state, bodyLaws, context);
     }
   }
 
@@ -85,9 +94,17 @@ export class MultiBodyWorld {
       if (distance === 0) continue;
       const error = distance - constraint.distance;
       const normal = normalize(delta);
-      const correction = scale(normal, error * (constraint.stiffness ?? 1) * 0.5);
-      if (!a.fixed) a.state.position = add(a.state.position, correction);
-      if (!b.fixed) b.state.position = sub(b.state.position, correction);
+      const inverseMassA = a.fixed ? 0 : 1 / a.state.mass;
+      const inverseMassB = b.fixed ? 0 : 1 / b.state.mass;
+      const totalInverseMass = inverseMassA + inverseMassB;
+      if (totalInverseMass === 0) continue;
+      const correction = error * (constraint.stiffness ?? 1) / totalInverseMass;
+      if (!a.fixed) {
+        a.state.position = add(a.state.position, scale(normal, correction * inverseMassA));
+      }
+      if (!b.fixed) {
+        b.state.position = sub(b.state.position, scale(normal, correction * inverseMassB));
+      }
     }
   }
 
@@ -108,9 +125,19 @@ export class MultiBodyWorld {
         const relativeVelocity = sub(b.state.velocity, a.state.velocity);
         const normalVelocity = relativeVelocity.x * normal.x + relativeVelocity.y * normal.y;
         const restitution = Math.min(a.restitution ?? 1, b.restitution ?? 1);
+        const inverseMassA = a.fixed ? 0 : 1 / a.state.mass;
+        const inverseMassB = b.fixed ? 0 : 1 / b.state.mass;
+        const totalInverseMass = inverseMassA + inverseMassB;
+
+        // Keep resting or slowly moving contacts from remaining interpenetrated.
+        if (totalInverseMass > 0) {
+          const penetration = radius - distance;
+          const correction = scale(normal, penetration / totalInverseMass);
+          if (!a.fixed) a.state.position = sub(a.state.position, scale(correction, inverseMassA));
+          if (!b.fixed) b.state.position = add(b.state.position, scale(correction, inverseMassB));
+        }
+
         if (normalVelocity < 0) {
-          const inverseMassA = a.fixed ? 0 : 1 / a.state.mass;
-          const inverseMassB = b.fixed ? 0 : 1 / b.state.mass;
           const impulse = -(1 + restitution) * normalVelocity / (inverseMassA + inverseMassB);
           if (!a.fixed) a.state.velocity = sub(a.state.velocity, scale(normal, impulse * inverseMassA));
           if (!b.fixed) b.state.velocity = add(b.state.velocity, scale(normal, impulse * inverseMassB));

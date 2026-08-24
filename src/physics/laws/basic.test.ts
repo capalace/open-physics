@@ -34,7 +34,7 @@ describe("UniformGravity", () => {
 describe("PointGravity", () => {
   it("implements F = Gm₁m₂/r²", () => {
     const result = new PointGravity(4, vec2(3, 0), 10).force(state(), context);
-    expectVector(result.vector, { x: 20 / 9, y: 0 });
+    expectVector(result.vector, { x: 80 / 9, y: 0 });
   });
 
   it("returns zero at coincident positions instead of dividing by zero", () => {

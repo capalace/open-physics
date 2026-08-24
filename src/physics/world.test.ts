@@ -34,4 +34,26 @@ describe("MultiBodyWorld", () => {
     world.step(0.01);
     expect(world.getBody("b")?.state.position.x).toBeCloseTo(2);
   });
+
+  it("separates overlapping bodies even when they are initially at rest", () => {
+    const world = new MultiBodyWorld();
+    world.addBody({ id: "a", radius: 1, state: { position: { x: 0, y: 0 }, velocity: { x: 0, y: 0 }, acceleration: { x: 0, y: 0 }, mass: 1 } });
+    world.addBody({ id: "b", radius: 1, state: { position: { x: 1, y: 0 }, velocity: { x: 0, y: 0 }, acceleration: { x: 0, y: 0 }, mass: 1 } });
+    world.step(0.01);
+
+    const a = world.getBody("a")!;
+    const b = world.getBody("b")!;
+    expect(b.state.position.x - a.state.position.x).toBeCloseTo(2);
+  });
+
+  it("clears bodies, collision history, and simulation time", () => {
+    const world = new MultiBodyWorld();
+    world.addBody({ id: "a", state: { position: { x: 0, y: 0 }, velocity: { x: 0, y: 0 }, acceleration: { x: 0, y: 0 }, mass: 1 } });
+    world.step(0.25);
+    world.clear();
+
+    expect(world.allBodies).toHaveLength(0);
+    expect(world.collisions).toHaveLength(0);
+    expect(world.currentTime).toBe(0);
+  });
 });

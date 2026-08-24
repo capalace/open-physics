@@ -44,7 +44,7 @@ export const harmonicVelocity = (
 
 /** Acceleration: a(t) = -ω²x(t). */
 export const harmonicAcceleration = (displacement: number, omega: number): number =>
-  -omega ** 2 * displacement;
+  -(omega ** 2) * displacement;
 
 export const maximumSpeed = (amplitude: number, omega: number): number =>
   Math.abs(amplitude) * omega;

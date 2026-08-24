@@ -32,8 +32,8 @@ export function resolveCollision2D(input: CollisionInput): { velocityA: Vector2;
   };
   const relativeNormal = relative.x * nx + relative.y * ny;
 
-  // Bodies moving apart need no impulse.
-  if (relativeNormal >= 0) {
+  // With a normal from A to B, a non-positive closing speed means separation.
+  if (relativeNormal <= 0) {
     return { velocityA: { ...input.velocityA }, velocityB: { ...input.velocityB } };
   }
 
