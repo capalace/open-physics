@@ -20,7 +20,7 @@ describe("orbital mechanics", () => {
   });
 
   it("satisfies Kepler's third law", () => {
-    expect(circularOrbitPeriod(4, 4, G)).toBeCloseTo(4 * Math.PI);
-    expect(keplerPeriod(4, 4, 0, G)).toBeCloseTo(4 * Math.PI);
+    expect(circularOrbitPeriod(4, 4, G)).toBeCloseTo(8 * Math.PI);
+    expect(keplerPeriod(4, 4, 0, G)).toBeCloseTo(8 * Math.PI);
   });
 });
