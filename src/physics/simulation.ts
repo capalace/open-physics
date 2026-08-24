@@ -1,13 +1,11 @@
 import type { BodyState, PhysicsContext, Solver, Vector2 } from "./core";
-import { add, eulerSolver, scale } from "./core";
+import { add, eulerSolver } from "./core";
 import type { Force } from "./quantities";
 import type { SpatialField } from "./fields";
 import type { Body, CollisionEvent, DistanceConstraint, WorldForceLaw } from "./world";
 import { MultiBodyWorld } from "./world";
 
-export interface SimulatedBody extends Body {
-  readonly charge?: number;
-}
+export interface SimulatedBody extends Body { readonly charge?: number; }
 
 export interface SimulationConfig {
   laws?: WorldForceLaw[];
@@ -16,7 +14,7 @@ export interface SimulationConfig {
   solver?: Solver;
 }
 
-/** Unified equation-based simulation pipeline used by the interactive world. */
+/** Explicit simulation pipeline: forces -> integration -> constraints -> collisions -> time. */
 export class PhysicsSimulation extends MultiBodyWorld {
   readonly fields: SpatialField[];
 
@@ -25,9 +23,7 @@ export class PhysicsSimulation extends MultiBodyWorld {
     this.fields = config.fields ?? [];
   }
 
-  addField(field: SpatialField): void {
-    this.fields.push(field);
-  }
+  addField(field: SpatialField): void { this.fields.push(field); }
 
   removeField(id: string): boolean {
     const index = this.fields.findIndex((field) => field.id === id);
@@ -39,47 +35,39 @@ export class PhysicsSimulation extends MultiBodyWorld {
   step(dt: number): void {
     if (dt <= 0) throw new RangeError("Time step must be greater than zero.");
     const context: PhysicsContext = { time: this.currentTime, dt };
-    const bodies = this.allBodies as readonly SimulatedBody[];
 
-    for (const body of bodies) {
+    // 1. Evaluate all active equations and fields, then integrate once.
+    for (const body of this.allBodies as readonly SimulatedBody[]) {
       if (body.fixed) continue;
-      let total: Vector2 = { x: 0, y: 0 };
-
-      for (const law of this.laws) {
-        total = add(total, law.forceOnBody(body, bodies, context).vector);
-      }
-      for (const field of this.fields) {
-        total = add(total, field.forceAt(body.state as BodyState & { charge?: number }, context).vector);
-      }
-
-      const acceleration = scale(total, 1 / body.state.mass);
-      body.state = this.solver(body.state, { vector: total, source: "simulation-net" }, dt);
-      body.state = { ...body.state, acceleration };
+      const force = this.totalForce(body, context);
+      body.state = this.solver.step(body.state, [singleForceLaw(force)], context);
     }
 
-    // Collision and constraint resolution remain centralized in the world.
-    super.step(0.0000001);
-    // Undo the tiny integration used by the parent; this call is intentionally
-    // replaced below by direct resolution in future solver implementations.
-    this.rollbackTinyStep(bodies);
-    this.timeAdvance(dt);
+    // 2. Correct geometric constraints after integration.
+    this.resolveConstraints();
+
+    // 3. Resolve contacts/impulses after positions have been integrated.
+    this.resolveCollisions();
+
+    // 4. Advance simulation clock exactly once.
+    this.time += dt;
   }
 
-  private rollbackTinyStep(bodies: readonly SimulatedBody[]): void {
-    // Parent resolution is currently used as the compatibility path.
-    // No-op here; the public state has already been advanced by the configured solver.
-    void bodies;
+  private totalForce(body: SimulatedBody, context: PhysicsContext): Force {
+    let vector: Vector2 = { x: 0, y: 0 };
+    for (const law of this.laws) vector = add(vector, law.forceOnBody(body, this.allBodies, context).vector);
+    for (const field of this.fields) vector = add(vector, field.forceAt(body.state as BodyState & { charge?: number }, context).vector);
+    return { vector, source: "simulation-net" };
   }
 
-  private timeAdvance(dt: number): void {
-    // Access is intentionally isolated so the public world API remains unchanged.
-    (this as unknown as { time: number }).time += dt - 0.0000001;
-  }
-
-  get collisionEvents(): readonly CollisionEvent[] {
-    return this.collisions;
-  }
+  get collisionEvents(): readonly CollisionEvent[] { return this.collisions; }
 }
+
+const singleForceLaw = (force: Force): WorldForceLaw => ({
+  id: "simulation-net-force",
+  force: () => force,
+  forceOnBody: () => force,
+});
 
 export const netFieldForce = (
   fields: readonly SpatialField[],
