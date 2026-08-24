@@ -1,10 +1,12 @@
 /** Physical quantities used by the equation-based physics core. */
 
+import type { BodyState, Vector2 } from "./core";
+
 export type Scalar = number;
 
 export interface Force {
   /** Force vector in newtons. */
-  vector: import("./core").Vector2;
+  vector: Vector2;
   /** Optional identifier for visualization/debugging. */
   readonly source?: string;
 }
@@ -13,13 +15,17 @@ export interface PhysicalConstants {
   readonly gravitationalAcceleration: number;
   readonly gravitationalConstant: number;
   readonly coulombConstant: number;
+  readonly springConstantDefault: number;
+  readonly frictionCoefficientDefault: number;
 }
 
-/** SI constants used by the simplified models. */
+/** SI constants and defaults used by the simplified models. */
 export const SI: PhysicalConstants = Object.freeze({
   gravitationalAcceleration: 9.80665,
   gravitationalConstant: 6.67430e-11,
   coulombConstant: 8.9875517923e9,
+  springConstantDefault: 10,
+  frictionCoefficientDefault: 0.2,
 });
 
 export interface ForceLawContext {
@@ -28,13 +34,13 @@ export interface ForceLawContext {
 }
 
 /** A law produces force; F = ma is applied by the state integrator. */
-export interface ForceLaw<TState = import("./core").BodyState> {
+export interface ForceLaw<TState = BodyState> {
   readonly id: string;
   force(state: TState, context: ForceLawContext): Force;
 }
 
 export function netForce(
-  state: import("./core").BodyState,
+  state: BodyState,
   laws: readonly ForceLaw[],
   context: ForceLawContext,
 ): Force {
@@ -47,21 +53,21 @@ export function netForce(
     y += force.y;
   }
 
-  return {
-    vector: { x, y },
-    source: "net-force",
-  };
+  return { vector: { x, y }, source: "net-force" };
 }
 
 /** Weight: F = mg. Positive gravity points in the supplied direction. */
 export class Weight implements ForceLaw {
-  readonly id = "weight";
+  readonly id = "gravity.uniform";
 
   constructor(
-    public readonly gravity: import("./core").Vector2 = { x: 0, y: -SI.gravitationalAcceleration },
+    public readonly gravity: Vector2 = {
+      x: 0,
+      y: -SI.gravitationalAcceleration,
+    },
   ) {}
 
-  force(state: import("./core").BodyState): Force {
+  force(state: BodyState): Force {
     return {
       vector: {
         x: state.mass * this.gravity.x,
@@ -72,12 +78,6 @@ export class Weight implements ForceLaw {
   }
 }
 
-/** Hook for force laws whose result depends on additional bodies or fields. */
-export interface MultiBodyForceLaw<TState = import("./core").BodyState>
-  extends ForceLaw<TState> {
-  forceOn(
-    state: TState,
-    other: TState,
-    context: ForceLawContext,
-  ): Force;
+export interface MultiBodyForceLaw<TState = BodyState> extends ForceLaw<TState> {
+  forceOn(state: TState, other: TState, context: ForceLawContext): Force;
 }
