@@ -2,9 +2,11 @@
  * Foundational equation-based physics core.
  *
  * This layer intentionally knows nothing about rendering or UI.
- * Physics laws and numerical integration are kept separate so that
- * models can evolve independently from the solver implementation.
+ * Physics laws produce physical quantities and numerical integration
+ * advances the resulting state.
  */
+
+import { Force, ForceLaw, netForce } from "./quantities";
 
 export interface Vector2 {
   x: number;
@@ -45,31 +47,25 @@ export interface PhysicsContext {
   dt: number;
 }
 
-/** A physical law computes an acceleration contribution from the current state. */
-export interface PhysicsLaw {
-  readonly id: string;
-  acceleration(state: BodyState, context: PhysicsContext): Vector2;
-}
-
 export interface Solver {
   readonly id: string;
   step(
     state: BodyState,
-    laws: readonly PhysicsLaw[],
+    laws: readonly ForceLaw[],
     context: PhysicsContext,
   ): BodyState;
 }
 
-/** Sum all acceleration contributions from active laws. */
-export function evaluateAcceleration(
-  state: BodyState,
-  laws: readonly PhysicsLaw[],
-  context: PhysicsContext,
+/** Newton's second law: a = F_net / m. */
+export function accelerationFromForce(
+  force: Force,
+  mass: number,
 ): Vector2 {
-  return laws.reduce(
-    (total, law) => add(total, law.acceleration(state, context)),
-    zero(),
-  );
+  if (mass <= 0) {
+    throw new RangeError("Mass must be greater than zero.");
+  }
+
+  return scale(force.vector, 1 / mass);
 }
 
 /** Basic explicit Euler integrator. */
@@ -77,7 +73,8 @@ export const eulerSolver: Solver = {
   id: "euler",
 
   step(state, laws, context) {
-    const acceleration = evaluateAcceleration(state, laws, context);
+    const force = netForce(state, laws, context);
+    const acceleration = accelerationFromForce(force, state.mass);
 
     return {
       ...state,
@@ -88,26 +85,19 @@ export const eulerSolver: Solver = {
   },
 };
 
-/** Constant/uniform acceleration due to gravity. */
-export class UniformGravity implements PhysicsLaw {
-  readonly id = "uniform-gravity";
-
-  constructor(public readonly gravity: Vector2 = vec2(0, -9.80665)) {}
-
-  acceleration(): Vector2 {
-    return this.gravity;
-  }
-}
-
-/** Hook for combining multiple physical laws into one simulation. */
+/** A world contains state, active force laws, and a numerical solver. */
 export class PhysicsWorld {
   constructor(
     public state: BodyState,
-    public readonly laws: PhysicsLaw[] = [],
+    public readonly laws: ForceLaw[] = [],
     public solver: Solver = eulerSolver,
   ) {}
 
   step(dt: number): void {
+    if (dt <= 0) {
+      throw new RangeError("Time step must be greater than zero.");
+    }
+
     const context: PhysicsContext = {
       time: this.time,
       dt,
