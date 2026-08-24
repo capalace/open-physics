@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Open Physics</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: system-ui, sans-serif; background: #f6f7f9; color: #17191c; }
+    header { height: 56px; display: flex; align-items: center; gap: 20px; padding: 0 20px; background: white; border-bottom: 1px solid #ddd; }
+    header strong { font-size: 18px; }
+    nav { display: flex; gap: 4px; }
+    nav button { border: 0; background: transparent; padding: 8px 12px; border-radius: 7px; cursor: pointer; }
+    nav button:first-child { background: #17191c; color: white; }
+    main { max-width: 1200px; margin: 24px auto; padding: 0 20px; }
+    .toolbar { display: flex; gap: 8px; align-items: center; margin-bottom: 12px; }
+    button { border: 1px solid #cdd1d6; background: white; border-radius: 7px; padding: 8px 12px; cursor: pointer; }
+    button:hover { background: #f0f1f3; }
+    canvas { width: 100%; display: block; background: white; border: 1px solid #d9dde2; border-radius: 10px; touch-action: none; }
+    .controls { display: flex; gap: 18px; align-items: center; margin-top: 12px; padding: 12px 14px; background: white; border: 1px solid #d9dde2; border-radius: 10px; }
+    label { display: flex; gap: 8px; align-items: center; }
+    input { width: 90px; }
+  </style>
+</head>
+<body>
+  <header>
+    <strong>Open Physics</strong>
+    <nav aria-label="물리 영역">
+      <button>역학</button><button>전자기학</button><button>파동</button><button>빛</button><button>열</button><button>현대물리</button>
+    </nav>
+  </header>
+  <main>
+    <div class="toolbar">
+      <button id="play">▶ 실행</button>
+      <button id="reset">↻ 초기화</button>
+      <button id="add-circle">+ 원</button>
+      <button id="add-box">+ 상자</button>
+    </div>
+    <canvas id="physics-canvas" width="960" height="600"></canvas>
+    <div class="controls">
+      <label>중력 <input id="gravity" type="number" value="9.8" step="0.1" /> m/s²</label>
+      <span>객체를 직접 드래그할 수 있습니다.</span>
+    </div>
+  </main>
+  <script type="module" src="/src/app/main.ts"></script>
+</body>
+</html>
