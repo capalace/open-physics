@@ -34,9 +34,9 @@ const normalize = (v: Vector2): Vector2 => {
   return length === 0 ? { x: 1, y: 0 } : scale(v, 1 / length);
 };
 
-/** A small 2D multi-body world for educational, equation-based simulation. */
+/** A 2D multi-body world for educational, equation-based simulation. */
 export class MultiBodyWorld {
-  private time = 0;
+  protected time = 0;
   private readonly bodies = new Map<string, Body>();
   readonly collisions: CollisionEvent[] = [];
 
@@ -52,57 +52,30 @@ export class MultiBodyWorld {
     this.bodies.set(body.id, body);
   }
 
-  removeBody(id: string): boolean {
-    return this.bodies.delete(id);
-  }
-
-  getBody(id: string): Body | undefined {
-    return this.bodies.get(id);
-  }
-
-  get allBodies(): readonly Body[] {
-    return [...this.bodies.values()];
-  }
-
-  get currentTime(): number {
-    return this.time;
-  }
+  removeBody(id: string): boolean { return this.bodies.delete(id); }
+  getBody(id: string): Body | undefined { return this.bodies.get(id); }
+  get allBodies(): readonly Body[] { return [...this.bodies.values()]; }
+  get currentTime(): number { return this.time; }
 
   step(dt: number): void {
     if (dt <= 0) throw new RangeError("Time step must be greater than zero.");
     const context: PhysicsContext = { time: this.time, dt };
-    const bodies = this.allBodies;
-
-    const nextStates = new Map<string, BodyState>();
-    for (const body of bodies) {
-      if (body.fixed) {
-        nextStates.set(body.id, body.state);
-        continue;
-      }
-      let total: Force = { vector: { x: 0, y: 0 }, source: "world" };
-      for (const law of this.laws) {
-        const force = law.forceOnBody(body, bodies, context).vector;
-        total = { vector: add(total.vector, force), source: "world-net" };
-      }
-      const acceleration = scale(total.vector, 1 / body.state.mass);
-      nextStates.set(body.id, {
-        ...body.state,
-        acceleration,
-        position: add(body.state.position, scale(body.state.velocity, dt)),
-        velocity: add(body.state.velocity, scale(acceleration, dt)),
-      });
-    }
-
-    for (const body of bodies) {
-      body.state = nextStates.get(body.id)!;
-    }
-
+    this.integrateBodies(dt, context);
     this.resolveConstraints();
     this.resolveCollisions();
     this.time += dt;
   }
 
-  private resolveConstraints(): void {
+  /** Advances body states using the configured numerical solver. */
+  protected integrateBodies(dt: number, context: PhysicsContext): void {
+    for (const body of this.allBodies) {
+      if (body.fixed) continue;
+      body.state = this.solver.step(body.state, this.laws, context);
+      void dt;
+    }
+  }
+
+  protected resolveConstraints(): void {
     for (const constraint of this.constraints) {
       const a = this.bodies.get(constraint.bodyA);
       const b = this.bodies.get(constraint.bodyB);
@@ -118,7 +91,7 @@ export class MultiBodyWorld {
     }
   }
 
-  private resolveCollisions(): void {
+  protected resolveCollisions(): void {
     this.collisions.length = 0;
     const bodies = this.allBodies;
     for (let i = 0; i < bodies.length; i += 1) {
