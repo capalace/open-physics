@@ -173,6 +173,27 @@ describe("PhysicsPlayground gravity visualization", () => {
   });
 });
 
+describe("PhysicsPlayground canvas sizing", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("expands the world while keeping objects in the same relative place", () => {
+    vi.stubGlobal("requestAnimationFrame", () => 0);
+    const playground = new PhysicsPlayground(createCanvas(), { width: 960, height: 600 });
+    const object = playground.addCircle(480, playground.floorY - 25, 25);
+    const resize = playground as unknown as { resizeWorld(width: number, height: number): void };
+
+    resize.resizeWorld(1440, 800);
+
+    const body = playground.simulation.getBody(object.id)!;
+    expect(playground.canvas.width).toBe(1440);
+    expect(playground.canvas.height).toBe(800);
+    expect(body.state.position.x).toBeCloseTo(720);
+    expect(body.state.position.y).toBeCloseTo(playground.floorY - 25);
+    expect(object.x).toBeCloseTo(body.state.position.x);
+    expect(object.y).toBeCloseTo(body.state.position.y);
+  });
+});
+
 describe("PhysicsPlayground selection", () => {
   afterEach(() => vi.unstubAllGlobals());
 

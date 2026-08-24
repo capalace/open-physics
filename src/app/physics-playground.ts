@@ -335,6 +335,7 @@ export class PhysicsPlayground {
   }
 
   private frame(time: number): void {
+    this.resizeToDisplaySize();
     const elapsed = Math.min((time - this.lastFrame) / 1000 || 0, 0.05);
     this.lastFrame = time;
 
@@ -355,6 +356,55 @@ export class PhysicsPlayground {
       this.notify();
     }
     requestAnimationFrame((next) => this.frame(next));
+  }
+
+  private resizeToDisplaySize(): void {
+    if (typeof this.canvas.getBoundingClientRect !== "function") return;
+    const rect = this.canvas.getBoundingClientRect();
+    const width = Math.round(rect.width);
+    const height = Math.round(rect.height);
+    if (width <= 0 || height <= FLOOR_HEIGHT || (width === this.canvas.width && height === this.canvas.height)) return;
+    this.resizeWorld(width, height);
+  }
+
+  private resizeWorld(width: number, height: number): void {
+    const previousWidth = this.canvas.width;
+    const previousFloorY = this.floorY;
+    const nextFloorY = height - FLOOR_HEIGHT;
+
+    for (const [id, object] of this.objects) {
+      const body = this.simulation.getBody(id);
+      if (!body) continue;
+      const halfWidth = object.shape === "circle" ? object.radius : object.width / 2;
+      const halfHeight = object.shape === "circle" ? object.radius : object.height / 2;
+      body.state.position = {
+        x: this.scaleBetweenBounds(
+          body.state.position.x,
+          14 + halfWidth,
+          previousWidth - 14 - halfWidth,
+          14 + halfWidth,
+          width - 14 - halfWidth,
+        ),
+        y: this.scaleBetweenBounds(
+          body.state.position.y,
+          14 + halfHeight,
+          previousFloorY - halfHeight,
+          14 + halfHeight,
+          nextFloorY - halfHeight,
+        ),
+      };
+    }
+
+    this.canvas.width = width;
+    this.canvas.height = height;
+    this.syncObjects();
+    this.clearTrails();
+  }
+
+  private scaleBetweenBounds(value: number, oldMin: number, oldMax: number, nextMin: number, nextMax: number): number {
+    if (oldMax <= oldMin || nextMax <= nextMin) return nextMin;
+    const ratio = Math.max(0, Math.min(1, (value - oldMin) / (oldMax - oldMin)));
+    return nextMin + ratio * (nextMax - nextMin);
   }
 
   private advance(dt: number): void {

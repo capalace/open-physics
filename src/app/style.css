@@ -27,7 +27,7 @@ button:focus-visible, input:focus-visible { outline: 3px solid #91a8ff; outline-
   z-index: 20;
   top: 0;
   display: grid;
-  grid-template-columns: 250px 1fr auto;
+  grid-template-columns: 250px 1fr 250px;
   align-items: center;
   min-height: 68px;
   padding: 0 24px;
@@ -74,13 +74,10 @@ button:focus-visible, input:focus-visible { outline: 3px solid #91a8ff; outline-
 }
 .subject-nav button.is-active { background: var(--ink); color: white; box-shadow: 0 5px 12px #1d294024; }
 .subject-nav button:disabled { opacity: .42; cursor: not-allowed; }
-.header-meta { display: flex; align-items: center; gap: 9px; color: #8793a6; font-size: 13px; font-weight: 600; }
-.header-meta b { border: 1px solid #cfd8e7; border-radius: 999px; padding: 4px 7px; color: #4d5c74; font-size: 12px; letter-spacing: .08em; }
-
 .app-layout {
   display: grid;
   grid-template-columns: 246px minmax(500px, 1fr) 286px;
-  width: min(1600px, 100%);
+  width: 100%;
   min-height: calc(100vh - 68px);
   margin: 0 auto;
 }
@@ -296,11 +293,18 @@ canvas { display: block; width: 100%; height: auto; aspect-ratio: 8 / 5; touch-a
 .trail-icon::after { position: absolute; top: 8px; left: 3px; width: 12px; border-top: 2px dashed #8391a6; content: ""; transform: rotate(-20deg); }
 .vector-icon::after { position: absolute; top: 8px; left: 3px; width: 11px; border-top: 2px solid #8391a6; content: ""; transform: rotate(-28deg); }
 
+@media (min-width: 941px) {
+  .app-layout { height: calc(100vh - 68px); min-height: 0; }
+  .panel { overflow-y: auto; }
+  .workspace { display: flex; min-height: 0; flex-direction: column; }
+  .canvas-frame { min-height: 0; flex: 1; }
+  canvas { width: 100%; height: 100%; aspect-ratio: auto; }
+}
+
 @media (max-width: 1180px) {
   .app-layout { grid-template-columns: 220px minmax(480px, 1fr) 260px; }
   .workspace { padding: 16px; }
-  .header-meta { display: none; }
-  .topbar { grid-template-columns: 220px 1fr; }
+  .topbar { grid-template-columns: 220px 1fr 220px; }
 }
 @media (max-width: 940px) {
   .topbar { position: static; grid-template-columns: 1fr; gap: 12px; padding: 14px 18px; }
