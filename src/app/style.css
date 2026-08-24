@@ -277,6 +277,11 @@ canvas { display: block; width: 100%; height: auto; aspect-ratio: 8 / 5; touch-a
 .gravity-options button:hover { border-color: #b8c8f5; }
 .gravity-options button.is-active { border-color: var(--accent); background: #eef3ff; color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
 .visualization-section { margin-top: 22px; }
+.vector-terms { display: grid; gap: 7px; margin: 0 0 11px; }
+.vector-terms > div { border: 1px solid #e2e7ef; border-radius: 9px; padding: 8px; background: #fafbfd; }
+.vector-terms dt { display: flex; align-items: center; gap: 6px; color: #46536a; font-size: 10px; font-weight: 800; }
+.vector-terms dd { margin: 4px 0 0 16px; color: #7c889a; font-size: 8px; line-height: 1.55; }
+.vector-term-key { display: inline-block; width: 10px; height: 3px; border-radius: 999px; }
 .toggle-row { display: flex; align-items: center; justify-content: space-between; min-height: 37px; cursor: pointer; }
 .toggle-row > span { display: flex; align-items: center; gap: 8px; }
 .toggle-row strong { color: #59667a; font-size: 10px; }

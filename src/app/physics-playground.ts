@@ -621,7 +621,7 @@ export class PhysicsPlayground {
     ctx.stroke();
     ctx.fillStyle = "#7257d5";
     ctx.font = "700 12px Inter, system-ui, sans-serif";
-    ctx.fillText(idle ? "끌어서 움직이기" : "운동", endX + 11, endY - 10);
+    ctx.fillText(idle ? "끌어서 속도 설정" : "속도", endX + 11, endY - 10);
     ctx.restore();
   }
 

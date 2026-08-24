@@ -84,8 +84,8 @@
         <canvas id="physics-canvas" width="960" height="600">브라우저가 Canvas를 지원하지 않습니다.</canvas>
         <div class="canvas-badge">2D 실험 공간</div>
         <div class="canvas-legend">
-          <span><i class="velocity-key"></i>화살표 끝을 끌어 운동 설정</span>
-          <span><i class="acceleration-key"></i>가속도 방향</span>
+          <span><i class="velocity-key"></i>속도 · 드래그 가능</span>
+          <span><i class="acceleration-key"></i>가속도 · 관찰</span>
           <span>드래그하여 위치 변경</span>
         </div>
       </div>
@@ -153,7 +153,17 @@
       </section>
 
       <section class="visualization-section">
-        <div class="section-heading"><h2>표시 옵션</h2></div>
+        <div class="section-heading"><h2>화살표와 표시</h2></div>
+        <dl class="vector-terms">
+          <div>
+            <dt><i class="vector-term-key velocity-key"></i>속도</dt>
+            <dd>지금 움직이는 방향과 빠르기입니다. 보라색 끝을 끌어 바꿀 수 있어요.</dd>
+          </div>
+          <div>
+            <dt><i class="vector-term-key acceleration-key"></i>가속도</dt>
+            <dd>속도가 얼마나, 어느 방향으로 바뀌는지 보여줍니다. 중력이 있으면 아래를 가리켜요.</dd>
+          </div>
+        </dl>
         <label class="toggle-row"><span><i class="grid-icon"></i><strong>격자</strong></span><input id="show-grid" type="checkbox" checked /><i class="switch"></i></label>
         <label class="toggle-row"><span><i class="trail-icon"></i><strong>이동 경로</strong></span><input id="show-trails" type="checkbox" checked /><i class="switch"></i></label>
         <label class="toggle-row"><span><i class="vector-icon"></i><strong>방향 표시</strong></span><input id="show-vectors" type="checkbox" checked /><i class="switch"></i></label>
