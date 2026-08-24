@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import type { Body } from "../world";
-import { AnchoredSpringLaw, HorizontalSurfaceFrictionLaw } from "./world-mechanics";
+import {
+  AnchoredSpringLaw,
+  BuoyancyRegionLaw,
+  HorizontalSurfaceFrictionLaw,
+} from "./world-mechanics";
 
 const context = { time: 0, dt: 0.1 };
 const body = (overrides: Partial<Body> = {}): Body => ({
@@ -92,5 +96,35 @@ describe("HorizontalSurfaceFrictionLaw", () => {
     moving.state.velocity.x = 0.1;
 
     expect(law.forceOnBody(moving, [], context).vector.x).toBe(-2);
+  });
+});
+
+describe("BuoyancyRegionLaw", () => {
+  it("increases upward buoyancy as more of the body is submerged", () => {
+    const law = new BuoyancyRegionLaw({
+      bodyId: "target",
+      waterline: 80,
+      displacedMass: 3,
+      gravityAcceleration: 10,
+      drag: 0,
+    });
+    const halfSubmerged = body();
+    halfSubmerged.state.position.y = 80;
+    const fullySubmerged = body();
+    fullySubmerged.state.position.y = 90;
+
+    expect(law.forceOnBody(halfSubmerged, [], context).vector.y).toBe(-15);
+    expect(law.forceOnBody(fullySubmerged, [], context).vector.y).toBe(-30);
+  });
+
+  it("applies no buoyancy above the waterline", () => {
+    const law = new BuoyancyRegionLaw({
+      bodyId: "target",
+      waterline: 120,
+      displacedMass: 3,
+      gravityAcceleration: 10,
+    });
+
+    expect(law.forceOnBody(body(), [], context).vector).toEqual({ x: 0, y: 0 });
   });
 });

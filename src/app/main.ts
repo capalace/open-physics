@@ -44,6 +44,16 @@ const PRESET_GUIDES: Record<PlaygroundPreset, { title: string; description: stri
     description: "물체가 부딪히면 질량과 속도에 따라 움직임을 서로 주고받습니다.",
     equation: "p = mv",
   },
+  momentum: {
+    title: "운동량과 충격량",
+    description: "충돌하는 짧은 순간의 힘이 물체의 운동량을 바꿉니다.",
+    equation: "J = Δp",
+  },
+  energy: {
+    title: "일과 에너지",
+    description: "용수철에 저장된 에너지와 움직임 에너지가 서로 바뀝니다.",
+    equation: "E = ½mv² + ½kx²",
+  },
   spring: {
     title: "용수철 힘",
     description: "용수철은 제자리에서 멀어진 만큼 더 세게 되돌려 보냅니다.",
@@ -53,6 +63,41 @@ const PRESET_GUIDES: Record<PlaygroundPreset, { title: string; description: stri
     title: "마찰력",
     description: "마찰력은 움직이는 반대 방향으로 작용해 물체를 천천히 멈춥니다.",
     equation: "F = μN",
+  },
+  circular: {
+    title: "원운동",
+    description: "속도 방향은 계속 바뀌고, 가속도는 원의 중심을 향합니다.",
+    equation: "a = v²/r",
+  },
+  rotation: {
+    title: "회전과 토크",
+    description: "회전축에서 떨어진 곳에 작용하는 힘이 막대를 돌립니다.",
+    equation: "τ = Iα",
+  },
+  pendulum: {
+    title: "진자 운동",
+    description: "중력이 추를 가장 낮은 곳으로 되돌려 왕복 운동을 만듭니다.",
+    equation: "T ≈ 2π√(L/g)",
+  },
+  orbit: {
+    title: "만유인력과 궤도",
+    description: "중력이 계속 안쪽으로 당겨 작은 별이 큰 별 주위를 돕니다.",
+    equation: "F = GMm/r²",
+  },
+  buoyancy: {
+    title: "부력",
+    description: "물에 잠긴 부피가 커질수록 위로 미는 힘이 커집니다.",
+    equation: "Fᵦ = ρgV",
+  },
+  constraints: {
+    title: "줄과 막대의 구속",
+    description: "줄과 막대는 물체가 고정점에서 일정한 거리를 유지하게 합니다.",
+    equation: "|A − B| = L",
+  },
+  pulley: {
+    title: "도르래",
+    description: "줄로 연결된 두 추는 같은 거리만큼 반대 방향으로 움직입니다.",
+    equation: "a = g(m₂−m₁)/(m₁+m₂)",
   },
 };
 

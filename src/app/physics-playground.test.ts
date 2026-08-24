@@ -267,6 +267,115 @@ describe("PhysicsPlayground extended mechanics", () => {
 
     expect(minimumX).toBeGreaterThanOrEqual(anchorX + object.radius);
   });
+
+  it("provides every mechanics quick start as a working initial state", () => {
+    vi.stubGlobal("requestAnimationFrame", () => 0);
+    const playground = new PhysicsPlayground(createCanvas(), { width: 960, height: 600 });
+    const presets = [
+      "free-fall", "projectile", "collision", "momentum", "energy", "spring", "friction",
+      "circular", "rotation", "pendulum", "orbit", "buoyancy", "constraints", "pulley",
+    ] as const;
+
+    for (const preset of presets) {
+      playground.loadPreset(preset);
+      expect(playground.snapshot().preset).toBe(preset);
+      expect(playground.objects.size).toBeGreaterThan(0);
+      expect(playground.simulation.allBodies.length).toBe(playground.objects.size);
+    }
+  });
+
+  it("keeps circular motion on its guide while acceleration points inward", () => {
+    vi.stubGlobal("requestAnimationFrame", () => 0);
+    const playground = new PhysicsPlayground(createCanvas(), { width: 960, height: 600 });
+    const advance = playground as unknown as { advance(dt: number): void };
+    playground.loadPreset("circular");
+    const body = playground.simulation.allBodies[0];
+    const center = { x: 480, y: playground.floorY * 0.5 };
+    const initialRadius = Math.hypot(body.state.position.x - center.x, body.state.position.y - center.y);
+
+    for (let frame = 0; frame < 240; frame += 1) advance.advance(1 / 120);
+
+    const radial = {
+      x: body.state.position.x - center.x,
+      y: body.state.position.y - center.y,
+    };
+    expect(Math.hypot(radial.x, radial.y)).toBeCloseTo(initialRadius, 4);
+    expect(radial.x * body.state.acceleration.x + radial.y * body.state.acceleration.y).toBeLessThan(0);
+  });
+
+  it("swings a pendulum while preserving the rope length", () => {
+    vi.stubGlobal("requestAnimationFrame", () => 0);
+    const playground = new PhysicsPlayground(createCanvas(), { width: 960, height: 600 });
+    const advance = playground as unknown as { advance(dt: number): void };
+    playground.loadPreset("pendulum");
+    const body = playground.simulation.allBodies[0];
+    const anchor = { x: 480, y: 105 };
+    const initialX = body.state.position.x;
+    const length = Math.hypot(body.state.position.x - anchor.x, body.state.position.y - anchor.y);
+
+    for (let frame = 0; frame < 120; frame += 1) advance.advance(1 / 120);
+
+    expect(body.state.position.x).not.toBeCloseTo(initialX);
+    expect(Math.hypot(body.state.position.x - anchor.x, body.state.position.y - anchor.y)).toBeCloseTo(length, 4);
+  });
+
+  it("moves the heavier pulley weight down by the same distance the light weight rises", () => {
+    vi.stubGlobal("requestAnimationFrame", () => 0);
+    const playground = new PhysicsPlayground(createCanvas(), { width: 960, height: 600 });
+    const advance = playground as unknown as { advance(dt: number): void };
+    playground.loadPreset("pulley");
+    const [left, right] = playground.simulation.allBodies;
+    const leftStart = left.state.position.y;
+    const rightStart = right.state.position.y;
+
+    for (let frame = 0; frame < 60; frame += 1) advance.advance(1 / 120);
+
+    expect(left.state.position.y).toBeLessThan(leftStart);
+    expect(right.state.position.y).toBeGreaterThan(rightStart);
+    expect(leftStart - left.state.position.y).toBeCloseTo(right.state.position.y - rightStart, 4);
+  });
+
+  it("keeps rope and rod bobs at their fixed constraint lengths", () => {
+    vi.stubGlobal("requestAnimationFrame", () => 0);
+    const playground = new PhysicsPlayground(createCanvas(), { width: 960, height: 600 });
+    const advance = playground as unknown as { advance(dt: number): void };
+    playground.loadPreset("constraints");
+    const [ropeBody, rodBody] = playground.simulation.allBodies;
+    const anchors = [{ x: 960 * 0.34, y: 105 }, { x: 960 * 0.68, y: 105 }];
+    const lengths = [ropeBody, rodBody].map((body, index) =>
+      Math.hypot(body.state.position.x - anchors[index].x, body.state.position.y - anchors[index].y));
+
+    for (let frame = 0; frame < 240; frame += 1) advance.advance(1 / 120);
+
+    expect(Math.hypot(ropeBody.state.position.x - anchors[0].x, ropeBody.state.position.y - anchors[0].y)).toBeCloseTo(lengths[0], 4);
+    expect(Math.hypot(rodBody.state.position.x - anchors[1].x, rodBody.state.position.y - anchors[1].y)).toBeCloseTo(lengths[1], 4);
+  });
+
+  it("applies upward buoyancy to a submerged object", () => {
+    vi.stubGlobal("requestAnimationFrame", () => 0);
+    const playground = new PhysicsPlayground(createCanvas(), { width: 960, height: 600 });
+    playground.loadPreset("buoyancy");
+    const body = playground.simulation.allBodies[0];
+    body.state.position.y = playground.floorY * 0.4 + 40;
+    playground.simulation.refreshAccelerations();
+
+    expect(body.state.acceleration.y).toBeLessThan(0);
+  });
+
+  it("maintains a near-circular orbit under point gravity", () => {
+    vi.stubGlobal("requestAnimationFrame", () => 0);
+    const playground = new PhysicsPlayground(createCanvas(), { width: 960, height: 600 });
+    const advance = playground as unknown as { advance(dt: number): void };
+    playground.loadPreset("orbit");
+    const orbiting = playground.simulation.allBodies.find((body) => !body.fixed)!;
+    const center = playground.simulation.allBodies.find((body) => body.fixed)!.state.position;
+    const radius = Math.hypot(orbiting.state.position.x - center.x, orbiting.state.position.y - center.y);
+
+    for (let frame = 0; frame < 4 * 120; frame += 1) advance.advance(1 / 120);
+
+    const nextRadius = Math.hypot(orbiting.state.position.x - center.x, orbiting.state.position.y - center.y);
+    expect(Math.abs(nextRadius - radius) / radius).toBeLessThan(0.06);
+  });
 });
 
 describe("PhysicsPlayground canvas sizing", () => {

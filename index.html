@@ -25,15 +25,10 @@
 
   <main class="app-layout">
     <aside id="experiment-panel" class="panel experiment-panel" aria-label="빠른 시작과 사용법">
-      <div class="panel-heading">
-        <span class="eyebrow">PHYSICS WORLD</span>
-        <h1>하나의 월드에서<br />직접 움직여 보세요</h1>
-        <p>빠른 시작은 물체와 조건만 준비합니다. 이후에는 모두 자유롭게 바꿀 수 있어요.</p>
-      </div>
-
       <section class="panel-section quick-start-section">
         <div class="section-heading"><h2>빠른 시작</h2><span>시작 상태</span></div>
         <div class="quick-start-list">
+          <span class="topic-label">움직임과 힘</span>
           <button class="quick-start" type="button" data-preset="free-fall">
             <span class="preset-icon blue">↓</span>
             <strong>떨어뜨려 보기</strong>
@@ -46,6 +41,14 @@
             <span class="preset-icon orange">⇄</span>
             <strong>부딪혀 보기</strong>
           </button>
+          <button class="quick-start" type="button" data-preset="momentum">
+            <span class="preset-icon blue">→</span>
+            <strong>운동량</strong>
+          </button>
+          <button class="quick-start" type="button" data-preset="energy">
+            <span class="preset-icon purple">E</span>
+            <strong>에너지</strong>
+          </button>
           <button class="quick-start" type="button" data-preset="spring">
             <span class="preset-icon purple">⌁</span>
             <strong>용수철 당기기</strong>
@@ -53,6 +56,36 @@
           <button class="quick-start" type="button" data-preset="friction">
             <span class="preset-icon gold">▰</span>
             <strong>미끄러뜨리기</strong>
+          </button>
+          <span class="topic-label">회전과 연결</span>
+          <button class="quick-start" type="button" data-preset="circular">
+            <span class="preset-icon green">↻</span>
+            <strong>원운동</strong>
+          </button>
+          <button class="quick-start" type="button" data-preset="rotation">
+            <span class="preset-icon orange">⚖</span>
+            <strong>회전·토크</strong>
+          </button>
+          <button class="quick-start" type="button" data-preset="pendulum">
+            <span class="preset-icon purple">⌄</span>
+            <strong>진자</strong>
+          </button>
+          <button class="quick-start" type="button" data-preset="constraints">
+            <span class="preset-icon green">╱</span>
+            <strong>줄·막대</strong>
+          </button>
+          <button class="quick-start" type="button" data-preset="pulley">
+            <span class="preset-icon gold">◉</span>
+            <strong>도르래</strong>
+          </button>
+          <span class="topic-label">중력과 유체</span>
+          <button class="quick-start" type="button" data-preset="orbit">
+            <span class="preset-icon blue">◎</span>
+            <strong>궤도</strong>
+          </button>
+          <button class="quick-start" type="button" data-preset="buoyancy">
+            <span class="preset-icon blue">≈</span>
+            <strong>부력</strong>
           </button>
         </div>
         <div class="law-note" aria-live="polite">

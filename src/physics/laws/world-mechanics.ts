@@ -132,3 +132,65 @@ export class HorizontalSurfaceFrictionLaw implements WorldForceLaw {
     if (this.contactTolerance < 0) throw new RangeError("Contact tolerance must be non-negative.");
   }
 }
+
+export interface BuoyancyRegionOptions {
+  bodyId: string;
+  waterline: number;
+  displacedMass: number;
+  gravityAcceleration: number;
+  drag?: number;
+}
+
+/** Archimedes buoyancy for a circular body entering a horizontal fluid region. */
+export class BuoyancyRegionLaw implements WorldForceLaw {
+  readonly id: string;
+  readonly bodyId: string;
+  waterline: number;
+  displacedMass: number;
+  gravityAcceleration: number;
+  drag: number;
+
+  constructor(options: BuoyancyRegionOptions) {
+    this.bodyId = options.bodyId;
+    this.id = `fluid.buoyancy.${options.bodyId}`;
+    this.waterline = options.waterline;
+    this.displacedMass = options.displacedMass;
+    this.gravityAcceleration = options.gravityAcceleration;
+    this.drag = options.drag ?? 1.8;
+    this.validate();
+  }
+
+  setWaterline(waterline: number): void { this.waterline = waterline; }
+  setGravityAcceleration(value: number): void {
+    this.gravityAcceleration = value;
+    this.validate();
+  }
+
+  force(state: BodyState, _context: PhysicsContext): Force {
+    return zeroForce(this.id);
+  }
+
+  forceOnBody(body: Body, _bodies: readonly Body[], _context: PhysicsContext): Force {
+    if (body.id !== this.bodyId || !body.radius) return zeroForce(this.id);
+    const submergedFraction = Math.max(0, Math.min(
+      1,
+      (body.state.position.y + body.radius - this.waterline) / (body.radius * 2),
+    ));
+    if (submergedFraction === 0) return zeroForce(this.id);
+    const dragFactor = this.drag * submergedFraction * body.state.mass;
+    const buoyantForce = this.displacedMass * this.gravityAcceleration * submergedFraction;
+    return {
+      vector: {
+        x: -body.state.velocity.x * dragFactor,
+        y: -buoyantForce - body.state.velocity.y * dragFactor,
+      },
+      source: this.id,
+    };
+  }
+
+  private validate(): void {
+    if (this.displacedMass <= 0) throw new RangeError("Displaced mass must be greater than zero.");
+    if (this.gravityAcceleration < 0) throw new RangeError("Gravity acceleration must be non-negative.");
+    if (this.drag < 0) throw new RangeError("Fluid drag must be non-negative.");
+  }
+}

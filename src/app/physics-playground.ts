@@ -1,13 +1,35 @@
 import type { Vector2 } from "../physics/core";
-import { UniformGravityField } from "../physics/fields";
+import { PointGravityField, UniformGravityField } from "../physics/fields";
 import {
   AnchoredSpringLaw,
+  BuoyancyRegionLaw,
   HorizontalSurfaceFrictionLaw,
 } from "../physics/laws/world-mechanics";
 import { PhysicsSimulation } from "../physics/simulation";
+import {
+  CircularMotionModel,
+  PendulumModel,
+  PulleyModel,
+  RotationBalanceModel,
+  type KinematicPose,
+} from "./mechanics-scenes";
 
 export type PlaygroundShape = "circle" | "box";
-export type PlaygroundPreset = "free-fall" | "projectile" | "collision" | "spring" | "friction";
+export type PlaygroundPreset =
+  | "free-fall"
+  | "projectile"
+  | "collision"
+  | "momentum"
+  | "energy"
+  | "spring"
+  | "friction"
+  | "circular"
+  | "rotation"
+  | "pendulum"
+  | "orbit"
+  | "buoyancy"
+  | "constraints"
+  | "pulley";
 export type PlaygroundMaterial = "rubber" | "wood" | "steel" | "clay";
 
 export const MATERIALS: Readonly<Record<PlaygroundMaterial, {
@@ -39,6 +61,7 @@ export interface PlaygroundObjectOptions {
   mass?: number;
   material?: PlaygroundMaterial;
   velocity?: Vector2;
+  fixed?: boolean;
 }
 
 export interface PlaygroundSnapshot {
@@ -92,6 +115,36 @@ const TRAJECTORY_PREVIEW_STEPS = 45;
 const SPRING_MOUNT_CLEARANCE = 8;
 const COLORS = ["#5b7cfa", "#f27a54", "#25a77a", "#a069dc", "#e2a62b"];
 
+type GuidedMechanicsScene =
+  | { kind: "circular"; bodyId: string; model: CircularMotionModel }
+  | { kind: "pendulum"; bodyId: string; model: PendulumModel }
+  | {
+    kind: "rotation";
+    leftId: string;
+    rightId: string;
+    model: RotationBalanceModel;
+  }
+  | {
+    kind: "constraints";
+    ropeId: string;
+    rodId: string;
+    rope: PendulumModel;
+    rod: PendulumModel;
+  }
+  | {
+    kind: "pulley";
+    leftId: string;
+    rightId: string;
+    model: PulleyModel;
+  };
+
+interface OrbitExperiment {
+  field: PointGravityField;
+  centerId: string;
+  bodyId: string;
+  guideRadius: number;
+}
+
 /** Connects browser input and rendering to the renderer-independent physics core. */
 export class PhysicsPlayground {
   readonly canvas: HTMLCanvasElement;
@@ -117,6 +170,10 @@ export class PhysicsPlayground {
   private readonly trails = new Map<string, Vector2[]>();
   private springLaw: AnchoredSpringLaw | null = null;
   private frictionLaw: HorizontalSurfaceFrictionLaw | null = null;
+  private buoyancyLaw: BuoyancyRegionLaw | null = null;
+  private guidedScene: GuidedMechanicsScene | null = null;
+  private orbitExperiment: OrbitExperiment | null = null;
+  private impulseFlash = 0;
 
   constructor(canvas: HTMLCanvasElement, options: PlaygroundOptions = {}) {
     this.canvas = canvas;
@@ -227,12 +284,27 @@ export class PhysicsPlayground {
         material: "rubber",
         velocity: { x: -1.7, y: 0 },
       });
-    } else if (preset === "spring") {
+    } else if (preset === "momentum") {
+      this.replaceGravity(0);
+      this.addCircle(270, this.floorY * 0.52, 30, {
+        label: "빠른 공",
+        color: "#5b7cfa",
+        mass: 1,
+        material: "rubber",
+        velocity: { x: 5, y: 0 },
+      });
+      this.addCircle(620, this.floorY * 0.52, 38, {
+        label: "무거운 공",
+        color: "#f27a54",
+        mass: 3,
+        material: "wood",
+      });
+    } else if (preset === "spring" || preset === "energy") {
       this.replaceGravity(0);
       const anchor = { x: this.canvas.width * 0.22, y: this.floorY * 0.52 };
       const restLength = this.canvas.width * 0.28;
       const object = this.addCircle(anchor.x + restLength + this.canvas.width * 0.12, anchor.y, 28, {
-        label: "용수철 공",
+        label: preset === "energy" ? "에너지 공" : "용수철 공",
         color: "#a069dc",
         mass: 1,
         material: "wood",
@@ -242,11 +314,11 @@ export class PhysicsPlayground {
         anchor,
         restLength,
         stiffness: 5,
-        damping: 0.45,
+        damping: preset === "energy" ? 0.03 : 0.45,
       });
       this.simulation.addLaw(this.springLaw);
       this.simulation.refreshAccelerations();
-    } else {
+    } else if (preset === "friction") {
       this.replaceGravity(9.81);
       const object = this.addCircle(145, this.floorY - 27, 27, {
         label: "미끄러지는 공",
@@ -263,6 +335,166 @@ export class PhysicsPlayground {
       });
       this.simulation.addLaw(this.frictionLaw);
       this.simulation.refreshAccelerations();
+    } else if (preset === "circular") {
+      this.replaceGravity(0);
+      const model = new CircularMotionModel(
+        { x: this.canvas.width * 0.5, y: this.floorY * 0.5 },
+        Math.min(this.canvas.width * 0.22, this.floorY * 0.32),
+        1.45,
+        -Math.PI / 2,
+      );
+      const pose = model.pose();
+      const object = this.addCircle(pose.position.x, pose.position.y, 27, {
+        label: "도는 공",
+        color: "#25a77a",
+        mass: 1,
+        material: "steel",
+        fixed: true,
+      });
+      this.guidedScene = { kind: "circular", bodyId: object.id, model };
+      this.setBodyPose(object.id, pose);
+    } else if (preset === "rotation") {
+      this.replaceGravity(9.81);
+      const model = new RotationBalanceModel(
+        { x: this.canvas.width * 0.5, y: this.floorY * 0.52 },
+        this.canvas.width * 0.22,
+      );
+      const poses = model.poses();
+      const left = this.addCircle(poses.left.position.x, poses.left.position.y, 24, {
+        label: "가벼운 추",
+        color: "#5b7cfa",
+        mass: 0.5,
+        material: "steel",
+        fixed: true,
+      });
+      const right = this.addCircle(poses.right.position.x, poses.right.position.y, 30, {
+        label: "무거운 추",
+        color: "#f27a54",
+        mass: 3,
+        material: "steel",
+        fixed: true,
+      });
+      this.guidedScene = { kind: "rotation", leftId: left.id, rightId: right.id, model };
+      this.setBodyPose(left.id, poses.left);
+      this.setBodyPose(right.id, poses.right);
+    } else if (preset === "pendulum") {
+      this.replaceGravity(9.81);
+      const model = new PendulumModel(
+        { x: this.canvas.width * 0.5, y: 105 },
+        Math.min(250, this.floorY * 0.48),
+        0.72,
+      );
+      const pose = model.pose();
+      const object = this.addCircle(pose.position.x, pose.position.y, 29, {
+        label: "진자 추",
+        color: "#a069dc",
+        mass: 1,
+        material: "steel",
+        fixed: true,
+      });
+      this.guidedScene = { kind: "pendulum", bodyId: object.id, model };
+      this.setBodyPose(object.id, pose);
+    } else if (preset === "orbit") {
+      this.replaceGravity(0);
+      const center = { x: this.canvas.width * 0.5, y: this.floorY * 0.5 };
+      const radius = Math.min(this.canvas.width * 0.24, this.floorY * 0.34);
+      const orbitalSpeed = 155;
+      const field = new PointGravityField(center, 1, orbitalSpeed ** 2 * radius);
+      this.simulation.addField(field);
+      const centerObject = this.addCircle(center.x, center.y, 38, {
+        label: "큰 별",
+        color: "#e2a62b",
+        mass: 20,
+        material: "steel",
+        fixed: true,
+      });
+      const orbiting = this.addCircle(center.x + radius, center.y, 21, {
+        label: "작은 별",
+        color: "#5b7cfa",
+        mass: 1,
+        material: "steel",
+        velocity: { x: 0, y: -orbitalSpeed / PIXELS_PER_METER },
+      });
+      this.orbitExperiment = {
+        field,
+        centerId: centerObject.id,
+        bodyId: orbiting.id,
+        guideRadius: radius,
+      };
+      this.simulation.refreshAccelerations();
+    } else if (preset === "buoyancy") {
+      this.replaceGravity(9.81);
+      const waterline = this.floorY * 0.4;
+      const object = this.addCircle(this.canvas.width * 0.5, waterline - 70, 35, {
+        label: "물에 띄울 공",
+        color: "#f27a54",
+        mass: 1,
+        material: "wood",
+      });
+      this.buoyancyLaw = new BuoyancyRegionLaw({
+        bodyId: object.id,
+        waterline,
+        displacedMass: 1.45,
+        gravityAcceleration: this.gravity * PIXELS_PER_METER,
+      });
+      this.simulation.addLaw(this.buoyancyLaw);
+      this.simulation.refreshAccelerations();
+    } else if (preset === "constraints") {
+      this.replaceGravity(9.81);
+      const length = Math.min(210, this.floorY * 0.42);
+      const rope = new PendulumModel({ x: this.canvas.width * 0.34, y: 105 }, length, 0.62, 0.06);
+      const rod = new PendulumModel({ x: this.canvas.width * 0.68, y: 105 }, length, -0.5, 0.03);
+      const ropePose = rope.pose();
+      const rodPose = rod.pose();
+      const ropeObject = this.addCircle(ropePose.position.x, ropePose.position.y, 25, {
+        label: "줄 추",
+        color: "#5b7cfa",
+        mass: 1,
+        material: "wood",
+        fixed: true,
+      });
+      const rodObject = this.addCircle(rodPose.position.x, rodPose.position.y, 25, {
+        label: "막대 추",
+        color: "#25a77a",
+        mass: 1,
+        material: "steel",
+        fixed: true,
+      });
+      this.guidedScene = {
+        kind: "constraints",
+        ropeId: ropeObject.id,
+        rodId: rodObject.id,
+        rope,
+        rod,
+      };
+      this.setBodyPose(ropeObject.id, ropePose);
+      this.setBodyPose(rodObject.id, rodPose);
+    } else {
+      this.replaceGravity(9.81);
+      const model = new PulleyModel(
+        { x: this.canvas.width * 0.5, y: 125 },
+        Math.min(58, this.canvas.width * 0.07),
+        Math.min(180, this.floorY * 0.32),
+        Math.min(72, this.floorY * 0.13),
+      );
+      const poses = model.poses();
+      const left = this.addCircle(poses.left.position.x, poses.left.position.y, 25, {
+        label: "가벼운 추",
+        color: "#5b7cfa",
+        mass: 1,
+        material: "steel",
+        fixed: true,
+      });
+      const right = this.addCircle(poses.right.position.x, poses.right.position.y, 31, {
+        label: "무거운 추",
+        color: "#f27a54",
+        mass: 3,
+        material: "steel",
+        fixed: true,
+      });
+      this.guidedScene = { kind: "pulley", leftId: left.id, rightId: right.id, model };
+      this.setBodyPose(left.id, poses.left);
+      this.setBodyPose(right.id, poses.right);
     }
     this._paused = !autoPlay;
     this.notify();
@@ -280,6 +512,32 @@ export class PhysicsPlayground {
 
   removeSelected(): void {
     if (!this.selectedId) return;
+    const guidedIds = this.guidedBodyIds();
+    if (guidedIds.includes(this.selectedId)) {
+      for (const id of guidedIds) {
+        this.simulation.removeBody(id);
+        this.objects.delete(id);
+        this.trails.delete(id);
+      }
+      this.guidedScene = null;
+      this.selectedId = null;
+      this.notify();
+      return;
+    }
+    if (
+      this.orbitExperiment
+      && [this.orbitExperiment.centerId, this.orbitExperiment.bodyId].includes(this.selectedId)
+    ) {
+      this.simulation.removeBody(this.orbitExperiment.centerId);
+      this.simulation.removeBody(this.orbitExperiment.bodyId);
+      this.objects.delete(this.orbitExperiment.centerId);
+      this.objects.delete(this.orbitExperiment.bodyId);
+      this.simulation.removeField(this.orbitExperiment.field.id);
+      this.orbitExperiment = null;
+      this.selectedId = null;
+      this.notify();
+      return;
+    }
     if (this.springLaw?.bodyId === this.selectedId) {
       this.simulation.removeLaw(this.springLaw.id);
       this.springLaw = null;
@@ -287,6 +545,10 @@ export class PhysicsPlayground {
     if (this.frictionLaw?.bodyId === this.selectedId) {
       this.simulation.removeLaw(this.frictionLaw.id);
       this.frictionLaw = null;
+    }
+    if (this.buoyancyLaw?.bodyId === this.selectedId) {
+      this.simulation.removeLaw(this.buoyancyLaw.id);
+      this.buoyancyLaw = null;
     }
     this.simulation.removeBody(this.selectedId);
     this.objects.delete(this.selectedId);
@@ -332,6 +594,7 @@ export class PhysicsPlayground {
     }
     this.clearTrails();
     this.simulation.refreshAccelerations();
+    this.advanceGuidedScene(0);
     this.notify();
   }
 
@@ -370,6 +633,7 @@ export class PhysicsPlayground {
       id: object.id,
       radius: object.radius,
       restitution: MATERIALS[object.material].restitution,
+      fixed: options.fixed,
       state: {
         position: { x: object.x, y: object.y },
         velocity: this.toPixels(options.velocity ?? { x: 0, y: 0 }),
@@ -385,18 +649,119 @@ export class PhysicsPlayground {
     this.simulation.removeField("field.gravity.uniform");
     this.simulation.addField(new UniformGravityField({ x: 0, y: value * PIXELS_PER_METER }));
     this.frictionLaw?.setNormalAcceleration(value * PIXELS_PER_METER);
+    this.buoyancyLaw?.setGravityAcceleration(value * PIXELS_PER_METER);
     this.simulation.refreshAccelerations();
+    this.advanceGuidedScene(0);
   }
 
   private clearExperimentLaws(): void {
     if (this.springLaw) this.simulation.removeLaw(this.springLaw.id);
     if (this.frictionLaw) this.simulation.removeLaw(this.frictionLaw.id);
+    if (this.buoyancyLaw) this.simulation.removeLaw(this.buoyancyLaw.id);
+    if (this.orbitExperiment) this.simulation.removeField(this.orbitExperiment.field.id);
     this.springLaw = null;
     this.frictionLaw = null;
+    this.buoyancyLaw = null;
+    this.guidedScene = null;
+    this.orbitExperiment = null;
+    this.impulseFlash = 0;
   }
 
   private gravityAcceleration(): Vector2 {
     return { x: 0, y: this.gravity * PIXELS_PER_METER };
+  }
+
+  private guidedBodyIds(): string[] {
+    const scene = this.guidedScene;
+    if (!scene) return [];
+    if (scene.kind === "circular" || scene.kind === "pendulum") return [scene.bodyId];
+    if (scene.kind === "rotation" || scene.kind === "pulley") return [scene.leftId, scene.rightId];
+    return [scene.ropeId, scene.rodId];
+  }
+
+  private isGuidedBody(id: string): boolean { return this.guidedBodyIds().includes(id); }
+
+  private setBodyPose(id: string, pose: KinematicPose): void {
+    const body = this.simulation.getBody(id);
+    if (!body) return;
+    body.state.position = { ...pose.position };
+    body.state.velocity = { ...pose.velocity };
+    body.state.acceleration = { ...pose.acceleration };
+  }
+
+  private applyGuidedScenePoses(): void {
+    const scene = this.guidedScene;
+    if (!scene) return;
+    if (scene.kind === "circular" || scene.kind === "pendulum") {
+      this.setBodyPose(scene.bodyId, scene.model.pose());
+    } else if (scene.kind === "rotation") {
+      const poses = scene.model.poses();
+      this.setBodyPose(scene.leftId, poses.left);
+      this.setBodyPose(scene.rightId, poses.right);
+    } else if (scene.kind === "constraints") {
+      this.setBodyPose(scene.ropeId, scene.rope.pose());
+      this.setBodyPose(scene.rodId, scene.rod.pose());
+    } else {
+      const poses = scene.model.poses();
+      this.setBodyPose(scene.leftId, poses.left);
+      this.setBodyPose(scene.rightId, poses.right);
+    }
+  }
+
+  private advanceGuidedScene(dt: number): void {
+    const scene = this.guidedScene;
+    if (!scene) return;
+    const gravity = this.gravity * PIXELS_PER_METER;
+    if (scene.kind === "circular") {
+      scene.model.step(dt);
+    } else if (scene.kind === "pendulum") {
+      scene.model.step(dt, gravity);
+    } else if (scene.kind === "rotation") {
+      const leftMass = this.simulation.getBody(scene.leftId)?.state.mass ?? 1;
+      const rightMass = this.simulation.getBody(scene.rightId)?.state.mass ?? 1;
+      scene.model.step(dt, gravity, leftMass, rightMass);
+    } else if (scene.kind === "constraints") {
+      scene.rope.step(dt, gravity);
+      scene.rod.step(dt, gravity);
+    } else {
+      const leftMass = this.simulation.getBody(scene.leftId)?.state.mass ?? 1;
+      const rightMass = this.simulation.getBody(scene.rightId)?.state.mass ?? 1;
+      scene.model.step(dt, gravity, leftMass, rightMass);
+    }
+    this.applyGuidedScenePoses();
+  }
+
+  private dragGuidedBody(id: string, point: Vector2): boolean {
+    const scene = this.guidedScene;
+    if (!scene || !this.isGuidedBody(id)) return false;
+    if (scene.kind === "circular") {
+      scene.model.moveTo(point);
+    } else if (scene.kind === "pendulum") {
+      scene.model.moveTo(point);
+    } else if (scene.kind === "rotation") {
+      scene.model.moveEndpoint(id === scene.leftId ? -1 : 1, point);
+    } else if (scene.kind === "constraints") {
+      (id === scene.ropeId ? scene.rope : scene.rod).moveTo(point);
+    } else {
+      scene.model.moveWeight(id === scene.leftId ? "left" : "right", point);
+    }
+    this.advanceGuidedScene(0);
+    this.clearTrails();
+    return true;
+  }
+
+  private resizeGuidedScene(scaleX: number, scaleY: number): void {
+    const scene = this.guidedScene;
+    if (!scene) return;
+    if (scene.kind === "circular" || scene.kind === "pendulum") {
+      scene.model.resize(scaleX, scaleY);
+    } else if (scene.kind === "rotation" || scene.kind === "pulley") {
+      scene.model.resize(scaleX, scaleY);
+    } else {
+      scene.rope.resize(scaleX, scaleY);
+      scene.rod.resize(scaleX, scaleY);
+    }
+    this.applyGuidedScenePoses();
   }
 
   private frame(time: number): void {
@@ -436,6 +801,8 @@ export class PhysicsPlayground {
     const previousWidth = this.canvas.width;
     const previousFloorY = this.floorY;
     const nextFloorY = height - FLOOR_HEIGHT;
+    const scaleX = width / previousWidth;
+    const scaleY = nextFloorY / previousFloorY;
 
     if (this.springLaw) {
       const anchor = {
@@ -445,10 +812,28 @@ export class PhysicsPlayground {
       this.springLaw.setGeometry(anchor, this.springLaw.restLength * width / previousWidth);
     }
     this.frictionLaw?.setSurfaceY(nextFloorY);
+    this.buoyancyLaw?.setWaterline(this.buoyancyLaw.waterline * scaleY);
+    if (this.orbitExperiment) {
+      const orbitScale = Math.min(scaleX, scaleY);
+      const previousField = this.orbitExperiment.field;
+      const sourcePosition = {
+        x: previousField.sourcePosition.x * scaleX,
+        y: previousField.sourcePosition.y * scaleY,
+      };
+      this.simulation.removeField(previousField.id);
+      this.orbitExperiment.field = new PointGravityField(
+        sourcePosition,
+        previousField.sourceMass,
+        previousField.G * orbitScale,
+      );
+      this.simulation.addField(this.orbitExperiment.field);
+      this.orbitExperiment.guideRadius *= orbitScale;
+    }
+    this.resizeGuidedScene(scaleX, scaleY);
 
     for (const [id, object] of this.objects) {
       const body = this.simulation.getBody(id);
-      if (!body) continue;
+      if (!body || this.isGuidedBody(id)) continue;
       const halfWidth = object.shape === "circle" ? object.radius : object.width / 2;
       const halfHeight = object.shape === "circle" ? object.radius : object.height / 2;
       body.state.position = {
@@ -486,7 +871,13 @@ export class PhysicsPlayground {
     const springBody = this.springLaw ? this.simulation.getBody(this.springLaw.bodyId) : undefined;
     const springPreviousPosition = springBody ? { ...springBody.state.position } : null;
     this.simulation.step(dt);
+    this.advanceGuidedScene(dt);
     this.resolveSpringMount(springPreviousPosition);
+    if (this.currentPreset === "momentum" && this.simulation.collisionEvents.length > 0) {
+      this.impulseFlash = 1;
+    } else {
+      this.impulseFlash = Math.max(0, this.impulseFlash - dt * 2.5);
+    }
     this.applyPresetDamping(dt);
     this.resolveWorldBounds();
     this.trailTick += 1;
@@ -494,7 +885,7 @@ export class PhysicsPlayground {
   }
 
   private applyPresetDamping(dt: number): void {
-    if (this.currentPreset !== "collision") return;
+    if (this.currentPreset !== "collision" && this.currentPreset !== "momentum") return;
     const damping = Math.exp(-COLLISION_WORLD_DAMPING * dt);
     for (const body of this.simulation.allBodies) {
       if (body.fixed) continue;
@@ -570,7 +961,7 @@ export class PhysicsPlayground {
     const margin = 14;
     for (const object of this.objects.values()) {
       const body = this.simulation.getBody(object.id);
-      if (!body) continue;
+      if (!body || this.isGuidedBody(object.id)) continue;
       const halfWidth = object.shape === "circle" ? object.radius : object.width / 2;
       const halfHeight = object.shape === "circle" ? object.radius : object.height / 2;
       const left = margin + halfWidth;
@@ -638,12 +1029,218 @@ export class PhysicsPlayground {
     ctx.fillStyle = background;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     if (this.visualization.grid) this.drawGrid();
+    if (this.buoyancyLaw) this.drawWaterRegion();
     if (this.visualization.trails) this.drawTrails();
     this.drawGround();
     if (this.frictionLaw) this.drawFrictionSurface();
+    this.drawOrbitGuide();
+    this.drawGuidedScene();
     if (this.springLaw) this.drawSpringConnection();
     this.drawTrajectoryPreview();
     for (const object of this.objects.values()) this.drawObject(object);
+    if (this.currentPreset === "momentum") this.drawMomentumVisualization();
+    if (this.currentPreset === "energy") this.drawEnergyVisualization();
+  }
+
+  private drawWaterRegion(): void {
+    const law = this.buoyancyLaw;
+    if (!law) return;
+    const { ctx, canvas } = this;
+    const water = ctx.createLinearGradient(0, law.waterline, 0, this.floorY);
+    water.addColorStop(0, "#8cd5f080");
+    water.addColorStop(1, "#4c9fdbb8");
+    ctx.save();
+    ctx.fillStyle = water;
+    ctx.fillRect(0, law.waterline, canvas.width, this.floorY - law.waterline);
+    ctx.strokeStyle = "#318dc9";
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    for (let x = 0; x <= canvas.width; x += 12) {
+      const y = law.waterline + Math.sin(x / 24) * 3;
+      if (x === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+    ctx.fillStyle = "#176c9f";
+    ctx.font = "700 16px Inter, system-ui, sans-serif";
+    ctx.fillText("물", 20, law.waterline + 28);
+    ctx.restore();
+  }
+
+  private drawOrbitGuide(): void {
+    const orbit = this.orbitExperiment;
+    if (!orbit) return;
+    const { ctx } = this;
+    const center = orbit.field.sourcePosition;
+    ctx.save();
+    ctx.strokeStyle = "#6681d788";
+    ctx.lineWidth = 2;
+    ctx.setLineDash([7, 7]);
+    ctx.beginPath();
+    ctx.arc(center.x, center.y, orbit.guideRadius, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = "#53699d";
+    ctx.font = "700 14px Inter, system-ui, sans-serif";
+    ctx.fillText("중력이 안쪽으로 당기는 궤도", center.x - orbit.guideRadius, center.y - orbit.guideRadius - 14);
+    ctx.restore();
+  }
+
+  private drawGuidedScene(): void {
+    const scene = this.guidedScene;
+    if (!scene) return;
+    const { ctx } = this;
+    ctx.save();
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+
+    if (scene.kind === "circular") {
+      ctx.strokeStyle = "#8291aa";
+      ctx.lineWidth = 2;
+      ctx.setLineDash([7, 7]);
+      ctx.beginPath();
+      ctx.arc(scene.model.center.x, scene.model.center.y, scene.model.radius, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      const pose = scene.model.pose();
+      ctx.beginPath();
+      ctx.moveTo(scene.model.center.x, scene.model.center.y);
+      ctx.lineTo(pose.position.x, pose.position.y);
+      ctx.stroke();
+      this.drawPivot(scene.model.center, "중심");
+    } else if (scene.kind === "pendulum") {
+      this.drawConstraintLink(scene.model.anchor, scene.model.pose().position, false, "줄 길이는 그대로");
+      this.drawPivot(scene.model.anchor, "고정점");
+    } else if (scene.kind === "rotation") {
+      const poses = scene.model.poses();
+      ctx.strokeStyle = "#46546a";
+      ctx.lineWidth = 12;
+      ctx.beginPath();
+      ctx.moveTo(poses.left.position.x, poses.left.position.y);
+      ctx.lineTo(poses.right.position.x, poses.right.position.y);
+      ctx.stroke();
+      this.drawPivot(scene.model.center, "회전축");
+    } else if (scene.kind === "constraints") {
+      this.drawConstraintLink(scene.rope.anchor, scene.rope.pose().position, false, "줄");
+      this.drawConstraintLink(scene.rod.anchor, scene.rod.pose().position, true, "단단한 막대");
+      this.drawPivot(scene.rope.anchor, "고정점");
+      this.drawPivot(scene.rod.anchor, "고정점");
+    } else {
+      const poses = scene.model.poses();
+      const { center, radius, wheelAngle } = scene.model;
+      ctx.strokeStyle = "#34405a";
+      ctx.lineWidth = 5;
+      ctx.beginPath();
+      ctx.moveTo(poses.left.position.x, poses.left.position.y);
+      ctx.lineTo(poses.left.position.x, center.y);
+      ctx.arc(center.x, center.y, radius, Math.PI, 0);
+      ctx.lineTo(poses.right.position.x, poses.right.position.y);
+      ctx.stroke();
+      ctx.fillStyle = "#eef2f7";
+      ctx.strokeStyle = "#59667d";
+      ctx.lineWidth = 5;
+      ctx.beginPath();
+      ctx.arc(center.x, center.y, radius - 2, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+      for (let spoke = 0; spoke < 4; spoke += 1) {
+        const angle = wheelAngle + spoke * Math.PI / 2;
+        ctx.beginPath();
+        ctx.moveTo(center.x, center.y);
+        ctx.lineTo(center.x + Math.cos(angle) * radius * 0.72, center.y + Math.sin(angle) * radius * 0.72);
+        ctx.stroke();
+      }
+      this.drawPivot(center, "도르래");
+    }
+    ctx.restore();
+  }
+
+  private drawConstraintLink(start: Vector2, end: Vector2, rigid: boolean, label: string): void {
+    const { ctx } = this;
+    ctx.save();
+    ctx.strokeStyle = rigid ? "#527a6d" : "#68758a";
+    ctx.lineWidth = rigid ? 10 : 4;
+    ctx.beginPath();
+    ctx.moveTo(start.x, start.y);
+    ctx.lineTo(end.x, end.y);
+    ctx.stroke();
+    ctx.fillStyle = rigid ? "#315d50" : "#536078";
+    ctx.font = "700 14px Inter, system-ui, sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText(label, (start.x + end.x) / 2 + 18, (start.y + end.y) / 2);
+    ctx.restore();
+  }
+
+  private drawPivot(point: Vector2, label: string): void {
+    const { ctx } = this;
+    ctx.save();
+    ctx.fillStyle = "#ffffff";
+    ctx.strokeStyle = "#34405a";
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.arc(point.x, point.y, 9, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = "#34405a";
+    ctx.font = "700 14px Inter, system-ui, sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText(label, point.x, point.y - 17);
+    ctx.restore();
+  }
+
+  private drawMomentumVisualization(): void {
+    for (const object of this.objects.values()) {
+      const body = this.simulation.getBody(object.id);
+      if (!body) continue;
+      this.drawArrow(
+        object.x,
+        object.y,
+        { x: body.state.velocity.x * body.state.mass, y: body.state.velocity.y * body.state.mass },
+        0.16,
+        "#196ba0",
+        "운동량 p = mv",
+      );
+    }
+    if (this.impulseFlash <= 0) return;
+    const { ctx } = this;
+    ctx.save();
+    ctx.globalAlpha = this.impulseFlash;
+    ctx.fillStyle = "#fff4c7";
+    this.roundRect(this.canvas.width / 2 - 80, 32, 160, 42, 12);
+    ctx.fill();
+    ctx.fillStyle = "#8b6712";
+    ctx.font = "800 16px Inter, system-ui, sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText("충격량이 전달됐어요", this.canvas.width / 2, 58);
+    ctx.restore();
+  }
+
+  private drawEnergyVisualization(): void {
+    const law = this.springLaw;
+    if (!law) return;
+    const body = this.simulation.getBody(law.bodyId);
+    if (!body) return;
+    const speedSquared = body.state.velocity.x ** 2 + body.state.velocity.y ** 2;
+    const kinetic = 0.5 * body.state.mass * speedSquared;
+    const distance = Math.hypot(body.state.position.x - law.anchor.x, body.state.position.y - law.anchor.y);
+    const spring = 0.5 * law.stiffness * (distance - law.restLength) ** 2;
+    const total = Math.max(1, kinetic + spring);
+    const x = 24;
+    const y = 54;
+    const width = Math.min(280, this.canvas.width * 0.3);
+    const { ctx } = this;
+    ctx.save();
+    ctx.fillStyle = "#ffffffdd";
+    this.roundRect(x, y, width, 66, 12);
+    ctx.fill();
+    ctx.fillStyle = "#536078";
+    ctx.font = "700 14px Inter, system-ui, sans-serif";
+    ctx.fillText("움직임 에너지", x + 12, y + 22);
+    ctx.fillText("용수철 에너지", x + 12, y + 49);
+    ctx.fillStyle = "#5b7cfa";
+    ctx.fillRect(x + 126, y + 11, (width - 140) * kinetic / total, 12);
+    ctx.fillStyle = "#a069dc";
+    ctx.fillRect(x + 126, y + 38, (width - 140) * spring / total, 12);
+    ctx.restore();
   }
 
   private drawGrid(): void {
@@ -860,10 +1457,10 @@ export class PhysicsPlayground {
 
   private drawTrajectoryPreview(): void {
     if (!this.paused || !this.selectedId) return;
-    if (this.springLaw?.bodyId === this.selectedId) return;
+    if (this.springLaw?.bodyId === this.selectedId || this.isGuidedBody(this.selectedId)) return;
     const object = this.objects.get(this.selectedId);
     const body = this.simulation.getBody(this.selectedId);
-    if (!object || !body || Math.hypot(body.state.velocity.x, body.state.velocity.y) < VELOCITY_IDLE_EPSILON) return;
+    if (!object || !body || body.fixed || Math.hypot(body.state.velocity.x, body.state.velocity.y) < VELOCITY_IDLE_EPSILON) return;
     const points = this.predictedPath(object, body.state.velocity, body.state.acceleration);
     if (points.length < 2) return;
 
@@ -972,7 +1569,13 @@ export class PhysicsPlayground {
 
     this.drawLabel(object);
     if (selected) {
-      this.drawVelocityControl(object, body.state.velocity);
+      if (this.isGuidedBody(object.id)) {
+        if (this.visualization.vectors) {
+          this.drawArrow(object.x, object.y, body.state.velocity, 0.22, "#7257d5", "운동 방향");
+        }
+      } else if (!body.fixed) {
+        this.drawVelocityControl(object, body.state.velocity);
+      }
       if (this.visualization.vectors) {
         this.drawArrow(object.x, object.y, body.state.acceleration, 0.14, "#e05c3f", "가속도");
       }
@@ -1073,7 +1676,10 @@ export class PhysicsPlayground {
     let y = vector.y * factor;
     const length = Math.hypot(x, y);
     if (length < 3) return;
-    if (length > MAX_VELOCITY_VECTOR_LENGTH) {
+    if (length < 46) {
+      x *= 46 / length;
+      y *= 46 / length;
+    } else if (length > MAX_VELOCITY_VECTOR_LENGTH) {
       x *= MAX_VELOCITY_VECTOR_LENGTH / length;
       y *= MAX_VELOCITY_VECTOR_LENGTH / length;
     }
@@ -1137,6 +1743,11 @@ export class PhysicsPlayground {
       const object = this.objects.get(this.draggedId);
       const body = this.simulation.getBody(this.draggedId);
       if (!object || !body) return;
+      if (this.dragGuidedBody(this.draggedId, point)) {
+        this.syncObjects();
+        this.notify();
+        return;
+      }
       const previousPosition = { ...body.state.position };
       const halfWidth = object.shape === "circle" ? object.radius : object.width / 2;
       const halfHeight = object.shape === "circle" ? object.radius : object.height / 2;
@@ -1166,11 +1777,12 @@ export class PhysicsPlayground {
         this.draggedId
         && this.springLaw?.bodyId === this.draggedId,
       );
+      const releasesGuided = Boolean(this.draggedId && this.isGuidedBody(this.draggedId));
       this.pointerId = null;
       this.draggedId = null;
       this.velocityDraggedId = null;
       this.canvas.style.cursor = "grab";
-      if (autoPlay && (launchesVelocity || releasesSpring)) this.paused = false;
+      if (autoPlay && (launchesVelocity || releasesSpring || releasesGuided)) this.paused = false;
     };
     this.canvas.addEventListener("pointerup", (event) => release(event, true));
     this.canvas.addEventListener("pointercancel", (event) => release(event, false));
@@ -1192,7 +1804,7 @@ export class PhysicsPlayground {
     if (!this.selectedId) return null;
     const object = this.objects.get(this.selectedId);
     const body = this.simulation.getBody(this.selectedId);
-    if (!object || !body) return null;
+    if (!object || !body || body.fixed || this.isGuidedBody(object.id)) return null;
     const vector = this.velocityControlVector(object, body.state.velocity);
     const dx = point.x - object.x - vector.x;
     const dy = point.y - object.y - vector.y;
