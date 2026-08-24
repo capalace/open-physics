@@ -83,6 +83,8 @@ const PIXELS_PER_METER = 48;
 const FIXED_STEP = 1 / 120;
 const FLOOR_HEIGHT = 48;
 const RESTING_REBOUND_SPEED = 10;
+const COLLISION_WORLD_DAMPING = 0.15;
+const MOTION_SLEEP_SPEED = 2;
 const COLORS = ["#5b7cfa", "#f27a54", "#25a77a", "#a069dc", "#e2a62b"];
 
 /** Connects browser input and rendering to the renderer-independent physics core. */
@@ -360,9 +362,23 @@ export class PhysicsPlayground {
 
   private advance(dt: number): void {
     this.simulation.step(dt);
+    this.applyPresetDamping(dt);
     this.resolveWorldBounds();
     this.trailTick += 1;
     if (this.trailTick % 4 === 0) this.recordTrails();
+  }
+
+  private applyPresetDamping(dt: number): void {
+    if (this.currentPreset !== "collision") return;
+    const damping = Math.exp(-COLLISION_WORLD_DAMPING * dt);
+    for (const body of this.simulation.allBodies) {
+      if (body.fixed) continue;
+      body.state.velocity.x *= damping;
+      body.state.velocity.y *= damping;
+      if (Math.hypot(body.state.velocity.x, body.state.velocity.y) < MOTION_SLEEP_SPEED) {
+        body.state.velocity = { x: 0, y: 0 };
+      }
+    }
   }
 
   private resolveWorldBounds(): void {

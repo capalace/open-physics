@@ -72,6 +72,24 @@ describe("PhysicsPlayground contacts", () => {
     expect(body.state.velocity.y).toBeLessThan(0);
     expect(body.state.position.y).toBeCloseTo(playground.floorY - 20);
   });
+
+  it("lets the collision preset settle instead of bouncing around indefinitely", () => {
+    vi.stubGlobal("requestAnimationFrame", () => 0);
+    const playground = new PhysicsPlayground(createCanvas(), { width: 960, height: 600 });
+    const advance = playground as unknown as { advance(dt: number): void };
+    playground.loadPreset("collision");
+    let collided = false;
+
+    for (let frame = 0; frame < 30 * 120; frame += 1) {
+      advance.advance(1 / 120);
+      if (playground.simulation.collisionEvents.length > 0) collided = true;
+    }
+
+    const maximumSpeed = Math.max(...playground.simulation.allBodies.map((body) =>
+      Math.hypot(body.state.velocity.x, body.state.velocity.y) / 48));
+    expect(collided).toBe(true);
+    expect(maximumSpeed).toBeLessThan(0.05);
+  });
 });
 
 describe("PhysicsPlayground selection", () => {
