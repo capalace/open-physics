@@ -1149,7 +1149,7 @@ export class PhysicsPlayground {
         ctx.lineTo(center.x + Math.cos(angle) * radius * 0.72, center.y + Math.sin(angle) * radius * 0.72);
         ctx.stroke();
       }
-      this.drawPivot(center, "도르래");
+      this.drawPivot(center, "도르래", radius + 18);
     }
     ctx.restore();
   }
@@ -1170,7 +1170,7 @@ export class PhysicsPlayground {
     ctx.restore();
   }
 
-  private drawPivot(point: Vector2, label: string): void {
+  private drawPivot(point: Vector2, label: string, labelOffset = 17): void {
     const { ctx } = this;
     ctx.save();
     ctx.fillStyle = "#ffffff";
@@ -1183,7 +1183,7 @@ export class PhysicsPlayground {
     ctx.fillStyle = "#34405a";
     ctx.font = "700 14px Inter, system-ui, sans-serif";
     ctx.textAlign = "center";
-    ctx.fillText(label, point.x, point.y - 17);
+    ctx.fillText(label, point.x, point.y - labelOffset);
     ctx.restore();
   }
 
@@ -1598,9 +1598,8 @@ export class PhysicsPlayground {
   }
 
   private drawVelocityControl(object: PlaygroundObject, velocity: Vector2): void {
-    const actualVector = this.velocityVector(velocity);
     const idle = Math.hypot(velocity.x, velocity.y) < VELOCITY_IDLE_EPSILON;
-    const vector = idle ? this.idleVelocityControlVector(object) : actualVector;
+    const vector = this.velocityControlVector(object, velocity);
     const endX = object.x + vector.x;
     const endY = object.y + vector.y;
     const angle = Math.atan2(vector.y, vector.x);
@@ -1666,9 +1665,19 @@ export class PhysicsPlayground {
   }
 
   private velocityControlVector(object: PlaygroundObject, velocity: Vector2): Vector2 {
-    return Math.hypot(velocity.x, velocity.y) < VELOCITY_IDLE_EPSILON
-      ? this.idleVelocityControlVector(object)
-      : this.velocityVector(velocity);
+    if (Math.hypot(velocity.x, velocity.y) < VELOCITY_IDLE_EPSILON) {
+      return this.idleVelocityControlVector(object);
+    }
+    const vector = this.velocityVector(velocity);
+    const length = Math.hypot(vector.x, vector.y);
+    const minimumLength = (object.shape === "circle"
+      ? object.radius
+      : Math.max(object.width, object.height) / 2) + VELOCITY_HANDLE_RADIUS + 12;
+    if (length >= minimumLength) return vector;
+    return {
+      x: vector.x * minimumLength / length,
+      y: vector.y * minimumLength / length,
+    };
   }
 
   private drawArrow(originX: number, originY: number, vector: Vector2, factor: number, color: string, label: string): void {
@@ -1703,7 +1712,22 @@ export class PhysicsPlayground {
     ctx.closePath();
     ctx.fill();
     ctx.font = "700 14px Inter, system-ui, sans-serif";
-    ctx.fillText(label, endX + 8, endY - 8);
+    const mostlyVertical = Math.abs(y) >= Math.abs(x);
+    const labelX = mostlyVertical ? originX + 46 : originX + x * 0.5;
+    const labelY = mostlyVertical ? originY + y * 0.5 + 5 : originY + y * 0.5 - 16;
+    ctx.textAlign = mostlyVertical ? "left" : "center";
+    const labelWidth = ctx.measureText(label).width;
+    ctx.fillStyle = "#ffffffeb";
+    this.roundRect(
+      mostlyVertical ? labelX - 6 : labelX - labelWidth / 2 - 6,
+      labelY - 15,
+      labelWidth + 12,
+      20,
+      7,
+    );
+    ctx.fill();
+    ctx.fillStyle = color;
+    ctx.fillText(label, labelX, labelY);
     ctx.restore();
   }
 

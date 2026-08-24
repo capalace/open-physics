@@ -15,11 +15,13 @@ const createRenderingCanvas = (): {
   lineTo: ReturnType<typeof vi.fn>;
   quadraticCurveTo: ReturnType<typeof vi.fn>;
   setLineDash: ReturnType<typeof vi.fn>;
+  fillText: ReturnType<typeof vi.fn>;
 } => {
   const arc = vi.fn();
   const lineTo = vi.fn();
   const quadraticCurveTo = vi.fn();
   const setLineDash = vi.fn();
+  const fillText = vi.fn();
   const gradient = { addColorStop: vi.fn() };
   const noop = () => undefined;
   const context = new Proxy({
@@ -27,6 +29,7 @@ const createRenderingCanvas = (): {
     lineTo,
     quadraticCurveTo,
     setLineDash,
+    fillText,
     createLinearGradient: () => gradient,
     createRadialGradient: () => gradient,
     measureText: () => ({ width: 40 }),
@@ -42,7 +45,7 @@ const createRenderingCanvas = (): {
     getContext: () => context,
     addEventListener: () => undefined,
   } as unknown as HTMLCanvasElement;
-  return { canvas, arc, lineTo, quadraticCurveTo, setLineDash };
+  return { canvas, arc, lineTo, quadraticCurveTo, setLineDash, fillText };
 };
 
 const createInteractiveCanvas = (): {
@@ -335,6 +338,19 @@ describe("PhysicsPlayground extended mechanics", () => {
     expect(leftStart - left.state.position.y).toBeCloseTo(right.state.position.y - rightStart, 4);
   });
 
+  it("places the pulley name above the wheel instead of across its spokes", () => {
+    vi.stubGlobal("requestAnimationFrame", () => 0);
+    const { canvas, fillText } = createRenderingCanvas();
+    const playground = new PhysicsPlayground(canvas, { width: 960, height: 600 });
+    playground.loadPreset("pulley");
+    const renderer = playground as unknown as { drawGuidedScene(): void };
+
+    renderer.drawGuidedScene();
+
+    const pulleyLabel = fillText.mock.calls.find(([text]) => text === "도르래")!;
+    expect(pulleyLabel[2]).toBeLessThan(125 - 58);
+  });
+
   it("keeps rope and rod bobs at their fixed constraint lengths", () => {
     vi.stubGlobal("requestAnimationFrame", () => 0);
     const playground = new PhysicsPlayground(createCanvas(), { width: 960, height: 600 });
@@ -360,6 +376,36 @@ describe("PhysicsPlayground extended mechanics", () => {
     playground.simulation.refreshAccelerations();
 
     expect(body.state.acceleration.y).toBeLessThan(0);
+  });
+
+  it("keeps an upward acceleration label away from the object name", () => {
+    vi.stubGlobal("requestAnimationFrame", () => 0);
+    const { canvas, fillText } = createRenderingCanvas();
+    const playground = new PhysicsPlayground(canvas, { width: 960, height: 600 });
+    playground.loadPreset("buoyancy");
+    const object = [...playground.objects.values()][0];
+    const body = playground.simulation.getBody(object.id)!;
+    body.state.position.y = playground.floorY * 0.4 + 40;
+    playground.simulation.refreshAccelerations();
+    const renderer = playground as unknown as { drawObject(target: typeof object): void };
+
+    renderer.drawObject(object);
+
+    const name = fillText.mock.calls.find(([text]) => text === object.label)!;
+    const acceleration = fillText.mock.calls.find(([text]) => text === "가속도")!;
+    const nameBox = { left: name[1] - 20, right: name[1] + 20, top: name[2] - 14, bottom: name[2] };
+    const accelerationBox = {
+      left: acceleration[1],
+      right: acceleration[1] + 40,
+      top: acceleration[2] - 14,
+      bottom: acceleration[2],
+    };
+    const overlaps = nameBox.left < accelerationBox.right
+      && nameBox.right > accelerationBox.left
+      && nameBox.top < accelerationBox.bottom
+      && nameBox.bottom > accelerationBox.top;
+
+    expect(overlaps).toBe(false);
   });
 
   it("maintains a near-circular orbit under point gravity", () => {
@@ -451,6 +497,19 @@ describe("PhysicsPlayground velocity control", () => {
     const fast = velocityVector.velocityVector({ x: 100, y: 0 });
 
     expect(Math.hypot(fast.x, fast.y)).toBeCloseTo(Math.hypot(slow.x, slow.y) * 2);
+  });
+
+  it("keeps a slow velocity handle outside the selected object", () => {
+    vi.stubGlobal("requestAnimationFrame", () => 0);
+    const playground = new PhysicsPlayground(createCanvas(), { width: 960, height: 600 });
+    const object = playground.addCircle(480, 240, 35);
+    const control = playground as unknown as {
+      velocityControlVector(target: typeof object, velocity: { x: number; y: number }): { x: number; y: number };
+    };
+
+    const vector = control.velocityControlVector(object, { x: 0, y: 1 });
+
+    expect(Math.hypot(vector.x, vector.y)).toBeGreaterThan(object.radius + 12);
   });
 
   it("sets movement by dragging the selected object's arrow handle", () => {
