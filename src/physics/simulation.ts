@@ -32,6 +32,18 @@ export class PhysicsSimulation extends MultiBodyWorld {
     return true;
   }
 
+  refreshAccelerations(): void {
+    const context: PhysicsContext = { time: this.currentTime, dt: 1 / 60 };
+    for (const body of this.allBodies as readonly SimulatedBody[]) {
+      if (body.fixed) continue;
+      const force = this.totalForce(body, context);
+      body.state.acceleration = {
+        x: force.vector.x / body.state.mass,
+        y: force.vector.y / body.state.mass,
+      };
+    }
+  }
+
   step(dt: number): void {
     if (dt <= 0) throw new RangeError("Time step must be greater than zero.");
     const context: PhysicsContext = { time: this.currentTime, dt };

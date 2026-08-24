@@ -177,6 +177,63 @@ describe("PhysicsPlayground gravity visualization", () => {
   });
 });
 
+describe("PhysicsPlayground extended mechanics", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("loads a spring that pulls the selected object toward equilibrium", () => {
+    vi.stubGlobal("requestAnimationFrame", () => 0);
+    const playground = new PhysicsPlayground(createCanvas(), { width: 960, height: 600 });
+    const advance = playground as unknown as { advance(dt: number): void };
+    playground.loadPreset("spring");
+    const body = playground.simulation.allBodies[0];
+    const initialX = body.state.position.x;
+
+    expect(playground.gravity).toBe(0);
+    expect(playground.simulation.laws).toHaveLength(1);
+    expect(body.state.acceleration.x).toBeLessThan(0);
+
+    for (let frame = 0; frame < 60; frame += 1) advance.advance(1 / 120);
+    expect(body.state.position.x).toBeLessThan(initialX);
+  });
+
+  it("removes the spring connection when another quick start is loaded", () => {
+    vi.stubGlobal("requestAnimationFrame", () => 0);
+    const playground = new PhysicsPlayground(createCanvas(), { width: 960, height: 600 });
+    playground.loadPreset("spring");
+    playground.loadPreset("free-fall");
+
+    expect(playground.simulation.laws).toHaveLength(0);
+    expect(playground.snapshot().preset).toBe("free-fall");
+  });
+
+  it("uses friction to slow a surface object to rest without reversing it", () => {
+    vi.stubGlobal("requestAnimationFrame", () => 0);
+    const playground = new PhysicsPlayground(createCanvas(), { width: 960, height: 600 });
+    const advance = playground as unknown as { advance(dt: number): void };
+    playground.loadPreset("friction");
+    const body = playground.simulation.allBodies[0];
+    const initialSpeed = body.state.velocity.x;
+
+    for (let frame = 0; frame < 5 * 120; frame += 1) advance.advance(1 / 120);
+
+    expect(body.state.velocity.x).toBeGreaterThanOrEqual(0);
+    expect(body.state.velocity.x).toBeLessThan(initialSpeed);
+    expect(body.state.velocity.x).toBeCloseTo(0);
+  });
+
+  it("changes the friction force when the selected material changes", () => {
+    vi.stubGlobal("requestAnimationFrame", () => 0);
+    const playground = new PhysicsPlayground(createCanvas(), { width: 960, height: 600 });
+    playground.loadPreset("friction");
+    const body = playground.simulation.allBodies[0];
+    const woodAcceleration = Math.abs(body.state.acceleration.x);
+
+    playground.updateSelected({ material: "clay" });
+
+    expect(Math.abs(body.state.acceleration.x)).toBeGreaterThan(woodAcceleration);
+  });
+});
+
 describe("PhysicsPlayground canvas sizing", () => {
   afterEach(() => vi.unstubAllGlobals());
 

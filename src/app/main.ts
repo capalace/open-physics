@@ -23,7 +23,38 @@ const inspectorForm = required<HTMLFormElement>("#inspector-form");
 const objectLabel = required<HTMLInputElement>("#object-label");
 const objectMass = required<HTMLInputElement>("#object-mass");
 const objectColor = required<HTMLInputElement>("#object-color");
+const lawTitle = required<HTMLElement>("#law-title");
+const lawDescription = required<HTMLElement>("#law-description");
+const lawEquation = required<HTMLElement>("#law-equation");
 const EARTH_GRAVITY = 9.81;
+
+const PRESET_GUIDES: Record<PlaygroundPreset, { title: string; description: string; equation: string }> = {
+  "free-fall": {
+    title: "중력과 가속도",
+    description: "중력은 물체를 아래로 끌어 속도를 계속 바꿉니다.",
+    equation: "F = mg",
+  },
+  projectile: {
+    title: "던진 물체의 운동",
+    description: "옆으로 가는 동안 중력이 아래쪽 속도를 더해 곡선으로 움직입니다.",
+    equation: "x = x₀ + v₀t + ½at²",
+  },
+  collision: {
+    title: "충돌과 운동량",
+    description: "물체가 부딪히면 질량과 속도에 따라 움직임을 서로 주고받습니다.",
+    equation: "p = mv",
+  },
+  spring: {
+    title: "용수철 힘",
+    description: "용수철은 제자리에서 멀어진 만큼 더 세게 되돌려 보냅니다.",
+    equation: "F = −kx",
+  },
+  friction: {
+    title: "마찰력",
+    description: "마찰력은 움직이는 반대 방향으로 작용해 물체를 천천히 멈춥니다.",
+    equation: "F = μN",
+  },
+};
 
 const playground = new PhysicsPlayground(canvas, { onUpdate: renderSnapshot });
 playground.loadPreset("free-fall");
@@ -110,6 +141,13 @@ function renderSnapshot(snapshot: PlaygroundSnapshot): void {
   document.querySelectorAll<HTMLButtonElement>("[data-gravity]").forEach((button) => {
     setActive(button, Math.abs(Number(button.dataset.gravity) - snapshot.gravity) < 0.01);
   });
+  document.querySelectorAll<HTMLButtonElement>("[data-preset]").forEach((button) => {
+    setActive(button, button.dataset.preset === snapshot.preset);
+  });
+  const guide = PRESET_GUIDES[snapshot.preset];
+  lawTitle.textContent = guide.title;
+  lawDescription.textContent = guide.description;
+  lawEquation.textContent = guide.equation;
 
   inspectorEmpty.hidden = Boolean(snapshot.selected);
   inspectorForm.hidden = !snapshot.selected;

@@ -56,4 +56,19 @@ describe("MultiBodyWorld", () => {
     expect(world.collisions).toHaveLength(0);
     expect(world.currentTime).toBe(0);
   });
+
+  it("adds and removes active force laws by id", () => {
+    const world = new MultiBodyWorld();
+    const law: WorldForceLaw = {
+      id: "temporary",
+      force: () => ({ vector: { x: 0, y: 0 } }),
+      forceOnBody: () => ({ vector: { x: 0, y: 0 } }),
+    };
+
+    world.addLaw(law);
+    expect(world.laws).toEqual([law]);
+    expect(() => world.addLaw(law)).toThrow("Force law already exists");
+    expect(world.removeLaw("temporary")).toBe(true);
+    expect(world.removeLaw("temporary")).toBe(false);
+  });
 });

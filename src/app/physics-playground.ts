@@ -1,18 +1,23 @@
 import type { Vector2 } from "../physics/core";
 import { UniformGravityField } from "../physics/fields";
+import {
+  AnchoredSpringLaw,
+  HorizontalSurfaceFrictionLaw,
+} from "../physics/laws/world-mechanics";
 import { PhysicsSimulation } from "../physics/simulation";
 
 export type PlaygroundShape = "circle" | "box";
-export type PlaygroundPreset = "free-fall" | "projectile" | "collision";
+export type PlaygroundPreset = "free-fall" | "projectile" | "collision" | "spring" | "friction";
 export type PlaygroundMaterial = "rubber" | "wood" | "steel" | "clay";
 
 export const MATERIALS: Readonly<Record<PlaygroundMaterial, {
   restitution: number;
+  friction: number;
 }>> = {
-  rubber: { restitution: 0.88 },
-  wood: { restitution: 0.5 },
-  steel: { restitution: 0.72 },
-  clay: { restitution: 0.08 },
+  rubber: { restitution: 0.88, friction: 0.42 },
+  wood: { restitution: 0.5, friction: 0.22 },
+  steel: { restitution: 0.72, friction: 0.08 },
+  clay: { restitution: 0.08, friction: 0.58 },
 };
 
 export interface PlaygroundObject {
@@ -39,6 +44,7 @@ export interface PlaygroundObjectOptions {
 export interface PlaygroundSnapshot {
   paused: boolean;
   gravity: number;
+  preset: PlaygroundPreset;
   selected: {
     id: string;
     label: string;
@@ -108,6 +114,8 @@ export class PhysicsPlayground {
   private trailTick = 0;
   private objectSequence = 0;
   private readonly trails = new Map<string, Vector2[]>();
+  private springLaw: AnchoredSpringLaw | null = null;
+  private frictionLaw: HorizontalSurfaceFrictionLaw | null = null;
 
   constructor(canvas: HTMLCanvasElement, options: PlaygroundOptions = {}) {
     this.canvas = canvas;
@@ -185,6 +193,7 @@ export class PhysicsPlayground {
     this.selectedId = null;
     this.objects.clear();
     this.trails.clear();
+    this.clearExperimentLaws();
     this.simulation.clear();
 
     if (preset === "free-fall") {
@@ -201,7 +210,7 @@ export class PhysicsPlayground {
         material: "rubber",
         velocity: { x: 5.6, y: -7.2 },
       });
-    } else {
+    } else if (preset === "collision") {
       this.replaceGravity(0);
       this.addCircle(285, 300, 32, {
         label: "물체 A",
@@ -217,6 +226,42 @@ export class PhysicsPlayground {
         material: "rubber",
         velocity: { x: -1.7, y: 0 },
       });
+    } else if (preset === "spring") {
+      this.replaceGravity(0);
+      const anchor = { x: this.canvas.width * 0.22, y: this.floorY * 0.52 };
+      const restLength = this.canvas.width * 0.28;
+      const object = this.addCircle(anchor.x + restLength + this.canvas.width * 0.12, anchor.y, 28, {
+        label: "용수철 공",
+        color: "#a069dc",
+        mass: 1,
+        material: "wood",
+      });
+      this.springLaw = new AnchoredSpringLaw({
+        bodyId: object.id,
+        anchor,
+        restLength,
+        stiffness: 5,
+        damping: 0.45,
+      });
+      this.simulation.addLaw(this.springLaw);
+      this.simulation.refreshAccelerations();
+    } else {
+      this.replaceGravity(9.81);
+      const object = this.addCircle(145, this.floorY - 27, 27, {
+        label: "미끄러지는 공",
+        color: "#e2a62b",
+        mass: 1,
+        material: "wood",
+        velocity: { x: 6.2, y: 0 },
+      });
+      this.frictionLaw = new HorizontalSurfaceFrictionLaw({
+        bodyId: object.id,
+        surfaceY: this.floorY,
+        coefficient: MATERIALS[object.material].friction,
+        normalAcceleration: this.gravity * PIXELS_PER_METER,
+      });
+      this.simulation.addLaw(this.frictionLaw);
+      this.simulation.refreshAccelerations();
     }
     this.notify();
   }
@@ -233,6 +278,14 @@ export class PhysicsPlayground {
 
   removeSelected(): void {
     if (!this.selectedId) return;
+    if (this.springLaw?.bodyId === this.selectedId) {
+      this.simulation.removeLaw(this.springLaw.id);
+      this.springLaw = null;
+    }
+    if (this.frictionLaw?.bodyId === this.selectedId) {
+      this.simulation.removeLaw(this.frictionLaw.id);
+      this.frictionLaw = null;
+    }
     this.simulation.removeBody(this.selectedId);
     this.objects.delete(this.selectedId);
     this.trails.delete(this.selectedId);
@@ -271,8 +324,12 @@ export class PhysicsPlayground {
     if (update.material !== undefined) {
       object.material = update.material;
       body.restitution = MATERIALS[update.material].restitution;
+      if (this.frictionLaw?.bodyId === object.id) {
+        this.frictionLaw.setCoefficient(MATERIALS[update.material].friction);
+      }
     }
     this.clearTrails();
+    this.simulation.refreshAccelerations();
     this.notify();
   }
 
@@ -295,6 +352,7 @@ export class PhysicsPlayground {
     return {
       paused: this.paused,
       gravity: this.gravity,
+      preset: this.currentPreset,
       selected,
     };
   }
@@ -324,9 +382,15 @@ export class PhysicsPlayground {
     this.gravity = value;
     this.simulation.removeField("field.gravity.uniform");
     this.simulation.addField(new UniformGravityField({ x: 0, y: value * PIXELS_PER_METER }));
-    for (const body of this.simulation.allBodies) {
-      body.state.acceleration = this.gravityAcceleration();
-    }
+    this.frictionLaw?.setNormalAcceleration(value * PIXELS_PER_METER);
+    this.simulation.refreshAccelerations();
+  }
+
+  private clearExperimentLaws(): void {
+    if (this.springLaw) this.simulation.removeLaw(this.springLaw.id);
+    if (this.frictionLaw) this.simulation.removeLaw(this.frictionLaw.id);
+    this.springLaw = null;
+    this.frictionLaw = null;
   }
 
   private gravityAcceleration(): Vector2 {
@@ -371,6 +435,15 @@ export class PhysicsPlayground {
     const previousFloorY = this.floorY;
     const nextFloorY = height - FLOOR_HEIGHT;
 
+    if (this.springLaw) {
+      const anchor = {
+        x: this.springLaw.anchor.x * width / previousWidth,
+        y: this.scaleBetweenBounds(this.springLaw.anchor.y, 14, previousFloorY, 14, nextFloorY),
+      };
+      this.springLaw.setGeometry(anchor, this.springLaw.restLength * width / previousWidth);
+    }
+    this.frictionLaw?.setSurfaceY(nextFloorY);
+
     for (const [id, object] of this.objects) {
       const body = this.simulation.getBody(id);
       if (!body) continue;
@@ -398,6 +471,7 @@ export class PhysicsPlayground {
     this.canvas.height = height;
     this.syncObjects();
     this.clearTrails();
+    this.simulation.refreshAccelerations();
   }
 
   private scaleBetweenBounds(value: number, oldMin: number, oldMax: number, nextMin: number, nextMax: number): number {
@@ -501,6 +575,8 @@ export class PhysicsPlayground {
     if (this.visualization.grid) this.drawGrid();
     if (this.visualization.trails) this.drawTrails();
     this.drawGround();
+    if (this.frictionLaw) this.drawFrictionSurface();
+    if (this.springLaw) this.drawSpringConnection();
     this.drawTrajectoryPreview();
     for (const object of this.objects.values()) this.drawObject(object);
   }
@@ -564,8 +640,83 @@ export class PhysicsPlayground {
     ctx.restore();
   }
 
+  private drawFrictionSurface(): void {
+    const { ctx, canvas } = this;
+    ctx.save();
+    ctx.fillStyle = "#f4d681";
+    ctx.fillRect(0, this.floorY, canvas.width, 8);
+    ctx.strokeStyle = "#c7962c";
+    ctx.lineWidth = 2;
+    for (let x = 8; x < canvas.width; x += 18) {
+      ctx.beginPath();
+      ctx.moveTo(x, this.floorY + 1);
+      ctx.lineTo(x + 7, this.floorY + 7);
+      ctx.stroke();
+    }
+    ctx.fillStyle = "#856116";
+    ctx.font = "700 14px Inter, system-ui, sans-serif";
+    ctx.fillText("마찰이 있는 바닥", 18, this.floorY + 29);
+    ctx.restore();
+  }
+
+  private drawSpringConnection(): void {
+    const law = this.springLaw;
+    if (!law) return;
+    const body = this.simulation.getBody(law.bodyId);
+    if (!body) return;
+    const start = law.anchor;
+    const end = body.state.position;
+    const dx = end.x - start.x;
+    const dy = end.y - start.y;
+    const length = Math.hypot(dx, dy);
+    if (length === 0) return;
+    const nx = dx / length;
+    const ny = dy / length;
+    const px = -ny;
+    const py = nx;
+    const equilibrium = {
+      x: start.x + nx * law.restLength,
+      y: start.y + ny * law.restLength,
+    };
+    const { ctx } = this;
+
+    ctx.save();
+    ctx.strokeStyle = "#8157ba";
+    ctx.lineWidth = 4;
+    ctx.lineJoin = "round";
+    ctx.beginPath();
+    ctx.moveTo(start.x, start.y);
+    const coils = 14;
+    for (let index = 1; index < coils; index += 1) {
+      const progress = index / coils;
+      const offset = index % 2 === 0 ? -8 : 8;
+      ctx.lineTo(start.x + dx * progress + px * offset, start.y + dy * progress + py * offset);
+    }
+    ctx.lineTo(end.x, end.y);
+    ctx.stroke();
+
+    ctx.fillStyle = "#34405a";
+    ctx.beginPath();
+    ctx.arc(start.x, start.y, 8, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.font = "700 14px Inter, system-ui, sans-serif";
+    ctx.fillText("고정점", start.x - 21, start.y - 15);
+
+    ctx.strokeStyle = "#8157ba88";
+    ctx.lineWidth = 2;
+    ctx.setLineDash([5, 5]);
+    ctx.beginPath();
+    ctx.arc(equilibrium.x, equilibrium.y, 15, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = "#8157ba";
+    ctx.fillText("제자리", equilibrium.x - 20, equilibrium.y + 34);
+    ctx.restore();
+  }
+
   private drawTrajectoryPreview(): void {
     if (!this.paused || !this.selectedId) return;
+    if (this.springLaw?.bodyId === this.selectedId) return;
     const object = this.objects.get(this.selectedId);
     const body = this.simulation.getBody(this.selectedId);
     if (!object || !body || Math.hypot(body.state.velocity.x, body.state.velocity.y) < VELOCITY_IDLE_EPSILON) return;
@@ -852,6 +1003,7 @@ export class PhysicsPlayground {
       object.x = body.state.position.x;
       object.y = body.state.position.y;
       this.trails.set(object.id, [{ ...body.state.position }]);
+      this.simulation.refreshAccelerations();
       this.notify();
     });
 
@@ -912,6 +1064,7 @@ export class PhysicsPlayground {
       };
     }
     this.trails.set(id, [{ ...body.state.position }]);
+    this.simulation.refreshAccelerations();
     this.notify();
   }
 

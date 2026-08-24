@@ -52,6 +52,20 @@ export class MultiBodyWorld {
     this.bodies.set(body.id, body);
   }
 
+  addLaw(law: WorldForceLaw): void {
+    if (this.laws.some((activeLaw) => activeLaw.id === law.id)) {
+      throw new Error(`Force law already exists: ${law.id}`);
+    }
+    this.laws.push(law);
+  }
+
+  removeLaw(id: string): boolean {
+    const index = this.laws.findIndex((law) => law.id === id);
+    if (index < 0) return false;
+    this.laws.splice(index, 1);
+    return true;
+  }
+
   removeBody(id: string): boolean { return this.bodies.delete(id); }
   getBody(id: string): Body | undefined { return this.bodies.get(id); }
   get allBodies(): readonly Body[] { return [...this.bodies.values()]; }
