@@ -82,6 +82,8 @@ const MAX_VELOCITY_VECTOR_LENGTH = 96;
 const DEFAULT_VELOCITY_HANDLE_OFFSET = 64;
 const VELOCITY_HANDLE_RADIUS = 12;
 const VELOCITY_IDLE_EPSILON = 0.01;
+const TRAJECTORY_PREVIEW_STEP = 0.08;
+const TRAJECTORY_PREVIEW_STEPS = 45;
 const COLORS = ["#5b7cfa", "#f27a54", "#25a77a", "#a069dc", "#e2a62b"];
 
 /** Connects browser input and rendering to the renderer-independent physics core. */
@@ -450,6 +452,7 @@ export class PhysicsPlayground {
     if (this.visualization.grid) this.drawGrid();
     if (this.visualization.trails) this.drawTrails();
     this.drawGround();
+    this.drawTrajectoryPreview();
     for (const object of this.objects.values()) this.drawObject(object);
   }
 
@@ -510,6 +513,58 @@ export class PhysicsPlayground {
       ctx.stroke();
     }
     ctx.restore();
+  }
+
+  private drawTrajectoryPreview(): void {
+    if (!this.paused || !this.selectedId) return;
+    const object = this.objects.get(this.selectedId);
+    const body = this.simulation.getBody(this.selectedId);
+    if (!object || !body || Math.hypot(body.state.velocity.x, body.state.velocity.y) < VELOCITY_IDLE_EPSILON) return;
+    const points = this.predictedPath(object, body.state.velocity, body.state.acceleration);
+    if (points.length < 2) return;
+
+    const { ctx } = this;
+    ctx.save();
+    ctx.strokeStyle = "#7257d599";
+    ctx.lineWidth = 3;
+    ctx.lineCap = "round";
+    ctx.setLineDash([5, 8]);
+    ctx.beginPath();
+    ctx.moveTo(points[0].x, points[0].y);
+    for (const point of points.slice(1)) ctx.lineTo(point.x, point.y);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  private predictedPath(object: PlaygroundObject, velocity: Vector2, acceleration: Vector2): Vector2[] {
+    const points: Vector2[] = [{ x: object.x, y: object.y }];
+    const halfWidth = object.shape === "circle" ? object.radius : object.width / 2;
+    const halfHeight = object.shape === "circle" ? object.radius : object.height / 2;
+    const minX = 14 + halfWidth;
+    const maxX = this.canvas.width - 14 - halfWidth;
+    const minY = 14 + halfHeight;
+    const maxY = this.floorY - halfHeight;
+
+    for (let step = 1; step <= TRAJECTORY_PREVIEW_STEPS; step += 1) {
+      const time = step * TRAJECTORY_PREVIEW_STEP;
+      const point = {
+        x: object.x + velocity.x * time + 0.5 * acceleration.x * time ** 2,
+        y: object.y + velocity.y * time + 0.5 * acceleration.y * time ** 2,
+      };
+      if (point.x < minX || point.x > maxX || point.y < minY || point.y > maxY) break;
+      points.push(point);
+      if (this.previewHitsObject(point, object)) break;
+    }
+    return points;
+  }
+
+  private previewHitsObject(point: Vector2, movingObject: PlaygroundObject): boolean {
+    for (const object of this.objects.values()) {
+      if (object.id === movingObject.id) continue;
+      const combinedRadius = movingObject.radius + object.radius;
+      if (Math.hypot(point.x - object.x, point.y - object.y) <= combinedRadius) return true;
+    }
+    return false;
   }
 
   private drawObject(object: PlaygroundObject): void {
@@ -583,7 +638,7 @@ export class PhysicsPlayground {
   private drawLabel(object: PlaygroundObject): void {
     const { ctx } = this;
     ctx.save();
-    ctx.font = "600 12px Inter, system-ui, sans-serif";
+    ctx.font = "600 14px Inter, system-ui, sans-serif";
     ctx.textAlign = "center";
     const labelY = object.y - object.height / 2 - 14;
     const width = ctx.measureText(object.label).width + 14;
@@ -631,7 +686,7 @@ export class PhysicsPlayground {
     ctx.fill();
     ctx.stroke();
     ctx.fillStyle = "#7257d5";
-    ctx.font = "700 12px Inter, system-ui, sans-serif";
+    ctx.font = "700 14px Inter, system-ui, sans-serif";
     ctx.fillText(idle ? "여기서 끌어 보세요" : "속도", endX + 11, endY - 10);
     ctx.restore();
   }
@@ -691,7 +746,7 @@ export class PhysicsPlayground {
     ctx.lineTo(endX - 10 * Math.cos(angle + Math.PI / 6), endY - 10 * Math.sin(angle + Math.PI / 6));
     ctx.closePath();
     ctx.fill();
-    ctx.font = "700 13px Inter, system-ui, sans-serif";
+    ctx.font = "700 14px Inter, system-ui, sans-serif";
     ctx.fillText(label, endX + 8, endY - 8);
     ctx.restore();
   }

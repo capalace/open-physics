@@ -13,14 +13,17 @@ const createRenderingCanvas = (): {
   canvas: HTMLCanvasElement;
   arc: ReturnType<typeof vi.fn>;
   quadraticCurveTo: ReturnType<typeof vi.fn>;
+  setLineDash: ReturnType<typeof vi.fn>;
 } => {
   const arc = vi.fn();
   const quadraticCurveTo = vi.fn();
+  const setLineDash = vi.fn();
   const gradient = { addColorStop: vi.fn() };
   const noop = () => undefined;
   const context = new Proxy({
     arc,
     quadraticCurveTo,
+    setLineDash,
     createLinearGradient: () => gradient,
     createRadialGradient: () => gradient,
     measureText: () => ({ width: 40 }),
@@ -36,7 +39,7 @@ const createRenderingCanvas = (): {
     getContext: () => context,
     addEventListener: () => undefined,
   } as unknown as HTMLCanvasElement;
-  return { canvas, arc, quadraticCurveTo };
+  return { canvas, arc, quadraticCurveTo, setLineDash };
 };
 
 const createInteractiveCanvas = (): {
@@ -240,5 +243,46 @@ describe("PhysicsPlayground velocity control", () => {
     expect(body.state.position).toEqual({ x: 480, y: 240 });
     expect(body.state.velocity.x).toBeCloseTo(0);
     expect(body.state.velocity.y).toBeLessThan(0);
+  });
+});
+
+describe("PhysicsPlayground trajectory preview", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("curves the preview according to the selected gravity", () => {
+    vi.stubGlobal("requestAnimationFrame", () => 0);
+    const playground = new PhysicsPlayground(createCanvas(), { width: 960, height: 600 });
+    const object = playground.addCircle(160, 160, 20);
+    const preview = playground as unknown as {
+      predictedPath(
+        target: typeof object,
+        velocity: { x: number; y: number },
+        acceleration: { x: number; y: number },
+      ): Array<{ x: number; y: number }>;
+    };
+
+    const zeroGravity = preview.predictedPath(object, { x: 120, y: -60 }, { x: 0, y: 0 });
+    const earthGravity = preview.predictedPath(object, { x: 120, y: -60 }, { x: 0, y: 9.81 * 48 });
+
+    expect(zeroGravity.length).toBeGreaterThan(3);
+    expect(earthGravity.length).toBeGreaterThan(3);
+    expect(earthGravity[3].x).toBeCloseTo(zeroGravity[3].x);
+    expect(earthGravity[3].y).toBeGreaterThan(zeroGravity[3].y);
+  });
+
+  it("draws the dotted preview only while the world is paused", () => {
+    vi.stubGlobal("requestAnimationFrame", () => 0);
+    const { canvas, setLineDash } = createRenderingCanvas();
+    const playground = new PhysicsPlayground(canvas, { width: 960, height: 600 });
+    playground.addCircle(160, 160, 20, { velocity: { x: 2, y: -2 } });
+    const renderer = playground as unknown as { render(): void };
+
+    renderer.render();
+    expect(setLineDash).toHaveBeenCalledWith([5, 8]);
+
+    setLineDash.mockClear();
+    playground.paused = false;
+    renderer.render();
+    expect(setLineDash).not.toHaveBeenCalledWith([5, 8]);
   });
 });
