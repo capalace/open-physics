@@ -40,7 +40,6 @@ export interface PlaygroundObjectOptions {
 
 export interface PlaygroundSnapshot {
   paused: boolean;
-  preset: PlaygroundPreset;
   gravity: number;
   selected: {
     id: string;
@@ -137,19 +136,6 @@ export class PhysicsPlayground {
   addObject(): PlaygroundObject {
     this._paused = true;
     this.accumulator = 0;
-    if (this.currentPreset === "projectile") {
-      const slot = this.objects.size;
-      return this.addCircle(
-        145 + (slot % 10) * 60,
-        this.floorY - 42 - Math.floor(slot / 10) * 60,
-        22,
-        {
-          label: `발사체 ${slot + 1}`,
-          material: "rubber",
-          velocity: { x: 5.6, y: -7.2 },
-        },
-      );
-    }
     return this.addCircle(420 + Math.random() * 120, 100, 25, { label: `물체 ${this.objects.size + 1}` });
   }
 
@@ -306,7 +292,6 @@ export class PhysicsPlayground {
     }
     return {
       paused: this.paused,
-      preset: this.currentPreset,
       gravity: this.gravity,
       selected,
     };

@@ -17,7 +17,6 @@ const canvas = required<HTMLCanvasElement>("#physics-canvas");
 const playButton = required<HTMLButtonElement>("#play");
 const stepButton = required<HTMLButtonElement>("#step");
 const addObjectButton = required<HTMLButtonElement>("#add-object");
-const addObjectLabel = required<HTMLElement>("#add-object-label");
 const deleteButton = required<HTMLButtonElement>("#delete-object");
 const inspectorEmpty = required<HTMLElement>("#inspector-empty");
 const inspectorForm = required<HTMLFormElement>("#inspector-form");
@@ -92,10 +91,6 @@ function renderSnapshot(snapshot: PlaygroundSnapshot): void {
   playButton.textContent = snapshot.paused ? "▶  실행" : "Ⅱ  일시정지";
   playButton.dataset.running = String(!snapshot.paused);
   stepButton.disabled = !snapshot.paused;
-  addObjectLabel.textContent = snapshot.preset === "projectile" ? "발사체 추가" : "물체 추가";
-  addObjectButton.title = snapshot.preset === "projectile"
-    ? "기본 운동 방향을 가진 발사체 추가"
-    : "원형 물체 추가";
 
   required<HTMLOutputElement>("#gravity-value").value = gravityDescription(snapshot.gravity);
 
@@ -103,9 +98,6 @@ function renderSnapshot(snapshot: PlaygroundSnapshot): void {
   status.textContent = snapshot.paused ? "대기" : "실행 중";
   status.dataset.running = String(!snapshot.paused);
 
-  document.querySelectorAll<HTMLButtonElement>("[data-preset]").forEach((button) => {
-    setActive(button, button.dataset.preset === snapshot.preset);
-  });
   document.querySelectorAll<HTMLButtonElement>("[data-gravity]").forEach((button) => {
     setActive(button, Math.abs(Number(button.dataset.gravity) - snapshot.gravity) < 0.01);
   });

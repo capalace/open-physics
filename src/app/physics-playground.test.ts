@@ -76,18 +76,21 @@ describe("PhysicsPlayground object creation", () => {
     expect(body.state.velocity).toEqual({ x: 0, y: 0 });
   });
 
-  it("adds a circular projectile with a useful default velocity", () => {
+  it("loads a projectile quick start but keeps the add action general", () => {
     vi.stubGlobal("requestAnimationFrame", () => 0);
     const playground = new PhysicsPlayground(createCanvas(), { width: 960, height: 600 });
     playground.loadPreset("projectile");
 
-    const object = playground.addObject();
-    const body = playground.simulation.getBody(object.id)!;
+    const starter = [...playground.objects.values()].find((object) => object.label === "발사체")!;
+    const starterBody = playground.simulation.getBody(starter.id)!;
+    const added = playground.addObject();
+    const addedBody = playground.simulation.getBody(added.id)!;
 
-    expect(object.shape).toBe("circle");
-    expect(object.label).toContain("발사체");
-    expect(body.state.velocity.x / 48).toBeCloseTo(5.6);
-    expect(body.state.velocity.y / 48).toBeCloseTo(-7.2);
+    expect(starterBody.state.velocity.x / 48).toBeCloseTo(5.6);
+    expect(starterBody.state.velocity.y / 48).toBeCloseTo(-7.2);
+    expect(added.shape).toBe("circle");
+    expect(added.label).toContain("물체");
+    expect(addedBody.state.velocity).toEqual({ x: 0, y: 0 });
   });
 });
 

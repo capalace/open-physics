@@ -24,27 +24,27 @@
   </header>
 
   <main class="app-layout">
-    <aside class="panel experiment-panel" aria-label="실험 선택">
+    <aside class="panel experiment-panel" aria-label="빠른 시작과 사용법">
       <div class="panel-heading">
-        <span class="eyebrow">MECHANICS</span>
-        <h1>움직임을<br />직접 만들어 보세요</h1>
-        <p>프리셋을 시작점으로 삼아 물체와 조건을 자유롭게 바꿔보세요.</p>
+        <span class="eyebrow">PHYSICS WORLD</span>
+        <h1>하나의 월드에서<br />직접 움직여 보세요</h1>
+        <p>빠른 시작은 물체와 조건만 준비합니다. 이후에는 모두 자유롭게 바꿀 수 있어요.</p>
       </div>
 
-      <section class="panel-section">
-        <div class="section-heading"><h2>실험 프리셋</h2><span>3</span></div>
-        <div class="preset-list">
-          <button class="preset-card is-active" type="button" data-preset="free-fall" aria-pressed="true">
+      <section class="panel-section quick-start-section">
+        <div class="section-heading"><h2>빠른 시작</h2><span>시작 상태</span></div>
+        <div class="quick-start-list">
+          <button class="quick-start" type="button" data-preset="free-fall">
             <span class="preset-icon blue">↓</span>
-            <span><strong>자유 낙하</strong><small>질량에 따른 낙하 비교</small></span>
+            <strong>떨어뜨려 보기</strong>
           </button>
-          <button class="preset-card" type="button" data-preset="projectile" aria-pressed="false">
+          <button class="quick-start" type="button" data-preset="projectile">
             <span class="preset-icon green">↗</span>
-            <span><strong>포물선 운동</strong><small>초기 속도와 중력이 만드는 경로</small></span>
+            <strong>던져 보기</strong>
           </button>
-          <button class="preset-card" type="button" data-preset="collision" aria-pressed="false">
+          <button class="quick-start" type="button" data-preset="collision">
             <span class="preset-icon orange">⇄</span>
-            <span><strong>충돌 실험</strong><small>재질과 질량에 따른 충돌</small></span>
+            <strong>부딪혀 보기</strong>
           </button>
         </div>
       </section>
@@ -69,11 +69,11 @@
         <div class="transport-controls">
           <button id="play" class="primary-button" type="button">▶&nbsp;&nbsp;실행</button>
           <button id="step" class="icon-button text-button" type="button" title="한 단계 진행">한 단계</button>
-          <button id="reset" class="icon-button text-button" type="button" title="실험 초기화">↻ 초기화</button>
+          <button id="reset" class="icon-button text-button" type="button" title="빠른 시작 상태로 되돌리기">↻ 처음으로</button>
         </div>
         <div class="toolbar-divider"></div>
         <div class="creation-controls">
-          <button id="add-object" type="button"><i class="shape-circle"></i><span id="add-object-label">물체 추가</span></button>
+          <button id="add-object" type="button" title="원형 물체 추가"><i class="shape-circle"></i><span>물체 추가</span></button>
           <button id="delete-object" class="danger-button" type="button" disabled>삭제</button>
         </div>
         <div class="run-indicator" id="run-status" data-running="false">멈춤</div>

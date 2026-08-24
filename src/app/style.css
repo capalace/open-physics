@@ -95,27 +95,26 @@ button:focus-visible, input:focus-visible { outline: 3px solid #91a8ff; outline-
 .section-heading h2 { margin: 0; color: #536078; font-size: 11px; letter-spacing: .02em; }
 .section-heading > span { border-radius: 999px; padding: 3px 7px; background: #eef2f7; color: #8390a4; font-size: 9px; font-weight: 800; }
 
-.preset-list { display: grid; gap: 8px; }
-.preset-card {
-  display: grid;
-  grid-template-columns: 40px 1fr;
+.quick-start-list { display: grid; gap: 6px; }
+.quick-start {
+  display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 9px;
   width: 100%;
-  border: 1px solid transparent;
-  border-radius: 12px;
-  padding: 10px;
-  background: transparent;
+  min-height: 42px;
+  border: 1px solid #e1e6ee;
+  border-radius: 10px;
+  padding: 7px 9px;
+  background: #fafbfd;
+  color: #354259;
   text-align: left;
   cursor: pointer;
   transition: 160ms ease;
 }
-.preset-card:hover { background: #f5f7fb; transform: translateX(2px); }
-.preset-card.is-active { border-color: #cdd8ff; background: #eef3ff; box-shadow: inset 3px 0 var(--accent); }
-.preset-card strong, .preset-card small { display: block; }
-.preset-card strong { margin-bottom: 3px; color: #2b3850; font-size: 12px; }
-.preset-card small { color: #8a96a9; font-size: 10px; line-height: 1.35; }
-.preset-icon { display: grid; place-items: center; width: 38px; height: 38px; border-radius: 11px; font-size: 20px; }
+.quick-start:hover { border-color: #bdcaf0; background: #f2f5fc; transform: translateX(2px); }
+.quick-start:focus-visible { border-color: var(--accent); outline: 3px solid #365eea1c; }
+.quick-start strong { font-size: 11px; }
+.preset-icon { display: grid; flex: 0 0 28px; place-items: center; width: 28px; height: 28px; border-radius: 8px; font-size: 15px; }
 .preset-icon.blue { background: #e8efff; color: #496de7; }
 .preset-icon.green { background: #e4f6ef; color: var(--green); }
 .preset-icon.orange { background: #fff0eb; color: var(--orange); }
@@ -310,10 +309,8 @@ canvas { display: block; width: 100%; height: auto; aspect-ratio: 8 / 5; touch-a
   .subject-nav button { padding: 8px 10px; }
   .app-layout { display: block; }
   .experiment-panel { border-right: 0; border-bottom: 1px solid var(--line); }
-  .quick-guide, .principle-note { display: none; }
-  .preset-list { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-  .preset-card { grid-template-columns: 1fr; }
-  .preset-card small { display: none; }
+  .guide, .principle-note { display: none; }
+  .quick-start-list { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .world-toolbar { flex-wrap: wrap; }
   .run-indicator, .toolbar-divider, .canvas-legend { display: none; }
   .inspector-panel { display: block; }
