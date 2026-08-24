@@ -514,8 +514,18 @@ export class PhysicsPlayground {
     if (selected) {
       ctx.strokeStyle = "#ffffff";
       ctx.lineWidth = 7;
-      ctx.beginPath();
-      ctx.arc(object.x, object.y, object.radius + 6, 0, Math.PI * 2);
+      if (object.shape === "circle") {
+        ctx.beginPath();
+        ctx.arc(object.x, object.y, object.radius + 6, 0, Math.PI * 2);
+      } else {
+        this.roundRect(
+          object.x - object.width / 2 - 6,
+          object.y - object.height / 2 - 6,
+          object.width + 12,
+          object.height + 12,
+          14,
+        );
+      }
       ctx.stroke();
       ctx.strokeStyle = object.color;
       ctx.lineWidth = 2.5;
