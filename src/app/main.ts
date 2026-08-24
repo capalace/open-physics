@@ -17,15 +17,14 @@ const canvas = required<HTMLCanvasElement>("#physics-canvas");
 const playButton = required<HTMLButtonElement>("#play");
 const stepButton = required<HTMLButtonElement>("#step");
 const deleteButton = required<HTMLButtonElement>("#delete-object");
-const gravityInput = required<HTMLInputElement>("#gravity");
 const inspectorEmpty = required<HTMLElement>("#inspector-empty");
 const inspectorForm = required<HTMLFormElement>("#inspector-form");
 const objectLabel = required<HTMLInputElement>("#object-label");
 const objectMass = required<HTMLInputElement>("#object-mass");
-const objectMaterial = required<HTMLSelectElement>("#object-material");
 const velocityX = required<HTMLInputElement>("#velocity-x");
 const velocityY = required<HTMLInputElement>("#velocity-y");
 const objectColor = required<HTMLInputElement>("#object-color");
+const EARTH_GRAVITY = 9.81;
 
 const playground = new PhysicsPlayground(canvas, { onUpdate: renderSnapshot });
 playground.loadPreset("free-fall");
@@ -41,7 +40,6 @@ required<HTMLButtonElement>("#add-box").addEventListener("click", () => {
 });
 deleteButton.addEventListener("click", () => playground.removeSelected());
 
-gravityInput.addEventListener("input", () => playground.setGravity(Number(gravityInput.value)));
 bindToggle("#show-grid", "grid");
 bindToggle("#show-trails", "trails");
 bindToggle("#show-vectors", "vectors");
@@ -51,20 +49,36 @@ document.querySelectorAll<HTMLButtonElement>("[data-preset]").forEach((button) =
     playground.loadPreset(button.dataset.preset as PlaygroundPreset);
   });
 });
-document.querySelectorAll<HTMLButtonElement>("[data-time-scale]").forEach((button) => {
-  button.addEventListener("click", () => playground.setTimeScale(Number(button.dataset.timeScale)));
+document.querySelectorAll<HTMLButtonElement>("[data-gravity]").forEach((button) => {
+  button.addEventListener("click", () => {
+    playground.setGravity(Number(button.dataset.gravity));
+    pulseWorld();
+  });
 });
 
 objectLabel.addEventListener("change", () => playground.updateSelected({ label: objectLabel.value }));
 objectMass.addEventListener("input", () => playground.updateSelected({ mass: Number(objectMass.value) }));
-objectMaterial.addEventListener("change", () => {
-  playground.updateSelected({ material: objectMaterial.value as PlaygroundMaterial });
+document.querySelectorAll<HTMLButtonElement>("[data-material]").forEach((button) => {
+  button.addEventListener("click", () => {
+    playground.updateSelected({ material: button.dataset.material as PlaygroundMaterial });
+    pulseWorld();
+  });
+});
+document.querySelectorAll<HTMLButtonElement>("[data-mass]").forEach((button) => {
+  button.addEventListener("click", () => {
+    playground.updateSelected({ mass: Number(button.dataset.mass) });
+    pulseWorld();
+  });
 });
 velocityX.addEventListener("change", () => {
+  playground.paused = true;
   playground.updateSelected({ velocityX: Number(velocityX.value) });
+  pulseWorld();
 });
 velocityY.addEventListener("change", () => {
+  playground.paused = true;
   playground.updateSelected({ velocityY: Number(velocityY.value) });
+  pulseWorld();
 });
 objectColor.addEventListener("input", () => playground.updateSelected({ color: objectColor.value }));
 
@@ -94,21 +108,17 @@ function renderSnapshot(snapshot: PlaygroundSnapshot): void {
   playButton.dataset.running = String(!snapshot.paused);
   stepButton.disabled = !snapshot.paused;
 
-  required<HTMLOutputElement>("#gravity-value").value = `${snapshot.gravity.toFixed(2)} m/s²`;
-  syncInput(gravityInput, snapshot.gravity.toFixed(2));
+  required<HTMLOutputElement>("#gravity-value").value = gravityDescription(snapshot.gravity);
 
   const status = required<HTMLElement>("#run-status");
-  status.textContent = snapshot.paused ? "멈춤" : "실행 중";
+  status.textContent = snapshot.paused ? "대기" : "실행 중";
   status.dataset.running = String(!snapshot.paused);
-  required<HTMLElement>("#metric-time").textContent = `${snapshot.time.toFixed(2)} s`;
-  required<HTMLElement>("#metric-objects").textContent = String(snapshot.objectCount);
-  required<HTMLElement>("#metric-collisions").textContent = String(snapshot.collisionCount);
 
   document.querySelectorAll<HTMLButtonElement>("[data-preset]").forEach((button) => {
     setActive(button, button.dataset.preset === snapshot.preset);
   });
-  document.querySelectorAll<HTMLButtonElement>("[data-time-scale]").forEach((button) => {
-    setActive(button, Number(button.dataset.timeScale) === snapshot.timeScale);
+  document.querySelectorAll<HTMLButtonElement>("[data-gravity]").forEach((button) => {
+    setActive(button, Math.abs(Number(button.dataset.gravity) - snapshot.gravity) < 0.01);
   });
 
   inspectorEmpty.hidden = Boolean(snapshot.selected);
@@ -116,22 +126,25 @@ function renderSnapshot(snapshot: PlaygroundSnapshot): void {
   deleteButton.disabled = !snapshot.selected;
 
   if (!snapshot.selected) {
-    required<HTMLElement>("#metric-speed").textContent = "—";
     return;
   }
 
   const selected = snapshot.selected;
   required<HTMLElement>("#selection-name").textContent = selected.label;
   required<HTMLElement>("#selection-type").textContent =
-    selected.shape === "circle" ? "원형 물체" : "상자 물체";
-  required<HTMLElement>("#metric-speed").textContent = `${selected.speed.toFixed(2)} m/s`;
+    selected.shape === "circle" ? "동그란 공" : "네모난 상자";
   required<HTMLElement>("#selected-energy").textContent = `${selected.kineticEnergy.toFixed(2)} J`;
   required<HTMLElement>("#selected-height").textContent = `${selected.height.toFixed(2)} m`;
 
   syncInput(objectLabel, selected.label);
   syncInput(objectMass, selected.mass.toFixed(1));
-  objectMaterial.value = selected.material;
   required<HTMLElement>("#material-description").textContent = MATERIALS[selected.material].description;
+  document.querySelectorAll<HTMLButtonElement>("[data-material]").forEach((button) => {
+    setActive(button, button.dataset.material === selected.material);
+  });
+  document.querySelectorAll<HTMLButtonElement>("[data-mass]").forEach((button) => {
+    setActive(button, Number(button.dataset.mass) === selected.mass);
+  });
   syncInput(velocityX, selected.velocity.x.toFixed(2));
   syncInput(velocityY, selected.velocity.y.toFixed(2));
   if (document.activeElement !== objectColor) objectColor.value = selected.color;
@@ -144,4 +157,20 @@ function setActive(button: HTMLButtonElement, active: boolean): void {
 
 function syncInput(input: HTMLInputElement, value: string): void {
   if (document.activeElement !== input) input.value = value;
+}
+
+function gravityDescription(gravity: number): string {
+  if (gravity === 0) return "무중력 · 0×";
+  if (Math.abs(gravity - 1.62) < 0.01) return "달 · 0.17×";
+  if (Math.abs(gravity - EARTH_GRAVITY) < 0.01) return "지구 · 1×";
+  if (Math.abs(gravity - 24.79) < 0.01) return "목성 · 2.53×";
+  return `${(gravity / EARTH_GRAVITY).toFixed(2)}× 지구`;
+}
+
+function pulseWorld(): void {
+  const frame = canvas.closest<HTMLElement>(".canvas-frame");
+  if (!frame) return;
+  frame.classList.remove("setting-changed");
+  requestAnimationFrame(() => frame.classList.add("setting-changed"));
+  window.setTimeout(() => frame.classList.remove("setting-changed"), 420);
 }

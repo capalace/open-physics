@@ -36,15 +36,15 @@
         <div class="preset-list">
           <button class="preset-card is-active" type="button" data-preset="free-fall" aria-pressed="true">
             <span class="preset-icon blue">↓</span>
-            <span><strong>자유 낙하</strong><small>질량이 달라도 같은 가속도</small></span>
+            <span><strong>자유 낙하</strong><small>질량에 따른 낙하 비교</small></span>
           </button>
           <button class="preset-card" type="button" data-preset="projectile" aria-pressed="false">
             <span class="preset-icon green">↗</span>
-            <span><strong>포물선 운동</strong><small>수평 운동과 수직 운동의 합</small></span>
+            <span><strong>포물선 운동</strong><small>초기 속도와 중력이 만드는 경로</small></span>
           </button>
           <button class="preset-card" type="button" data-preset="collision" aria-pressed="false">
             <span class="preset-icon orange">⇄</span>
-            <span><strong>충돌 실험</strong><small>질량과 재질을 바꿔보기</small></span>
+            <span><strong>충돌 실험</strong><small>재질과 질량에 따른 충돌</small></span>
           </button>
         </div>
       </section>
@@ -52,9 +52,9 @@
       <section class="panel-section guide">
         <div class="section-heading"><h2>빠른 사용법</h2></div>
         <ol>
-          <li><span>1</span> 물체를 선택하거나 드래그하세요.</li>
-          <li><span>2</span> 오른쪽에서 속성을 바꾸세요.</li>
-          <li><span>3</span> 실행하고 벡터와 궤적을 관찰하세요.</li>
+          <li><span>1</span> 물체를 선택하거나 드래그합니다.</li>
+          <li><span>2</span> 재질과 무게를 선택합니다.</li>
+          <li><span>3</span> 실행하고 움직임을 관찰합니다.</li>
         </ol>
       </section>
 
@@ -68,8 +68,8 @@
       <div class="world-toolbar">
         <div class="transport-controls">
           <button id="play" class="primary-button" type="button">▶&nbsp;&nbsp;실행</button>
-          <button id="step" class="icon-button" type="button" title="한 프레임 진행">→|</button>
-          <button id="reset" class="icon-button" type="button" title="현재 실험 초기화">↻</button>
+          <button id="step" class="icon-button text-button" type="button" title="한 단계 진행">한 단계</button>
+          <button id="reset" class="icon-button text-button" type="button" title="실험 초기화">↻ 초기화</button>
         </div>
         <div class="toolbar-divider"></div>
         <div class="creation-controls">
@@ -83,32 +83,26 @@
 
       <div class="canvas-frame">
         <canvas id="physics-canvas" width="960" height="600">브라우저가 Canvas를 지원하지 않습니다.</canvas>
-        <div class="canvas-badge">2D WORLD · SI UNITS</div>
+        <div class="canvas-badge">2D 실험 공간</div>
         <div class="canvas-legend">
-          <span><i class="velocity-key"></i>속도 v</span>
-          <span><i class="acceleration-key"></i>가속도 a</span>
+          <span><i class="velocity-key"></i>속도 방향</span>
+          <span><i class="acceleration-key"></i>가속도 방향</span>
           <span>드래그하여 위치 변경</span>
         </div>
       </div>
 
-      <div class="metric-strip" aria-label="실시간 측정값">
-        <div><span>시뮬레이션 시간</span><strong id="metric-time">0.00 s</strong></div>
-        <div><span>물체 수</span><strong id="metric-objects">3</strong></div>
-        <div><span>선택 물체 속력</span><strong id="metric-speed">0.00 m/s</strong></div>
-        <div><span>충돌 횟수</span><strong id="metric-collisions">0</strong></div>
-      </div>
     </section>
 
     <aside class="panel inspector-panel" aria-label="속성과 환경">
       <div class="inspector-header">
-        <div><span class="eyebrow">INSPECTOR</span><h2>속성과 환경</h2></div>
-        <span class="shortcut">DEL 삭제</span>
+        <div><span class="eyebrow">SELECTED OBJECT</span><h2>물체 설정</h2></div>
+        <span class="shortcut">선택 항목</span>
       </div>
 
       <div id="inspector-empty" class="empty-selection">
         <span class="empty-orbit"><i></i></span>
         <strong>물체를 선택하세요</strong>
-        <p>월드에서 물체를 누르면 질량과 속도 같은 물리량을 편집할 수 있습니다.</p>
+        <p>선택한 물체의 재질, 무게, 운동 상태를 변경할 수 있습니다.</p>
       </div>
 
       <form id="inspector-form" class="inspector-form" hidden>
@@ -117,54 +111,65 @@
           <span><strong id="selection-name">선택한 물체</strong><small id="selection-type">원형 물체</small></span>
         </div>
         <label class="field"><span>이름</span><input id="object-label" type="text" maxlength="24" /></label>
-        <div class="field-grid">
-          <label class="field"><span>질량 <small>kg</small></span><input id="object-mass" type="number" min="0.1" max="20" step="0.1" /></label>
-          <label class="field">
-            <span>재질</span>
-            <select id="object-material">
-              <option value="rubber">고무</option>
-              <option value="wood">나무</option>
-              <option value="steel">금속</option>
-              <option value="clay">점토</option>
-            </select>
-          </label>
-        </div>
-        <p id="material-description" class="material-description">재질에 따라 튀는 정도가 달라집니다.</p>
-        <fieldset>
-          <legend>초기 속도</legend>
-          <div class="field-grid">
-            <label class="field"><span>x <small>m/s</small></span><input id="velocity-x" type="number" step="0.1" /></label>
-            <label class="field"><span>y <small>m/s</small></span><input id="velocity-y" type="number" step="0.1" /></label>
+
+        <section class="choice-section" aria-labelledby="material-title">
+          <h3 id="material-title">재질</h3>
+          <div class="material-options" role="group" aria-label="재질 선택">
+            <button type="button" data-material="rubber"><i class="material-swatch rubber"></i><span><strong>고무</strong><small>탄성 높음</small></span></button>
+            <button type="button" data-material="wood"><i class="material-swatch wood"></i><span><strong>나무</strong><small>탄성 보통</small></span></button>
+            <button type="button" data-material="steel"><i class="material-swatch steel"></i><span><strong>금속</strong><small>단단함</small></span></button>
+            <button type="button" data-material="clay"><i class="material-swatch clay"></i><span><strong>점토</strong><small>탄성 낮음</small></span></button>
           </div>
-        </fieldset>
+          <p id="material-description" class="material-description">재질에 따라 충돌 반응이 달라집니다.</p>
+        </section>
+
+        <section class="choice-section" aria-labelledby="mass-title">
+          <h3 id="mass-title">무게</h3>
+          <div class="mass-options" role="group" aria-label="무게 선택">
+            <button type="button" data-mass="0.5">가벼움</button>
+            <button type="button" data-mass="1">보통</button>
+            <button type="button" data-mass="3">무거움</button>
+          </div>
+        </section>
+
+        <details class="advanced-controls">
+          <summary>상세 수치 설정</summary>
+          <div class="field-grid">
+            <label class="field"><span>질량 <small>kg</small></span><input id="object-mass" type="number" min="0.1" max="20" step="0.1" /></label>
+            <span></span>
+          </div>
+          <fieldset>
+            <legend>초기 속도</legend>
+            <div class="field-grid">
+              <label class="field"><span>좌우 <small>m/s</small></span><input id="velocity-x" type="number" step="0.1" /></label>
+              <label class="field"><span>위아래 <small>m/s</small></span><input id="velocity-y" type="number" step="0.1" /></label>
+            </div>
+          </fieldset>
+        </details>
         <div class="selection-readouts">
-          <div><span>바닥으로부터 높이</span><strong id="selected-height">0.00 m</strong></div>
+          <div><span>지금 높이</span><strong id="selected-height">0.00 m</strong></div>
           <div><span>운동 에너지</span><strong id="selected-energy">0.00 J</strong></div>
         </div>
       </form>
 
       <section class="environment-section">
-        <div class="section-heading"><h2>월드 환경</h2><span>GLOBAL</span></div>
-        <label class="range-field">
-          <span><strong>중력</strong><output id="gravity-value">9.81 m/s²</output></span>
-          <input id="gravity" type="range" min="-20" max="20" value="9.81" step="0.01" />
-          <span class="range-scale"><small>-20</small><small>0</small><small>20</small></span>
-        </label>
-        <div class="setting-row">
-          <span><strong>시간 배율</strong><small>SPACE 실행/멈춤</small></span>
-          <div class="segmented-control">
-            <button type="button" data-time-scale="0.5" aria-pressed="false">½×</button>
-            <button class="is-active" type="button" data-time-scale="1" aria-pressed="true">1×</button>
-            <button type="button" data-time-scale="2" aria-pressed="false">2×</button>
+        <div class="section-heading"><h2>환경 설정</h2><span>전체 적용</span></div>
+        <div class="gravity-setting">
+          <span><strong>중력</strong><output id="gravity-value">지구 · 1×</output></span>
+          <div class="gravity-options" role="group" aria-label="중력 환경 선택">
+            <button type="button" data-gravity="0" aria-pressed="false"><strong>무중력</strong><small>0×</small></button>
+            <button type="button" data-gravity="1.62" aria-pressed="false"><strong>달</strong><small>0.17×</small></button>
+            <button class="is-active" type="button" data-gravity="9.81" aria-pressed="true"><strong>지구</strong><small>1×</small></button>
+            <button type="button" data-gravity="24.79" aria-pressed="false"><strong>목성</strong><small>2.53×</small></button>
           </div>
         </div>
       </section>
 
       <section class="visualization-section">
-        <div class="section-heading"><h2>시각화</h2></div>
-        <label class="toggle-row"><span><i class="grid-icon"></i><strong>좌표 격자</strong></span><input id="show-grid" type="checkbox" checked /><i class="switch"></i></label>
-        <label class="toggle-row"><span><i class="trail-icon"></i><strong>이동 궤적</strong></span><input id="show-trails" type="checkbox" checked /><i class="switch"></i></label>
-        <label class="toggle-row"><span><i class="vector-icon"></i><strong>속도·가속도 벡터</strong></span><input id="show-vectors" type="checkbox" checked /><i class="switch"></i></label>
+        <div class="section-heading"><h2>표시 옵션</h2></div>
+        <label class="toggle-row"><span><i class="grid-icon"></i><strong>격자</strong></span><input id="show-grid" type="checkbox" checked /><i class="switch"></i></label>
+        <label class="toggle-row"><span><i class="trail-icon"></i><strong>이동 경로</strong></span><input id="show-trails" type="checkbox" checked /><i class="switch"></i></label>
+        <label class="toggle-row"><span><i class="vector-icon"></i><strong>방향 표시</strong></span><input id="show-vectors" type="checkbox" checked /><i class="switch"></i></label>
       </section>
     </aside>
   </main>

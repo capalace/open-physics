@@ -11,10 +11,10 @@ export const MATERIALS: Readonly<Record<PlaygroundMaterial, {
   description: string;
   restitution: number;
 }>> = {
-  rubber: { label: "고무", description: "잘 튀고 충돌 뒤에도 운동을 많이 유지해요.", restitution: 0.88 },
-  wood: { label: "나무", description: "적당히 튀는 일상적인 움직임을 보여줘요.", restitution: 0.5 },
-  steel: { label: "금속", description: "단단하고 비교적 탄성 있게 충돌해요.", restitution: 0.72 },
-  clay: { label: "점토", description: "충돌 에너지를 흡수해 거의 튀지 않아요.", restitution: 0.08 },
+  rubber: { label: "고무", description: "탄성이 높아 충돌 후에도 운동을 많이 유지합니다.", restitution: 0.88 },
+  wood: { label: "나무", description: "중간 정도의 탄성으로 충돌합니다.", restitution: 0.5 },
+  steel: { label: "금속", description: "단단하고 비교적 탄성 있게 충돌합니다.", restitution: 0.72 },
+  clay: { label: "점토", description: "충돌 에너지를 흡수해 거의 튀지 않습니다.", restitution: 0.08 },
 };
 
 export interface PlaygroundObject {
@@ -42,10 +42,6 @@ export interface PlaygroundSnapshot {
   paused: boolean;
   preset: PlaygroundPreset;
   gravity: number;
-  timeScale: number;
-  time: number;
-  objectCount: number;
-  collisionCount: number;
   selected: {
     id: string;
     label: string;
@@ -97,9 +93,7 @@ export class PhysicsPlayground {
   readonly visualization: VisualizationOptions = { grid: true, trails: true, vectors: true };
 
   gravity: number;
-  timeScale = 1;
   currentPreset: PlaygroundPreset = "free-fall";
-  collisionCount = 0;
   onUpdate?: (snapshot: PlaygroundSnapshot) => void;
 
   private _paused = true;
@@ -178,7 +172,6 @@ export class PhysicsPlayground {
   loadPreset(preset: PlaygroundPreset): void {
     this._paused = true;
     this.currentPreset = preset;
-    this.collisionCount = 0;
     this.accumulator = 0;
     this.trailTick = 0;
     this.selectedId = null;
@@ -246,13 +239,7 @@ export class PhysicsPlayground {
 
   setGravity(value: number): void {
     if (!Number.isFinite(value)) return;
-    this.replaceGravity(Math.max(-20, Math.min(20, value)));
-    this.notify();
-  }
-
-  setTimeScale(value: number): void {
-    if (!Number.isFinite(value) || value <= 0) return;
-    this.timeScale = Math.max(0.25, Math.min(2, value));
+    this.replaceGravity(Math.max(0, Math.min(30, value)));
     this.notify();
   }
 
@@ -316,10 +303,6 @@ export class PhysicsPlayground {
       paused: this.paused,
       preset: this.currentPreset,
       gravity: this.gravity,
-      timeScale: this.timeScale,
-      time: this.simulation.currentTime,
-      objectCount: this.objects.size,
-      collisionCount: this.collisionCount,
       selected,
     };
   }
@@ -356,7 +339,7 @@ export class PhysicsPlayground {
     this.lastFrame = time;
 
     if (!this.paused && !this.draggedId) {
-      this.accumulator += elapsed * this.timeScale;
+      this.accumulator += elapsed;
       let iterations = 0;
       while (this.accumulator >= FIXED_STEP && iterations < 12) {
         this.advance(FIXED_STEP);
@@ -376,14 +359,12 @@ export class PhysicsPlayground {
 
   private advance(dt: number): void {
     this.simulation.step(dt);
-    this.collisionCount += this.simulation.collisionEvents.length;
-    this.collisionCount += this.resolveWorldBounds();
+    this.resolveWorldBounds();
     this.trailTick += 1;
     if (this.trailTick % 4 === 0) this.recordTrails();
   }
 
-  private resolveWorldBounds(): number {
-    let impacts = 0;
+  private resolveWorldBounds(): void {
     const margin = 14;
     for (const object of this.objects.values()) {
       const body = this.simulation.getBody(object.id);
@@ -399,13 +380,11 @@ export class PhysicsPlayground {
       if (body.state.position.x < left) {
         body.state.position.x = left;
         if (body.state.velocity.x < 0) {
-          if (Math.abs(body.state.velocity.x) > 8) impacts += 1;
           body.state.velocity.x *= -restitution;
         }
       } else if (body.state.position.x > right) {
         body.state.position.x = right;
         if (body.state.velocity.x > 0) {
-          if (Math.abs(body.state.velocity.x) > 8) impacts += 1;
           body.state.velocity.x *= -restitution;
         }
       }
@@ -413,20 +392,17 @@ export class PhysicsPlayground {
       if (body.state.position.y < top) {
         body.state.position.y = top;
         if (body.state.velocity.y < 0) {
-          if (Math.abs(body.state.velocity.y) > 8) impacts += 1;
           body.state.velocity.y *= -restitution;
         }
       } else if (body.state.position.y > bottom) {
         body.state.position.y = bottom;
         if (body.state.velocity.y > 0) {
-          if (Math.abs(body.state.velocity.y) > 8) impacts += 1;
           body.state.velocity.y *= -restitution;
           body.state.velocity.x *= 0.992;
           if (Math.abs(body.state.velocity.y) < 10) body.state.velocity.y = 0;
         }
       }
     }
-    return impacts;
   }
 
   private recordTrails(): void {
@@ -575,8 +551,8 @@ export class PhysicsPlayground {
 
     this.drawLabel(object);
     if (selected && this.visualization.vectors) {
-      this.drawArrow(object.x, object.y, body.state.velocity, 0.22, "#7257d5", "v");
-      this.drawArrow(object.x, object.y, body.state.acceleration, 0.14, "#e05c3f", "a");
+      this.drawArrow(object.x, object.y, body.state.velocity, 0.22, "#7257d5", "속도");
+      this.drawArrow(object.x, object.y, body.state.acceleration, 0.14, "#e05c3f", "가속도");
     }
   }
 
