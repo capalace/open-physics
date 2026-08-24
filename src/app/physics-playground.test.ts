@@ -44,7 +44,7 @@ const createRenderingCanvas = (): {
 
 const createInteractiveCanvas = (): {
   canvas: HTMLCanvasElement;
-  dispatchPointer: (type: string, x: number, y: number, shiftKey?: boolean) => void;
+  dispatchPointer: (type: string, x: number, y: number) => void;
 } => {
   const listeners = new Map<string, (event: PointerEvent) => void>();
   const canvas = {
@@ -58,11 +58,10 @@ const createInteractiveCanvas = (): {
   } as unknown as HTMLCanvasElement;
   return {
     canvas,
-    dispatchPointer: (type, x, y, shiftKey = false) => listeners.get(type)?.({
+    dispatchPointer: (type, x, y) => listeners.get(type)?.({
       pointerId: 1,
       clientX: x,
       clientY: y,
-      shiftKey,
     } as PointerEvent),
   };
 };
@@ -271,7 +270,7 @@ describe("PhysicsPlayground velocity control", () => {
     expect(body.state.velocity.y).toBeLessThan(0);
   });
 
-  it("snaps the movement angle to 15 degree steps while Shift is held", () => {
+  it("snaps every movement angle to 15 degree steps", () => {
     vi.stubGlobal("requestAnimationFrame", () => 0);
     const { canvas, dispatchPointer } = createInteractiveCanvas();
     const playground = new PhysicsPlayground(canvas, { width: 960, height: 600 });
@@ -279,7 +278,7 @@ describe("PhysicsPlayground velocity control", () => {
     const body = playground.simulation.getBody(object.id)!;
 
     dispatchPointer("pointerdown", 544, 240);
-    dispatchPointer("pointermove", 550, 200, true);
+    dispatchPointer("pointermove", 550, 200);
 
     const angle = Math.atan2(body.state.velocity.y, body.state.velocity.x) * 180 / Math.PI;
     expect(angle).toBeCloseTo(-30);
