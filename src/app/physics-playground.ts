@@ -97,6 +97,7 @@ export class PhysicsPlayground {
   private lastNotification = 0;
   private accumulator = 0;
   private trailTick = 0;
+  private objectSequence = 0;
   private readonly trails = new Map<string, Vector2[]>();
 
   constructor(canvas: HTMLCanvasElement, options: PlaygroundOptions = {}) {
@@ -126,7 +127,7 @@ export class PhysicsPlayground {
   toggle(): void { this.paused = !this.paused; }
 
   addCircle(x = this.canvas.width / 2, y = 120, radius = 25, options: PlaygroundObjectOptions = {}): PlaygroundObject {
-    const id = crypto.randomUUID();
+    const id = this.nextObjectId();
     const object: PlaygroundObject = {
       id,
       label: options.label ?? `원 ${this.objects.size + 1}`,
@@ -143,7 +144,7 @@ export class PhysicsPlayground {
   }
 
   addBox(x = this.canvas.width / 2, y = 110, width = 54, height = 54, options: PlaygroundObjectOptions = {}): PlaygroundObject {
-    const id = crypto.randomUUID();
+    const id = this.nextObjectId();
     const object: PlaygroundObject = {
       id,
       label: options.label ?? `상자 ${this.objects.size + 1}`,
@@ -699,6 +700,11 @@ export class PhysicsPlayground {
   }
 
   private nextColor(): string { return COLORS[this.objects.size % COLORS.length]; }
+
+  private nextObjectId(): string {
+    this.objectSequence += 1;
+    return `body-${this.objectSequence}`;
+  }
 
   private shadeColor(hex: string, amount: number): string {
     const value = Number.parseInt(hex.slice(1), 16);
