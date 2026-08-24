@@ -82,6 +82,7 @@ const MAX_VELOCITY_VECTOR_LENGTH = 96;
 const DEFAULT_VELOCITY_HANDLE_OFFSET = 64;
 const VELOCITY_HANDLE_RADIUS = 12;
 const VELOCITY_IDLE_EPSILON = 0.01;
+const VELOCITY_ANGLE_SNAP_RADIANS = 15 * Math.PI / 180;
 const TRAJECTORY_PREVIEW_STEP = 0.08;
 const TRAJECTORY_PREVIEW_STEPS = 45;
 const COLORS = ["#5b7cfa", "#f27a54", "#25a77a", "#a069dc", "#e2a62b"];
@@ -737,8 +738,14 @@ export class PhysicsPlayground {
     ctx.stroke();
     ctx.fillStyle = "#7257d5";
     ctx.font = "700 14px Inter, system-ui, sans-serif";
-    ctx.fillText(idle ? "여기서 끌어 보세요" : "속도", endX + 11, endY - 10);
+    const label = idle ? "여기서 끌어 보세요" : `속도 · ${this.displayAngle(velocity)}°`;
+    ctx.fillText(label, endX + 11, endY - 10);
     ctx.restore();
+  }
+
+  private displayAngle(vector: Vector2): number {
+    const degrees = Math.round(Math.atan2(-vector.y, vector.x) * 180 / Math.PI);
+    return (degrees + 360) % 360;
   }
 
   private velocityVector(velocity: Vector2): Vector2 {
@@ -825,7 +832,7 @@ export class PhysicsPlayground {
     this.canvas.addEventListener("pointermove", (event) => {
       const point = this.pointFromEvent(event);
       if (event.pointerId === this.pointerId && this.velocityDraggedId) {
-        this.updateVelocityFromPoint(this.velocityDraggedId, point);
+        this.updateVelocityFromPoint(this.velocityDraggedId, point, event.shiftKey);
         return;
       }
       if (event.pointerId !== this.pointerId || !this.draggedId) {
@@ -884,7 +891,7 @@ export class PhysicsPlayground {
     return dx * dx + dy * dy <= VELOCITY_HANDLE_RADIUS ** 2 ? object : null;
   }
 
-  private updateVelocityFromPoint(id: string, point: Vector2): void {
+  private updateVelocityFromPoint(id: string, point: Vector2, snapAngle = false): void {
     const object = this.objects.get(id);
     const body = this.simulation.getBody(id);
     if (!object || !body) return;
@@ -894,6 +901,11 @@ export class PhysicsPlayground {
     if (length < 8) {
       body.state.velocity = { x: 0, y: 0 };
     } else {
+      if (snapAngle) {
+        const angle = Math.round(Math.atan2(y, x) / VELOCITY_ANGLE_SNAP_RADIANS) * VELOCITY_ANGLE_SNAP_RADIANS;
+        x = Math.cos(angle) * length;
+        y = Math.sin(angle) * length;
+      }
       if (length > MAX_VELOCITY_VECTOR_LENGTH) {
         x *= MAX_VELOCITY_VECTOR_LENGTH / length;
         y *= MAX_VELOCITY_VECTOR_LENGTH / length;

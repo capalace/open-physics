@@ -44,7 +44,7 @@ const createRenderingCanvas = (): {
 
 const createInteractiveCanvas = (): {
   canvas: HTMLCanvasElement;
-  dispatchPointer: (type: string, x: number, y: number) => void;
+  dispatchPointer: (type: string, x: number, y: number, shiftKey?: boolean) => void;
 } => {
   const listeners = new Map<string, (event: PointerEvent) => void>();
   const canvas = {
@@ -58,7 +58,12 @@ const createInteractiveCanvas = (): {
   } as unknown as HTMLCanvasElement;
   return {
     canvas,
-    dispatchPointer: (type, x, y) => listeners.get(type)?.({ pointerId: 1, clientX: x, clientY: y } as PointerEvent),
+    dispatchPointer: (type, x, y, shiftKey = false) => listeners.get(type)?.({
+      pointerId: 1,
+      clientX: x,
+      clientY: y,
+      shiftKey,
+    } as PointerEvent),
   };
 };
 
@@ -264,6 +269,33 @@ describe("PhysicsPlayground velocity control", () => {
     expect(body.state.position).toEqual({ x: 480, y: 240 });
     expect(body.state.velocity.x).toBeCloseTo(0);
     expect(body.state.velocity.y).toBeLessThan(0);
+  });
+
+  it("snaps the movement angle to 15 degree steps while Shift is held", () => {
+    vi.stubGlobal("requestAnimationFrame", () => 0);
+    const { canvas, dispatchPointer } = createInteractiveCanvas();
+    const playground = new PhysicsPlayground(canvas, { width: 960, height: 600 });
+    const object = playground.addCircle(480, 240, 25);
+    const body = playground.simulation.getBody(object.id)!;
+
+    dispatchPointer("pointerdown", 544, 240);
+    dispatchPointer("pointermove", 550, 200, true);
+
+    const angle = Math.atan2(body.state.velocity.y, body.state.velocity.x) * 180 / Math.PI;
+    expect(angle).toBeCloseTo(-30);
+    expect(Math.hypot(body.state.velocity.x, body.state.velocity.y) * 0.22).toBeCloseTo(Math.hypot(70, 40));
+  });
+
+  it("labels upward movement as a positive 90 degree angle", () => {
+    vi.stubGlobal("requestAnimationFrame", () => 0);
+    const playground = new PhysicsPlayground(createCanvas(), { width: 960, height: 600 });
+    const angleLabel = playground as unknown as {
+      displayAngle(vector: { x: number; y: number }): number;
+    };
+
+    expect(angleLabel.displayAngle({ x: 0, y: -1 })).toBe(90);
+    expect(angleLabel.displayAngle({ x: -1, y: 0 })).toBe(180);
+    expect(angleLabel.displayAngle({ x: 0, y: 1 })).toBe(270);
   });
 });
 
