@@ -81,6 +81,7 @@ const VELOCITY_VECTOR_SCALE = 0.22;
 const MAX_VELOCITY_VECTOR_LENGTH = 96;
 const DEFAULT_VELOCITY_HANDLE_OFFSET = 64;
 const VELOCITY_HANDLE_RADIUS = 12;
+const VELOCITY_IDLE_EPSILON = 0.01;
 const COLORS = ["#5b7cfa", "#f27a54", "#25a77a", "#a069dc", "#e2a62b"];
 
 /** Connects browser input and rendering to the renderer-independent physics core. */
@@ -588,11 +589,12 @@ export class PhysicsPlayground {
   }
 
   private drawVelocityControl(object: PlaygroundObject, velocity: Vector2): void {
-    const vector = this.velocityControlVector(object, velocity);
+    const actualVector = this.velocityVector(velocity);
+    const idle = Math.hypot(velocity.x, velocity.y) < VELOCITY_IDLE_EPSILON;
+    const vector = idle ? this.idleVelocityControlVector(object) : actualVector;
     const endX = object.x + vector.x;
     const endY = object.y + vector.y;
     const angle = Math.atan2(vector.y, vector.x);
-    const idle = Math.hypot(velocity.x, velocity.y) * VELOCITY_VECTOR_SCALE < 3;
     const { ctx } = this;
 
     ctx.save();
@@ -606,12 +608,14 @@ export class PhysicsPlayground {
     ctx.lineTo(endX, endY);
     ctx.stroke();
     ctx.setLineDash([]);
-    ctx.beginPath();
-    ctx.moveTo(endX, endY);
-    ctx.lineTo(endX - 10 * Math.cos(angle - Math.PI / 6), endY - 10 * Math.sin(angle - Math.PI / 6));
-    ctx.lineTo(endX - 10 * Math.cos(angle + Math.PI / 6), endY - 10 * Math.sin(angle + Math.PI / 6));
-    ctx.closePath();
-    ctx.fill();
+    if (!idle) {
+      ctx.beginPath();
+      ctx.moveTo(endX, endY);
+      ctx.lineTo(endX - 10 * Math.cos(angle - Math.PI / 6), endY - 10 * Math.sin(angle - Math.PI / 6));
+      ctx.lineTo(endX - 10 * Math.cos(angle + Math.PI / 6), endY - 10 * Math.sin(angle + Math.PI / 6));
+      ctx.closePath();
+      ctx.fill();
+    }
     ctx.fillStyle = "#ffffff";
     ctx.strokeStyle = "#7257d5";
     ctx.lineWidth = 3;
@@ -621,29 +625,35 @@ export class PhysicsPlayground {
     ctx.stroke();
     ctx.fillStyle = "#7257d5";
     ctx.font = "700 12px Inter, system-ui, sans-serif";
-    ctx.fillText(idle ? "끌어서 속도 설정" : "속도", endX + 11, endY - 10);
+    ctx.fillText(idle ? "여기서 끌어 보세요" : "속도", endX + 11, endY - 10);
     ctx.restore();
   }
 
-  private velocityControlVector(object: PlaygroundObject, velocity: Vector2): Vector2 {
+  private velocityVector(velocity: Vector2): Vector2 {
     let x = velocity.x * VELOCITY_VECTOR_SCALE;
     let y = velocity.y * VELOCITY_VECTOR_SCALE;
-    const length = Math.hypot(x, y);
-    const objectExtent = object.shape === "circle"
-      ? object.radius
-      : Math.max(object.width, object.height) / 2;
-    const minimumLength = Math.max(DEFAULT_VELOCITY_HANDLE_OFFSET, objectExtent + VELOCITY_HANDLE_RADIUS + 8);
-    if (length < 3) return { x: minimumLength, y: 0 };
-    if (length < minimumLength) {
-      x *= minimumLength / length;
-      y *= minimumLength / length;
-    }
     const displayLength = Math.hypot(x, y);
     if (displayLength > MAX_VELOCITY_VECTOR_LENGTH) {
       x *= MAX_VELOCITY_VECTOR_LENGTH / displayLength;
       y *= MAX_VELOCITY_VECTOR_LENGTH / displayLength;
     }
     return { x, y };
+  }
+
+  private idleVelocityControlVector(object: PlaygroundObject): Vector2 {
+    const objectExtent = object.shape === "circle"
+      ? object.radius
+      : Math.max(object.width, object.height) / 2;
+    return {
+      x: Math.max(DEFAULT_VELOCITY_HANDLE_OFFSET, objectExtent + VELOCITY_HANDLE_RADIUS + 8),
+      y: 0,
+    };
+  }
+
+  private velocityControlVector(object: PlaygroundObject, velocity: Vector2): Vector2 {
+    return Math.hypot(velocity.x, velocity.y) < VELOCITY_IDLE_EPSILON
+      ? this.idleVelocityControlVector(object)
+      : this.velocityVector(velocity);
   }
 
   private drawArrow(originX: number, originY: number, vector: Vector2, factor: number, color: string, label: string): void {

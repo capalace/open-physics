@@ -188,6 +188,19 @@ describe("PhysicsPlayground selection", () => {
 describe("PhysicsPlayground velocity control", () => {
   afterEach(() => vi.unstubAllGlobals());
 
+  it("draws non-zero velocity lengths in proportion to speed", () => {
+    vi.stubGlobal("requestAnimationFrame", () => 0);
+    const playground = new PhysicsPlayground(createCanvas(), { width: 960, height: 600 });
+    const velocityVector = playground as unknown as {
+      velocityVector(velocity: { x: number; y: number }): { x: number; y: number };
+    };
+
+    const slow = velocityVector.velocityVector({ x: 50, y: 0 });
+    const fast = velocityVector.velocityVector({ x: 100, y: 0 });
+
+    expect(Math.hypot(fast.x, fast.y)).toBeCloseTo(Math.hypot(slow.x, slow.y) * 2);
+  });
+
   it("sets movement by dragging the selected object's arrow handle", () => {
     vi.stubGlobal("requestAnimationFrame", () => 0);
     const { canvas, dispatchPointer } = createInteractiveCanvas();
