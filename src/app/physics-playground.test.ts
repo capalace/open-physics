@@ -12,16 +12,19 @@ const createCanvas = (): HTMLCanvasElement => ({
 const createRenderingCanvas = (): {
   canvas: HTMLCanvasElement;
   arc: ReturnType<typeof vi.fn>;
+  lineTo: ReturnType<typeof vi.fn>;
   quadraticCurveTo: ReturnType<typeof vi.fn>;
   setLineDash: ReturnType<typeof vi.fn>;
 } => {
   const arc = vi.fn();
+  const lineTo = vi.fn();
   const quadraticCurveTo = vi.fn();
   const setLineDash = vi.fn();
   const gradient = { addColorStop: vi.fn() };
   const noop = () => undefined;
   const context = new Proxy({
     arc,
+    lineTo,
     quadraticCurveTo,
     setLineDash,
     createLinearGradient: () => gradient,
@@ -39,7 +42,7 @@ const createRenderingCanvas = (): {
     getContext: () => context,
     addEventListener: () => undefined,
   } as unknown as HTMLCanvasElement;
-  return { canvas, arc, quadraticCurveTo, setLineDash };
+  return { canvas, arc, lineTo, quadraticCurveTo, setLineDash };
 };
 
 const createInteractiveCanvas = (): {
@@ -231,6 +234,18 @@ describe("PhysicsPlayground extended mechanics", () => {
     playground.updateSelected({ material: "clay" });
 
     expect(Math.abs(body.state.acceleration.x)).toBeGreaterThan(woodAcceleration);
+  });
+
+  it("draws the spring as a densely sampled smooth coil", () => {
+    vi.stubGlobal("requestAnimationFrame", () => 0);
+    const { canvas, lineTo } = createRenderingCanvas();
+    const playground = new PhysicsPlayground(canvas, { width: 960, height: 600 });
+    playground.loadPreset("spring");
+    const renderer = playground as unknown as { drawSpringConnection(): void };
+
+    renderer.drawSpringConnection();
+
+    expect(lineTo.mock.calls.length).toBeGreaterThan(300);
   });
 });
 

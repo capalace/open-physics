@@ -663,54 +663,133 @@ export class PhysicsPlayground {
     const law = this.springLaw;
     if (!law) return;
     const body = this.simulation.getBody(law.bodyId);
-    if (!body) return;
+    const object = this.objects.get(law.bodyId);
+    if (!body || !object) return;
     const start = law.anchor;
-    const end = body.state.position;
+    const centerDx = body.state.position.x - start.x;
+    const centerDy = body.state.position.y - start.y;
+    const centerDistance = Math.hypot(centerDx, centerDy);
+    if (centerDistance === 0) return;
+    const nx = centerDx / centerDistance;
+    const ny = centerDy / centerDistance;
+    const px = -ny;
+    const py = nx;
+    const end = {
+      x: body.state.position.x - nx * Math.max(0, object.radius - 3),
+      y: body.state.position.y - ny * Math.max(0, object.radius - 3),
+    };
     const dx = end.x - start.x;
     const dy = end.y - start.y;
     const length = Math.hypot(dx, dy);
-    if (length === 0) return;
-    const nx = dx / length;
-    const ny = dy / length;
-    const px = -ny;
-    const py = nx;
     const equilibrium = {
       x: start.x + nx * law.restLength,
       y: start.y + ny * law.restLength,
     };
     const { ctx } = this;
+    const leadLength = Math.min(28, length * 0.11);
+    const tailLength = Math.min(24, length * 0.09);
+    const coilLength = Math.max(0, length - leadLength - tailLength);
+    const coilStart = { x: start.x + nx * leadLength, y: start.y + ny * leadLength };
+    const coilEnd = { x: end.x - nx * tailLength, y: end.y - ny * tailLength };
+    const turns = 11;
+    const amplitude = Math.max(5, Math.min(12, coilLength * 0.055));
+    const samples = turns * 20;
+
+    const traceSpring = (): void => {
+      ctx.beginPath();
+      ctx.moveTo(start.x, start.y);
+      ctx.lineTo(coilStart.x, coilStart.y);
+      for (let sample = 1; sample <= samples; sample += 1) {
+        const progress = sample / samples;
+        const along = coilLength * progress;
+        const offset = Math.sin(progress * turns * Math.PI * 2) * amplitude;
+        ctx.lineTo(
+          coilStart.x + nx * along + px * offset,
+          coilStart.y + ny * along + py * offset,
+        );
+      }
+      ctx.lineTo(coilEnd.x, coilEnd.y);
+      ctx.lineTo(end.x, end.y);
+    };
 
     ctx.save();
-    ctx.strokeStyle = "#8157ba";
-    ctx.lineWidth = 4;
-    ctx.lineJoin = "round";
-    ctx.beginPath();
-    ctx.moveTo(start.x, start.y);
-    const coils = 14;
-    for (let index = 1; index < coils; index += 1) {
-      const progress = index / coils;
-      const offset = index % 2 === 0 ? -8 : 8;
-      ctx.lineTo(start.x + dx * progress + px * offset, start.y + dy * progress + py * offset);
-    }
-    ctx.lineTo(end.x, end.y);
-    ctx.stroke();
 
-    ctx.fillStyle = "#34405a";
-    ctx.beginPath();
-    ctx.arc(start.x, start.y, 8, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.font = "700 14px Inter, system-ui, sans-serif";
-    ctx.fillText("고정점", start.x - 21, start.y - 15);
-
-    ctx.strokeStyle = "#8157ba88";
+    // The equilibrium position is a reference mark, not another object.
+    ctx.strokeStyle = "#8157ba77";
     ctx.lineWidth = 2;
     ctx.setLineDash([5, 5]);
     ctx.beginPath();
-    ctx.arc(equilibrium.x, equilibrium.y, 15, 0, Math.PI * 2);
+    ctx.moveTo(equilibrium.x - px * 19, equilibrium.y - py * 19);
+    ctx.lineTo(equilibrium.x + px * 19, equilibrium.y + py * 19);
     ctx.stroke();
     ctx.setLineDash([]);
     ctx.fillStyle = "#8157ba";
-    ctx.fillText("제자리", equilibrium.x - 20, equilibrium.y + 34);
+    ctx.font = "700 14px Inter, system-ui, sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText("제자리", equilibrium.x + px * 32, equilibrium.y + py * 32);
+
+    // A fixed bracket makes the anchor read as a mounted end of the spring.
+    const bracketX = start.x - nx * 12;
+    const bracketY = start.y - ny * 12;
+    ctx.strokeStyle = "#d7deea";
+    ctx.lineWidth = 15;
+    ctx.lineCap = "round";
+    ctx.beginPath();
+    ctx.moveTo(bracketX - px * 28, bracketY - py * 28);
+    ctx.lineTo(bracketX + px * 28, bracketY + py * 28);
+    ctx.stroke();
+    ctx.strokeStyle = "#44516a";
+    ctx.lineWidth = 8;
+    ctx.stroke();
+    ctx.strokeStyle = "#8b97aa";
+    ctx.lineWidth = 2;
+    for (let offset = -22; offset <= 22; offset += 11) {
+      const hatchX = bracketX + px * offset;
+      const hatchY = bracketY + py * offset;
+      ctx.beginPath();
+      ctx.moveTo(hatchX - nx * 7 - px * 4, hatchY - ny * 7 - py * 4);
+      ctx.lineTo(hatchX + nx * 7 + px * 4, hatchY + ny * 7 + py * 4);
+      ctx.stroke();
+    }
+
+    // Layered strokes give the coil a rounded metal-wire appearance.
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    ctx.shadowColor = "#4b2e7444";
+    ctx.shadowBlur = 6;
+    ctx.shadowOffsetY = 3;
+    ctx.strokeStyle = "#5f3d91";
+    ctx.lineWidth = 7;
+    traceSpring();
+    ctx.stroke();
+    ctx.shadowColor = "transparent";
+    const springHighlight = ctx.createLinearGradient(start.x, start.y, end.x, end.y);
+    springHighlight.addColorStop(0, "#d7b8f3");
+    springHighlight.addColorStop(0.48, "#9d6fd0");
+    springHighlight.addColorStop(1, "#cda8ed");
+    ctx.strokeStyle = springHighlight;
+    ctx.lineWidth = 3;
+    traceSpring();
+    ctx.stroke();
+
+    ctx.fillStyle = "#ffffff";
+    ctx.strokeStyle = "#44516a";
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.arc(start.x, start.y, 7, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.fillStyle = "#8f61c2";
+    ctx.strokeStyle = "#ffffff";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(end.x, end.y, 5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.fillStyle = "#34405a";
+    ctx.fillText("고정점", start.x - nx * 5 - px * 24, start.y - ny * 5 - py * 24);
     ctx.restore();
   }
 
