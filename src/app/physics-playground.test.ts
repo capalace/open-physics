@@ -356,7 +356,7 @@ describe("PhysicsPlayground velocity control", () => {
     dispatchPointer("pointermove", 480, 180);
     dispatchPointer("pointerup", 480, 180);
 
-    expect(playground.paused).toBe(true);
+    expect(playground.paused).toBe(false);
     expect(body.state.position).toEqual({ x: 480, y: 240 });
     expect(body.state.velocity.x).toBeCloseTo(0);
     expect(body.state.velocity.y).toBeLessThan(0);
@@ -375,6 +375,46 @@ describe("PhysicsPlayground velocity control", () => {
     const angle = Math.atan2(body.state.velocity.y, body.state.velocity.x) * 180 / Math.PI;
     expect(angle).toBeCloseTo(-30);
     expect(Math.hypot(body.state.velocity.x, body.state.velocity.y) * 0.22).toBeCloseTo(Math.hypot(70, 40));
+  });
+
+  it("starts a quick start immediately when autoplay is requested", () => {
+    vi.stubGlobal("requestAnimationFrame", () => 0);
+    const playground = new PhysicsPlayground(createCanvas(), { width: 960, height: 600 });
+
+    playground.loadPreset("projectile", true);
+
+    expect(playground.paused).toBe(false);
+    playground.paused = true;
+    playground.reset(true);
+    expect(playground.paused).toBe(false);
+  });
+
+  it("starts the spring when its object is released after dragging", () => {
+    vi.stubGlobal("requestAnimationFrame", () => 0);
+    const { canvas, dispatchPointer } = createInteractiveCanvas();
+    const playground = new PhysicsPlayground(canvas, { width: 960, height: 600 });
+    playground.loadPreset("spring");
+    const object = [...playground.objects.values()][0];
+
+    dispatchPointer("pointerdown", object.x, object.y);
+    dispatchPointer("pointermove", object.x + 80, object.y);
+    dispatchPointer("pointerup", object.x + 80, object.y);
+
+    expect(playground.paused).toBe(false);
+  });
+
+  it("keeps ordinary object placement paused", () => {
+    vi.stubGlobal("requestAnimationFrame", () => 0);
+    const { canvas, dispatchPointer } = createInteractiveCanvas();
+    const playground = new PhysicsPlayground(canvas, { width: 960, height: 600 });
+    playground.loadPreset("free-fall");
+    const object = [...playground.objects.values()][0];
+
+    dispatchPointer("pointerdown", object.x, object.y);
+    dispatchPointer("pointermove", object.x + 40, object.y + 40);
+    dispatchPointer("pointerup", object.x + 40, object.y + 40);
+
+    expect(playground.paused).toBe(true);
   });
 
   it("labels upward movement as a positive 90 degree angle", () => {

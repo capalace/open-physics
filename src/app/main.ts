@@ -61,7 +61,7 @@ playground.loadPreset("free-fall");
 
 playButton.addEventListener("click", () => playground.toggle());
 stepButton.addEventListener("click", () => playground.stepOnce());
-required<HTMLButtonElement>("#reset").addEventListener("click", () => playground.reset());
+required<HTMLButtonElement>("#reset").addEventListener("click", () => playground.reset(true));
 addObjectButton.addEventListener("click", () => playground.addObject());
 deleteButton.addEventListener("click", () => playground.removeSelected());
 focusButton.addEventListener("click", () => setFocusMode(!appLayout.classList.contains("is-focus-mode")));
@@ -72,7 +72,7 @@ bindToggle("#show-vectors", "vectors");
 
 document.querySelectorAll<HTMLButtonElement>("[data-preset]").forEach((button) => {
   button.addEventListener("click", () => {
-    playground.loadPreset(button.dataset.preset as PlaygroundPreset);
+    playground.loadPreset(button.dataset.preset as PlaygroundPreset, true);
   });
 });
 document.querySelectorAll<HTMLButtonElement>("[data-gravity]").forEach((button) => {

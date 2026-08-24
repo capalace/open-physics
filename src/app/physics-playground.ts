@@ -186,7 +186,7 @@ export class PhysicsPlayground {
     return object;
   }
 
-  loadPreset(preset: PlaygroundPreset): void {
+  loadPreset(preset: PlaygroundPreset, autoPlay = false): void {
     this._paused = true;
     this.currentPreset = preset;
     this.accumulator = 0;
@@ -264,10 +264,11 @@ export class PhysicsPlayground {
       this.simulation.addLaw(this.frictionLaw);
       this.simulation.refreshAccelerations();
     }
+    this._paused = !autoPlay;
     this.notify();
   }
 
-  reset(): void { this.loadPreset(this.currentPreset); }
+  reset(autoPlay = false): void { this.loadPreset(this.currentPreset, autoPlay); }
 
   stepOnce(): void {
     if (!this.paused) return;
@@ -1152,15 +1153,27 @@ export class PhysicsPlayground {
       this.notify();
     });
 
-    const release = (event: PointerEvent) => {
+    const release = (event: PointerEvent, autoPlay: boolean) => {
       if (event.pointerId !== this.pointerId) return;
+      const velocityBody = this.velocityDraggedId
+        ? this.simulation.getBody(this.velocityDraggedId)
+        : undefined;
+      const launchesVelocity = Boolean(
+        velocityBody
+        && Math.hypot(velocityBody.state.velocity.x, velocityBody.state.velocity.y) >= VELOCITY_IDLE_EPSILON,
+      );
+      const releasesSpring = Boolean(
+        this.draggedId
+        && this.springLaw?.bodyId === this.draggedId,
+      );
       this.pointerId = null;
       this.draggedId = null;
       this.velocityDraggedId = null;
       this.canvas.style.cursor = "grab";
+      if (autoPlay && (launchesVelocity || releasesSpring)) this.paused = false;
     };
-    this.canvas.addEventListener("pointerup", release);
-    this.canvas.addEventListener("pointercancel", release);
+    this.canvas.addEventListener("pointerup", (event) => release(event, true));
+    this.canvas.addEventListener("pointercancel", (event) => release(event, false));
   }
 
   private hitTest(point: Vector2): PlaygroundObject | null {
