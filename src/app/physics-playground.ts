@@ -312,7 +312,7 @@ export class PhysicsPlayground {
       state: {
         position: { x: object.x, y: object.y },
         velocity: this.toPixels(options.velocity ?? { x: 0, y: 0 }),
-        acceleration: { x: 0, y: 0 },
+        acceleration: this.gravityAcceleration(),
         mass: options.mass ?? 1,
       },
     });
@@ -323,6 +323,13 @@ export class PhysicsPlayground {
     this.gravity = value;
     this.simulation.removeField("field.gravity.uniform");
     this.simulation.addField(new UniformGravityField({ x: 0, y: value * PIXELS_PER_METER }));
+    for (const body of this.simulation.allBodies) {
+      body.state.acceleration = this.gravityAcceleration();
+    }
+  }
+
+  private gravityAcceleration(): Vector2 {
+    return { x: 0, y: this.gravity * PIXELS_PER_METER };
   }
 
   private frame(time: number): void {

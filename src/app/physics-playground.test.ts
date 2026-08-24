@@ -147,6 +147,29 @@ describe("PhysicsPlayground contacts", () => {
   });
 });
 
+describe("PhysicsPlayground gravity visualization", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("shows the selected gravity as acceleration before the simulation starts", () => {
+    vi.stubGlobal("requestAnimationFrame", () => 0);
+    const playground = new PhysicsPlayground(createCanvas(), { width: 960, height: 600 });
+    playground.loadPreset("free-fall");
+    const body = playground.simulation.allBodies[0];
+
+    expect(playground.paused).toBe(true);
+    expect(body.state.acceleration.y).toBeCloseTo(9.81 * 48);
+
+    playground.setGravity(1.62);
+    expect(body.state.acceleration.y).toBeCloseTo(1.62 * 48);
+
+    playground.setGravity(24.79);
+    expect(body.state.acceleration.y).toBeCloseTo(24.79 * 48);
+
+    playground.setGravity(0);
+    expect(body.state.acceleration).toEqual({ x: 0, y: 0 });
+  });
+});
+
 describe("PhysicsPlayground selection", () => {
   afterEach(() => vi.unstubAllGlobals());
 
