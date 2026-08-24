@@ -16,13 +16,13 @@ function required<T extends Element>(selector: string): T {
 const canvas = required<HTMLCanvasElement>("#physics-canvas");
 const playButton = required<HTMLButtonElement>("#play");
 const stepButton = required<HTMLButtonElement>("#step");
+const addObjectButton = required<HTMLButtonElement>("#add-object");
+const addObjectLabel = required<HTMLElement>("#add-object-label");
 const deleteButton = required<HTMLButtonElement>("#delete-object");
 const inspectorEmpty = required<HTMLElement>("#inspector-empty");
 const inspectorForm = required<HTMLFormElement>("#inspector-form");
 const objectLabel = required<HTMLInputElement>("#object-label");
 const objectMass = required<HTMLInputElement>("#object-mass");
-const velocityX = required<HTMLInputElement>("#velocity-x");
-const velocityY = required<HTMLInputElement>("#velocity-y");
 const objectColor = required<HTMLInputElement>("#object-color");
 const EARTH_GRAVITY = 9.81;
 
@@ -32,12 +32,7 @@ playground.loadPreset("free-fall");
 playButton.addEventListener("click", () => playground.toggle());
 stepButton.addEventListener("click", () => playground.stepOnce());
 required<HTMLButtonElement>("#reset").addEventListener("click", () => playground.reset());
-required<HTMLButtonElement>("#add-circle").addEventListener("click", () => {
-  playground.addCircle(420 + Math.random() * 120, 100);
-});
-required<HTMLButtonElement>("#add-box").addEventListener("click", () => {
-  playground.addBox(420 + Math.random() * 120, 100);
-});
+addObjectButton.addEventListener("click", () => playground.addObject());
 deleteButton.addEventListener("click", () => playground.removeSelected());
 
 bindToggle("#show-grid", "grid");
@@ -70,16 +65,6 @@ document.querySelectorAll<HTMLButtonElement>("[data-mass]").forEach((button) => 
     pulseWorld();
   });
 });
-velocityX.addEventListener("change", () => {
-  playground.paused = true;
-  playground.updateSelected({ velocityX: Number(velocityX.value) });
-  pulseWorld();
-});
-velocityY.addEventListener("change", () => {
-  playground.paused = true;
-  playground.updateSelected({ velocityY: Number(velocityY.value) });
-  pulseWorld();
-});
 objectColor.addEventListener("input", () => playground.updateSelected({ color: objectColor.value }));
 
 window.addEventListener("keydown", (event) => {
@@ -107,6 +92,10 @@ function renderSnapshot(snapshot: PlaygroundSnapshot): void {
   playButton.textContent = snapshot.paused ? "▶  실행" : "Ⅱ  일시정지";
   playButton.dataset.running = String(!snapshot.paused);
   stepButton.disabled = !snapshot.paused;
+  addObjectLabel.textContent = snapshot.preset === "projectile" ? "발사체 추가" : "물체 추가";
+  addObjectButton.title = snapshot.preset === "projectile"
+    ? "기본 운동 방향을 가진 발사체 추가"
+    : "원형 물체 추가";
 
   required<HTMLOutputElement>("#gravity-value").value = gravityDescription(snapshot.gravity);
 
@@ -143,8 +132,6 @@ function renderSnapshot(snapshot: PlaygroundSnapshot): void {
   document.querySelectorAll<HTMLButtonElement>("[data-mass]").forEach((button) => {
     setActive(button, Number(button.dataset.mass) === selected.mass);
   });
-  syncInput(velocityX, selected.velocity.x.toFixed(2));
-  syncInput(velocityY, selected.velocity.y.toFixed(2));
   if (document.activeElement !== objectColor) objectColor.value = selected.color;
 }
 

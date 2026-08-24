@@ -39,6 +39,58 @@ const createRenderingCanvas = (): {
   return { canvas, arc, quadraticCurveTo };
 };
 
+const createInteractiveCanvas = (): {
+  canvas: HTMLCanvasElement;
+  dispatchPointer: (type: string, x: number, y: number) => void;
+} => {
+  const listeners = new Map<string, (event: PointerEvent) => void>();
+  const canvas = {
+    width: 0,
+    height: 0,
+    style: {},
+    getContext: () => ({}),
+    addEventListener: (type: string, listener: (event: PointerEvent) => void) => listeners.set(type, listener),
+    getBoundingClientRect: () => ({ left: 0, top: 0, width: 960, height: 600 }),
+    setPointerCapture: () => undefined,
+  } as unknown as HTMLCanvasElement;
+  return {
+    canvas,
+    dispatchPointer: (type, x, y) => listeners.get(type)?.({ pointerId: 1, clientX: x, clientY: y } as PointerEvent),
+  };
+};
+
+describe("PhysicsPlayground object creation", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("adds only circular objects from the general add action", () => {
+    vi.stubGlobal("requestAnimationFrame", () => 0);
+    const playground = new PhysicsPlayground(createCanvas(), { width: 960, height: 600 });
+    playground.loadPreset("free-fall");
+    playground.paused = false;
+
+    const object = playground.addObject();
+    const body = playground.simulation.getBody(object.id)!;
+
+    expect(object.shape).toBe("circle");
+    expect(playground.paused).toBe(true);
+    expect(body.state.velocity).toEqual({ x: 0, y: 0 });
+  });
+
+  it("adds a circular projectile with a useful default velocity", () => {
+    vi.stubGlobal("requestAnimationFrame", () => 0);
+    const playground = new PhysicsPlayground(createCanvas(), { width: 960, height: 600 });
+    playground.loadPreset("projectile");
+
+    const object = playground.addObject();
+    const body = playground.simulation.getBody(object.id)!;
+
+    expect(object.shape).toBe("circle");
+    expect(object.label).toContain("발사체");
+    expect(body.state.velocity.x / 48).toBeCloseTo(5.6);
+    expect(body.state.velocity.y / 48).toBeCloseTo(-7.2);
+  });
+});
+
 describe("PhysicsPlayground contacts", () => {
   afterEach(() => vi.unstubAllGlobals());
 
@@ -110,7 +162,8 @@ describe("PhysicsPlayground selection", () => {
 
     drawObject.drawObject(box);
 
-    expect(arc).not.toHaveBeenCalled();
+    const hasCircularSelectionOutline = arc.mock.calls.some(([x, y]) => x === box.x && y === box.y);
+    expect(hasCircularSelectionOutline).toBe(false);
     expect(quadraticCurveTo).toHaveBeenCalledTimes(unselectedRoundedCorners + 4);
   });
 
@@ -124,6 +177,29 @@ describe("PhysicsPlayground selection", () => {
 
     drawObject.drawObject(circle);
 
-    expect(arc).toHaveBeenCalledTimes(2);
+    const objectCenteredArcs = arc.mock.calls.filter(([x, y]) => x === circle.x && y === circle.y);
+    expect(objectCenteredArcs).toHaveLength(2);
+  });
+});
+
+describe("PhysicsPlayground velocity control", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("sets movement by dragging the selected object's arrow handle", () => {
+    vi.stubGlobal("requestAnimationFrame", () => 0);
+    const { canvas, dispatchPointer } = createInteractiveCanvas();
+    const playground = new PhysicsPlayground(canvas, { width: 960, height: 600 });
+    const object = playground.addCircle(480, 240, 25);
+    const body = playground.simulation.getBody(object.id)!;
+    playground.paused = false;
+
+    dispatchPointer("pointerdown", 544, 240);
+    dispatchPointer("pointermove", 480, 180);
+    dispatchPointer("pointerup", 480, 180);
+
+    expect(playground.paused).toBe(true);
+    expect(body.state.position).toEqual({ x: 480, y: 240 });
+    expect(body.state.velocity.x).toBeCloseTo(0);
+    expect(body.state.velocity.y).toBeLessThan(0);
   });
 });

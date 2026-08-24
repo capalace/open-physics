@@ -49,8 +49,6 @@ export interface PlaygroundSnapshot {
     color: string;
     mass: number;
     material: PlaygroundMaterial;
-    velocity: Vector2;
-    acceleration: Vector2;
   } | null;
 }
 
@@ -72,8 +70,6 @@ export interface SelectedObjectUpdate {
   color?: string;
   mass?: number;
   material?: PlaygroundMaterial;
-  velocityX?: number;
-  velocityY?: number;
 }
 
 const PIXELS_PER_METER = 48;
@@ -82,6 +78,10 @@ const FLOOR_HEIGHT = 48;
 const RESTING_REBOUND_SPEED = 10;
 const COLLISION_WORLD_DAMPING = 0.15;
 const MOTION_SLEEP_SPEED = 2;
+const VELOCITY_VECTOR_SCALE = 0.22;
+const MAX_VELOCITY_VECTOR_LENGTH = 96;
+const DEFAULT_VELOCITY_HANDLE_OFFSET = 64;
+const VELOCITY_HANDLE_RADIUS = 12;
 const COLORS = ["#5b7cfa", "#f27a54", "#25a77a", "#a069dc", "#e2a62b"];
 
 /** Connects browser input and rendering to the renderer-independent physics core. */
@@ -99,6 +99,7 @@ export class PhysicsPlayground {
   private _paused = true;
   private pointerId: number | null = null;
   private draggedId: string | null = null;
+  private velocityDraggedId: string | null = null;
   private selectedId: string | null = null;
   private lastFrame = 0;
   private lastNotification = 0;
@@ -133,6 +134,25 @@ export class PhysicsPlayground {
 
   toggle(): void { this.paused = !this.paused; }
 
+  addObject(): PlaygroundObject {
+    this._paused = true;
+    this.accumulator = 0;
+    if (this.currentPreset === "projectile") {
+      const slot = this.objects.size;
+      return this.addCircle(
+        145 + (slot % 10) * 60,
+        this.floorY - 42 - Math.floor(slot / 10) * 60,
+        22,
+        {
+          label: `발사체 ${slot + 1}`,
+          material: "rubber",
+          velocity: { x: 5.6, y: -7.2 },
+        },
+      );
+    }
+    return this.addCircle(420 + Math.random() * 120, 100, 25, { label: `물체 ${this.objects.size + 1}` });
+  }
+
   addCircle(x = this.canvas.width / 2, y = 120, radius = 25, options: PlaygroundObjectOptions = {}): PlaygroundObject {
     const id = this.nextObjectId();
     const object: PlaygroundObject = {
@@ -147,7 +167,7 @@ export class PhysicsPlayground {
       color: options.color ?? this.nextColor(),
       material: options.material ?? "rubber",
     };
-    this.addObject(object, options);
+    this.registerObject(object, options);
     return object;
   }
 
@@ -165,7 +185,7 @@ export class PhysicsPlayground {
       color: options.color ?? this.nextColor(),
       material: options.material ?? "wood",
     };
-    this.addObject(object, options);
+    this.registerObject(object, options);
     return object;
   }
 
@@ -264,12 +284,6 @@ export class PhysicsPlayground {
       object.material = update.material;
       body.restitution = MATERIALS[update.material].restitution;
     }
-    if (update.velocityX !== undefined && Number.isFinite(update.velocityX)) {
-      body.state.velocity.x = update.velocityX * PIXELS_PER_METER;
-    }
-    if (update.velocityY !== undefined && Number.isFinite(update.velocityY)) {
-      body.state.velocity.y = update.velocityY * PIXELS_PER_METER;
-    }
     this.clearTrails();
     this.notify();
   }
@@ -280,8 +294,6 @@ export class PhysicsPlayground {
       const object = this.objects.get(this.selectedId);
       const body = this.simulation.getBody(this.selectedId);
       if (object && body) {
-        const velocity = this.toMeters(body.state.velocity);
-        const acceleration = this.toMeters(body.state.acceleration);
         selected = {
           id: object.id,
           label: object.label,
@@ -289,8 +301,6 @@ export class PhysicsPlayground {
           color: object.color,
           mass: body.state.mass,
           material: object.material,
-          velocity,
-          acceleration,
         };
       }
     }
@@ -306,7 +316,7 @@ export class PhysicsPlayground {
     for (const [id, object] of this.objects) this.trails.set(id, [{ x: object.x, y: object.y }]);
   }
 
-  private addObject(object: PlaygroundObject, options: PlaygroundObjectOptions): void {
+  private registerObject(object: PlaygroundObject, options: PlaygroundObjectOptions): void {
     this.objects.set(object.id, object);
     this.trails.set(object.id, [{ x: object.x, y: object.y }]);
     this.simulation.addBody({
@@ -569,9 +579,11 @@ export class PhysicsPlayground {
     ctx.restore();
 
     this.drawLabel(object);
-    if (selected && this.visualization.vectors) {
-      this.drawArrow(object.x, object.y, body.state.velocity, 0.22, "#7257d5", "속도");
-      this.drawArrow(object.x, object.y, body.state.acceleration, 0.14, "#e05c3f", "가속도");
+    if (selected) {
+      this.drawVelocityControl(object, body.state.velocity);
+      if (this.visualization.vectors) {
+        this.drawArrow(object.x, object.y, body.state.acceleration, 0.14, "#e05c3f", "가속도");
+      }
     }
   }
 
@@ -590,14 +602,73 @@ export class PhysicsPlayground {
     ctx.restore();
   }
 
+  private drawVelocityControl(object: PlaygroundObject, velocity: Vector2): void {
+    const vector = this.velocityControlVector(object, velocity);
+    const endX = object.x + vector.x;
+    const endY = object.y + vector.y;
+    const angle = Math.atan2(vector.y, vector.x);
+    const idle = Math.hypot(velocity.x, velocity.y) * VELOCITY_VECTOR_SCALE < 3;
+    const { ctx } = this;
+
+    ctx.save();
+    ctx.strokeStyle = idle ? "#7257d588" : "#7257d5";
+    ctx.fillStyle = "#7257d5";
+    ctx.lineWidth = 3;
+    ctx.lineCap = "round";
+    if (idle) ctx.setLineDash([6, 5]);
+    ctx.beginPath();
+    ctx.moveTo(object.x, object.y);
+    ctx.lineTo(endX, endY);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.beginPath();
+    ctx.moveTo(endX, endY);
+    ctx.lineTo(endX - 10 * Math.cos(angle - Math.PI / 6), endY - 10 * Math.sin(angle - Math.PI / 6));
+    ctx.lineTo(endX - 10 * Math.cos(angle + Math.PI / 6), endY - 10 * Math.sin(angle + Math.PI / 6));
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = "#ffffff";
+    ctx.strokeStyle = "#7257d5";
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(endX, endY, 7, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = "#7257d5";
+    ctx.font = "700 12px Inter, system-ui, sans-serif";
+    ctx.fillText(idle ? "끌어서 움직이기" : "운동", endX + 11, endY - 10);
+    ctx.restore();
+  }
+
+  private velocityControlVector(object: PlaygroundObject, velocity: Vector2): Vector2 {
+    let x = velocity.x * VELOCITY_VECTOR_SCALE;
+    let y = velocity.y * VELOCITY_VECTOR_SCALE;
+    const length = Math.hypot(x, y);
+    const objectExtent = object.shape === "circle"
+      ? object.radius
+      : Math.max(object.width, object.height) / 2;
+    const minimumLength = Math.max(DEFAULT_VELOCITY_HANDLE_OFFSET, objectExtent + VELOCITY_HANDLE_RADIUS + 8);
+    if (length < 3) return { x: minimumLength, y: 0 };
+    if (length < minimumLength) {
+      x *= minimumLength / length;
+      y *= minimumLength / length;
+    }
+    const displayLength = Math.hypot(x, y);
+    if (displayLength > MAX_VELOCITY_VECTOR_LENGTH) {
+      x *= MAX_VELOCITY_VECTOR_LENGTH / displayLength;
+      y *= MAX_VELOCITY_VECTOR_LENGTH / displayLength;
+    }
+    return { x, y };
+  }
+
   private drawArrow(originX: number, originY: number, vector: Vector2, factor: number, color: string, label: string): void {
     let x = vector.x * factor;
     let y = vector.y * factor;
     const length = Math.hypot(x, y);
     if (length < 3) return;
-    if (length > 96) {
-      x *= 96 / length;
-      y *= 96 / length;
+    if (length > MAX_VELOCITY_VECTOR_LENGTH) {
+      x *= MAX_VELOCITY_VECTOR_LENGTH / length;
+      y *= MAX_VELOCITY_VECTOR_LENGTH / length;
     }
     const endX = originX + x;
     const endY = originY + y;
@@ -625,7 +696,17 @@ export class PhysicsPlayground {
 
   private bindPointerEvents(): void {
     this.canvas.addEventListener("pointerdown", (event) => {
-      const hit = this.hitTest(this.pointFromEvent(event));
+      const point = this.pointFromEvent(event);
+      const velocityHit = this.hitVelocityHandle(point);
+      if (velocityHit) {
+        this.paused = true;
+        this.pointerId = event.pointerId;
+        this.velocityDraggedId = velocityHit.id;
+        this.canvas.setPointerCapture(event.pointerId);
+        this.canvas.style.cursor = "grabbing";
+        return;
+      }
+      const hit = this.hitTest(point);
       this.select(hit?.id ?? null);
       if (!hit) return;
       this.pointerId = event.pointerId;
@@ -636,8 +717,14 @@ export class PhysicsPlayground {
 
     this.canvas.addEventListener("pointermove", (event) => {
       const point = this.pointFromEvent(event);
+      if (event.pointerId === this.pointerId && this.velocityDraggedId) {
+        this.updateVelocityFromPoint(this.velocityDraggedId, point);
+        return;
+      }
       if (event.pointerId !== this.pointerId || !this.draggedId) {
-        this.canvas.style.cursor = this.hitTest(point) ? "grab" : "crosshair";
+        this.canvas.style.cursor = this.hitVelocityHandle(point)
+          ? "pointer"
+          : this.hitTest(point) ? "grab" : "crosshair";
         return;
       }
       const object = this.objects.get(this.draggedId);
@@ -660,6 +747,7 @@ export class PhysicsPlayground {
       if (event.pointerId !== this.pointerId) return;
       this.pointerId = null;
       this.draggedId = null;
+      this.velocityDraggedId = null;
       this.canvas.style.cursor = "grab";
     };
     this.canvas.addEventListener("pointerup", release);
@@ -676,6 +764,40 @@ export class PhysicsPlayground {
       if (hit) return object;
     }
     return null;
+  }
+
+  private hitVelocityHandle(point: Vector2): PlaygroundObject | null {
+    if (!this.selectedId) return null;
+    const object = this.objects.get(this.selectedId);
+    const body = this.simulation.getBody(this.selectedId);
+    if (!object || !body) return null;
+    const vector = this.velocityControlVector(object, body.state.velocity);
+    const dx = point.x - object.x - vector.x;
+    const dy = point.y - object.y - vector.y;
+    return dx * dx + dy * dy <= VELOCITY_HANDLE_RADIUS ** 2 ? object : null;
+  }
+
+  private updateVelocityFromPoint(id: string, point: Vector2): void {
+    const object = this.objects.get(id);
+    const body = this.simulation.getBody(id);
+    if (!object || !body) return;
+    let x = point.x - object.x;
+    let y = point.y - object.y;
+    const length = Math.hypot(x, y);
+    if (length < 8) {
+      body.state.velocity = { x: 0, y: 0 };
+    } else {
+      if (length > MAX_VELOCITY_VECTOR_LENGTH) {
+        x *= MAX_VELOCITY_VECTOR_LENGTH / length;
+        y *= MAX_VELOCITY_VECTOR_LENGTH / length;
+      }
+      body.state.velocity = {
+        x: x / VELOCITY_VECTOR_SCALE,
+        y: y / VELOCITY_VECTOR_SCALE,
+      };
+    }
+    this.trails.set(id, [{ ...body.state.position }]);
+    this.notify();
   }
 
   private pointFromEvent(event: PointerEvent): Vector2 {
@@ -704,10 +826,6 @@ export class PhysicsPlayground {
 
   private toPixels(vector: Vector2): Vector2 {
     return { x: vector.x * PIXELS_PER_METER, y: vector.y * PIXELS_PER_METER };
-  }
-
-  private toMeters(vector: Vector2): Vector2 {
-    return { x: vector.x / PIXELS_PER_METER, y: vector.y / PIXELS_PER_METER };
   }
 
   private nextColor(): string { return COLORS[this.objects.size % COLORS.length]; }

@@ -53,7 +53,7 @@
         <div class="section-heading"><h2>빠른 사용법</h2></div>
         <ol>
           <li><span>1</span> 물체를 선택하거나 드래그합니다.</li>
-          <li><span>2</span> 재질과 무게를 선택합니다.</li>
+          <li><span>2</span> 화살표 끝을 끌어 운동을 정합니다.</li>
           <li><span>3</span> 실행하고 움직임을 관찰합니다.</li>
         </ol>
       </section>
@@ -73,9 +73,7 @@
         </div>
         <div class="toolbar-divider"></div>
         <div class="creation-controls">
-          <span>물체 추가</span>
-          <button id="add-circle" type="button"><i class="shape-circle"></i>원</button>
-          <button id="add-box" type="button"><i class="shape-box"></i>상자</button>
+          <button id="add-object" type="button"><i class="shape-circle"></i><span id="add-object-label">물체 추가</span></button>
           <button id="delete-object" class="danger-button" type="button" disabled>삭제</button>
         </div>
         <div class="run-indicator" id="run-status" data-running="false">멈춤</div>
@@ -85,7 +83,7 @@
         <canvas id="physics-canvas" width="960" height="600">브라우저가 Canvas를 지원하지 않습니다.</canvas>
         <div class="canvas-badge">2D 실험 공간</div>
         <div class="canvas-legend">
-          <span><i class="velocity-key"></i>속도 방향</span>
+          <span><i class="velocity-key"></i>화살표 끝을 끌어 운동 설정</span>
           <span><i class="acceleration-key"></i>가속도 방향</span>
           <span>드래그하여 위치 변경</span>
         </div>
@@ -133,18 +131,10 @@
         </section>
 
         <details class="advanced-controls">
-          <summary>상세 수치 설정</summary>
+          <summary>정확한 무게 설정</summary>
           <div class="field-grid">
             <label class="field"><span>질량 <small>kg</small></span><input id="object-mass" type="number" min="0.1" max="20" step="0.1" /></label>
-            <span></span>
           </div>
-          <fieldset>
-            <legend>초기 속도</legend>
-            <div class="field-grid">
-              <label class="field"><span>좌우 <small>m/s</small></span><input id="velocity-x" type="number" step="0.1" /></label>
-              <label class="field"><span>위아래 <small>m/s</small></span><input id="velocity-y" type="number" step="0.1" /></label>
-            </div>
-          </fieldset>
         </details>
       </form>
 
