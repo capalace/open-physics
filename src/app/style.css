@@ -270,13 +270,6 @@ canvas { display: block; width: 100%; height: auto; aspect-ratio: 8 / 5; touch-a
 .advanced-controls > .field-grid, .advanced-controls > fieldset { margin: 10px; }
 fieldset { margin: 0; border: 0; padding: 2px 0 0; }
 fieldset legend { margin-bottom: 8px; padding: 0; }
-.selection-readouts { display: grid; grid-template-columns: 1fr 1fr; overflow: hidden; border: 1px solid #dfe5ee; border-radius: 10px; }
-.selection-readouts div { padding: 9px; }
-.selection-readouts div + div { border-left: 1px solid #e5eaf1; }
-.selection-readouts span, .selection-readouts strong { display: block; }
-.selection-readouts span { margin-bottom: 4px; color: #929dae; font-size: 8px; }
-.selection-readouts strong { color: #39465d; font-size: 11px; font-variant-numeric: tabular-nums; }
-
 .environment-section, .visualization-section { padding-top: 20px; border-top: 1px solid #e4e9f0; }
 .gravity-setting { display: grid; gap: 9px; }
 .gravity-setting > span { display: flex; align-items: center; justify-content: space-between; }

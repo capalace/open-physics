@@ -49,11 +49,8 @@ export interface PlaygroundSnapshot {
     color: string;
     mass: number;
     material: PlaygroundMaterial;
-    height: number;
     velocity: Vector2;
     acceleration: Vector2;
-    speed: number;
-    kineticEnergy: number;
   } | null;
 }
 
@@ -285,8 +282,6 @@ export class PhysicsPlayground {
       if (object && body) {
         const velocity = this.toMeters(body.state.velocity);
         const acceleration = this.toMeters(body.state.acceleration);
-        const speed = Math.hypot(velocity.x, velocity.y);
-        const halfHeight = object.shape === "circle" ? object.radius : object.height / 2;
         selected = {
           id: object.id,
           label: object.label,
@@ -294,11 +289,8 @@ export class PhysicsPlayground {
           color: object.color,
           mass: body.state.mass,
           material: object.material,
-          height: Math.max(0, (this.floorY - body.state.position.y - halfHeight) / PIXELS_PER_METER),
           velocity,
           acceleration,
-          speed,
-          kineticEnergy: 0.5 * body.state.mass * speed * speed,
         };
       }
     }

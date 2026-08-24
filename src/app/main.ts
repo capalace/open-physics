@@ -133,8 +133,6 @@ function renderSnapshot(snapshot: PlaygroundSnapshot): void {
   required<HTMLElement>("#selection-name").textContent = selected.label;
   required<HTMLElement>("#selection-type").textContent =
     selected.shape === "circle" ? "동그란 공" : "네모난 상자";
-  required<HTMLElement>("#selected-energy").textContent = `${selected.kineticEnergy.toFixed(2)} J`;
-  required<HTMLElement>("#selected-height").textContent = `${selected.height.toFixed(2)} m`;
 
   syncInput(objectLabel, selected.label);
   syncInput(objectMass, selected.mass.toFixed(1));
