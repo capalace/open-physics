@@ -53,7 +53,7 @@ if (activeSubject === "mechanics") {
       if (event.persisted) return;
       window.removeEventListener("resize", resize);
       controller.unmount();
-    }, { once: true });
+    });
   }
 }
 
