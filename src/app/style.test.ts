@@ -38,4 +38,10 @@ describe("sandbox object palette", () => {
 
     expect(objectKinds).toEqual(["ball", "box", "platform", "wall"]);
   });
+
+  it("offers three simple size choices", () => {
+    const sizes = [...markup.matchAll(/data-size="([^"]+)"/g)].map((match) => match[1]);
+
+    expect(sizes).toEqual(["small", "medium", "large"]);
+  });
 });

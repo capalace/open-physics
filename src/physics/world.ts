@@ -5,8 +5,8 @@ import { add, eulerSolver, magnitude, scale, sub } from "./core";
 export interface Body {
   readonly id: string;
   state: BodyState;
-  readonly radius?: number;
-  readonly collider?: BodyCollider;
+  radius?: number;
+  collider?: BodyCollider;
   restitution?: number;
   readonly fixed?: boolean;
 }

@@ -6,6 +6,7 @@ import {
   HorizontalSurfaceFrictionLaw,
 } from "../physics/laws/world-mechanics";
 import { PhysicsSimulation } from "../physics/simulation";
+import type { Body } from "../physics/world";
 import {
   PendulumModel,
   PulleyModel,
@@ -27,6 +28,7 @@ export type PlaygroundPreset =
   | "pulley";
 export type PlaygroundMaterial = "rubber" | "wood" | "steel" | "clay";
 export type SandboxObjectKind = "ball" | "box" | "platform" | "wall";
+export type PlaygroundSize = "small" | "medium" | "large";
 
 export const MATERIALS: Readonly<Record<PlaygroundMaterial, {
   restitution: number;
@@ -47,6 +49,9 @@ export interface PlaygroundObject {
   width: number;
   height: number;
   radius: number;
+  baseWidth: number;
+  baseHeight: number;
+  size: PlaygroundSize;
   color: string;
   material: PlaygroundMaterial;
 }
@@ -72,6 +77,7 @@ export interface PlaygroundSnapshot {
     mass: number;
     material: PlaygroundMaterial;
     fixed: boolean;
+    size: PlaygroundSize;
   } | null;
 }
 
@@ -93,6 +99,7 @@ export interface SelectedObjectUpdate {
   color?: string;
   mass?: number;
   material?: PlaygroundMaterial;
+  size?: PlaygroundSize;
 }
 
 const PIXELS_PER_METER = 48;
@@ -111,6 +118,11 @@ const TRAJECTORY_PREVIEW_STEP = 0.08;
 const TRAJECTORY_PREVIEW_STEPS = 45;
 const SPRING_MOUNT_CLEARANCE = 8;
 const COLORS = ["#5b7cfa", "#f27a54", "#25a77a", "#a069dc", "#e2a62b"];
+const SIZE_SCALES: Readonly<Record<PlaygroundSize, number>> = {
+  small: 0.7,
+  medium: 1,
+  large: 1.4,
+};
 
 type GuidedMechanicsScene =
   | {
@@ -263,6 +275,9 @@ export class PhysicsPlayground {
       width: radius * 2,
       height: radius * 2,
       radius,
+      baseWidth: radius * 2,
+      baseHeight: radius * 2,
+      size: "medium",
       color: options.color ?? this.nextColor(),
       material: options.material ?? "rubber",
     };
@@ -281,6 +296,9 @@ export class PhysicsPlayground {
       width,
       height,
       radius: Math.min(width, height) / 2,
+      baseWidth: width,
+      baseHeight: height,
+      size: "medium",
       color: options.color ?? this.nextColor(),
       material: options.material ?? "wood",
     };
@@ -587,6 +605,7 @@ export class PhysicsPlayground {
         this.frictionLaw.setCoefficient(MATERIALS[update.material].friction);
       }
     }
+    if (update.size !== undefined) this.resizeObject(object, body, update.size);
     this.clearTrails();
     this.simulation.refreshAccelerations();
     this.advanceGuidedScene(0);
@@ -607,6 +626,7 @@ export class PhysicsPlayground {
           mass: body.state.mass,
           material: object.material,
           fixed: Boolean(body.fixed),
+          size: object.size,
         };
       }
     }
@@ -620,6 +640,29 @@ export class PhysicsPlayground {
 
   clearTrails(): void {
     for (const [id, object] of this.objects) this.trails.set(id, [{ x: object.x, y: object.y }]);
+  }
+
+  private resizeObject(object: PlaygroundObject, body: Body, size: PlaygroundSize): void {
+    const scale = SIZE_SCALES[size];
+    object.size = size;
+    object.width = object.baseWidth * scale;
+    object.height = object.baseHeight * scale;
+    object.radius = object.shape === "circle"
+      ? object.width / 2
+      : Math.min(object.width, object.height) / 2;
+    body.radius = object.radius;
+    body.collider = object.shape === "circle"
+      ? { kind: "circle", radius: object.radius }
+      : { kind: "box", halfWidth: object.width / 2, halfHeight: object.height / 2 };
+
+    const halfWidth = object.shape === "circle" ? object.radius : object.width / 2;
+    const halfHeight = object.shape === "circle" ? object.radius : object.height / 2;
+    body.state.position = {
+      x: Math.max(14 + halfWidth, Math.min(this.canvas.width - 14 - halfWidth, body.state.position.x)),
+      y: Math.max(14 + halfHeight, Math.min(this.floorY - halfHeight, body.state.position.y)),
+    };
+    object.x = body.state.position.x;
+    object.y = body.state.position.y;
   }
 
   private registerObject(object: PlaygroundObject, options: PlaygroundObjectOptions): void {

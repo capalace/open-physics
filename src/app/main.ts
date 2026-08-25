@@ -2,6 +2,7 @@ import {
   PhysicsPlayground,
   type PlaygroundMaterial,
   type PlaygroundPreset,
+  type PlaygroundSize,
   type PlaygroundSnapshot,
   type SandboxObjectKind,
 } from "./physics-playground";
@@ -101,6 +102,12 @@ document.querySelectorAll<HTMLButtonElement>("[data-mass]").forEach((button) => 
     pulseWorld();
   });
 });
+document.querySelectorAll<HTMLButtonElement>("[data-size]").forEach((button) => {
+  button.addEventListener("click", () => {
+    playground.updateSelected({ size: button.dataset.size as PlaygroundSize });
+    pulseWorld();
+  });
+});
 objectColor.addEventListener("input", () => playground.updateSelected({ color: objectColor.value }));
 
 window.addEventListener("keydown", (event) => {
@@ -175,6 +182,9 @@ function renderSnapshot(snapshot: PlaygroundSnapshot): void {
   });
   document.querySelectorAll<HTMLButtonElement>("[data-mass]").forEach((button) => {
     setActive(button, Number(button.dataset.mass) === selected.mass);
+  });
+  document.querySelectorAll<HTMLButtonElement>("[data-size]").forEach((button) => {
+    setActive(button, button.dataset.size === selected.size);
   });
   if (document.activeElement !== objectColor) objectColor.value = selected.color;
 }

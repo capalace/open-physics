@@ -143,6 +143,68 @@ describe("PhysicsPlayground object creation", () => {
     expect(wall).toMatchObject({ shape: "box", width: 28, height: 190 });
     expect(playground.simulation.getBody(wall.id)?.fixed).toBe(true);
   });
+
+  it("resizes a selected object from its original dimensions and updates its collider", () => {
+    vi.stubGlobal("requestAnimationFrame", () => 0);
+    const playground = new PhysicsPlayground(createCanvas(), { width: 960, height: 600 });
+    playground.startSandbox();
+    const box = playground.addSandboxObject("box");
+
+    playground.updateSelected({ size: "large" });
+
+    expect(box.width).toBeCloseTo(56 * 1.4);
+    expect(box.height).toBeCloseTo(56 * 1.4);
+    expect(playground.simulation.getBody(box.id)?.collider).toEqual({
+      kind: "box",
+      halfWidth: 56 * 0.7,
+      halfHeight: 56 * 0.7,
+    });
+
+    playground.updateSelected({ size: "small" });
+
+    expect(box.width).toBeCloseTo(56 * 0.7);
+    expect(box.height).toBeCloseTo(56 * 0.7);
+    expect(playground.snapshot().selected?.size).toBe("small");
+  });
+
+  it("preserves a fixed wall's aspect ratio while resizing it", () => {
+    vi.stubGlobal("requestAnimationFrame", () => 0);
+    const playground = new PhysicsPlayground(createCanvas(), { width: 960, height: 600 });
+    playground.startSandbox();
+    const wall = playground.addSandboxObject("wall");
+
+    playground.updateSelected({ size: "large" });
+
+    expect(wall.width).toBeCloseTo(28 * 1.4);
+    expect(wall.height).toBeCloseTo(190 * 1.4);
+    expect(playground.simulation.getBody(wall.id)?.fixed).toBe(true);
+  });
+
+  it("updates circle and platform colliders when their size changes", () => {
+    vi.stubGlobal("requestAnimationFrame", () => 0);
+    const playground = new PhysicsPlayground(createCanvas(), { width: 960, height: 600 });
+    playground.startSandbox();
+    const ball = playground.addSandboxObject("ball");
+
+    playground.updateSelected({ size: "small" });
+
+    expect(ball.radius).toBeCloseTo(25 * 0.7);
+    expect(playground.simulation.getBody(ball.id)?.collider).toEqual({
+      kind: "circle",
+      radius: 25 * 0.7,
+    });
+
+    const platform = playground.addSandboxObject("platform");
+    playground.updateSelected({ size: "large" });
+
+    expect(platform.width).toBeCloseTo(170 * 1.4);
+    expect(platform.height).toBeCloseTo(26 * 1.4);
+    expect(playground.simulation.getBody(platform.id)?.collider).toEqual({
+      kind: "box",
+      halfWidth: 170 * 0.7,
+      halfHeight: 26 * 0.7,
+    });
+  });
 });
 
 describe("PhysicsPlayground contacts", () => {
