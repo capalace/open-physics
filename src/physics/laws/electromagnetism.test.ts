@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   coulombForceMagnitude,
   pointChargeElectricField,
+  pointChargeElectricFieldVector,
   electricForce,
   pointChargePotential,
   electricPotentialEnergy,
@@ -12,8 +13,10 @@ import {
   parallelResistance,
   capacitance,
   capacitorEnergy,
+  parallelPlateCapacitance,
   magneticForceMagnitude,
   currentWireMagneticForce,
+  magneticFieldAroundWire,
   inducedEmf,
   magneticFlux,
   lorentzForce2D,
@@ -26,6 +29,8 @@ describe("electromagnetism", () => {
 
   it("calculates point-charge field and potential", () => {
     expect(pointChargeElectricField(2, 2, 1)).toBe(0.5);
+    expect(pointChargeElectricFieldVector(2, { x: 0, y: 0 }, { x: 2, y: 0 }, 1))
+      .toEqual({ x: 0.5, y: 0 });
     expect(pointChargePotential(2, 2, 1)).toBe(1);
   });
 
@@ -48,11 +53,13 @@ describe("electromagnetism", () => {
   it("calculates capacitance and capacitor energy", () => {
     expect(capacitance(6, 3)).toBe(2);
     expect(capacitorEnergy(2, 3)).toBe(9);
+    expect(parallelPlateCapacitance(2, 3, 6)).toBe(1);
   });
 
   it("calculates magnetic forces", () => {
     expect(magneticForceMagnitude(2, 3, 4, Math.PI / 2)).toBeCloseTo(24);
     expect(currentWireMagneticForce(2, 3, 4, Math.PI / 2)).toBeCloseTo(24);
+    expect(magneticFieldAroundWire(2, 2, 2 * Math.PI)).toBeCloseTo(1);
   });
 
   it("calculates magnetic flux and Faraday emf", () => {
