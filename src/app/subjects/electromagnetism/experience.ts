@@ -189,8 +189,11 @@ class ElectromagnetismController implements SubjectController {
     this.activeMode = mode;
     this.model.activate(mode);
     this.selectedSandboxId = null;
-    this.hosts.experimentPanel.querySelectorAll<HTMLElement>("[data-em-mode]").forEach((button) =>
-      button.classList.toggle("is-active", button.dataset.emMode === mode));
+    this.hosts.experimentPanel.querySelectorAll<HTMLElement>("[data-em-mode]").forEach((button) => {
+      const active = button.dataset.emMode === mode;
+      button.classList.toggle("is-active", active);
+      button.setAttribute("aria-pressed", String(active));
+    });
     this.require<HTMLElement>(this.hosts.workspace, "[data-em-sandbox-tools]").hidden = mode !== "sandbox";
     this.renderGuide();
     this.renderControls();
