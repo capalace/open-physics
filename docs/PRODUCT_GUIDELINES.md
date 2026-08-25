@@ -28,6 +28,17 @@ The intended audience is broad: children, students, and anyone who wants to expl
 - **Physics first, curriculum second:** The product structure should represent physics naturally. Educational curricula are references for coverage and progression, not hard architectural boundaries.
 - **Client-side first:** The simulation should run entirely in the browser. A backend is not required for the core physics experience.
 
+### 현재 역학 실험의 직접 조작 기준
+
+준비된 실험은 법칙을 자동으로 보여주는 애니메이션보다 사용자가 힘과 방향을 직접 바꾸어 결과를 발견하게 해야 한다.
+
+- 마찰: 손잡이를 실제로 밀거나 당겨 최대 정지 마찰력의 임계점을 찾는다.
+- 지렛대: 받침점에서 서로 다른 거리의 힘점을 고르고 필요한 힘을 비교한다.
+- 도르래: 짐을 받치는 1·2·4줄을 바꾸어 힘이 줄어드는 만큼 당길 거리가 늘어나는 관계를 경험한다.
+- 궤도: 속도 손잡이의 길이와 방향을 조금씩 바꾸며 충돌·공전·이탈 예상 경로를 비교한다.
+
+이 실험들은 메뉴 카드를 더 늘리지 않고 기존 역학 주제 안에서 깊이를 만든다. 고정 도르래가 힘을 줄인다고 표현하지 않으며, 힘을 줄이는 비교에는 움직도르래 또는 여러 지지 줄을 사용한다.
+
 ## 2. Simulation Philosophy: Physics as a Model
 
 Open Physics does **not** aim to reproduce the complete physical complexity of the real world.

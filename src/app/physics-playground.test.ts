@@ -280,11 +280,11 @@ describe("PhysicsPlayground lab graphs", () => {
       ["projectile", "발사체의 높이"],
       ["collision", "두 물체의 운동량"],
       ["spring", "에너지가 바뀌는 모습"],
-      ["friction", "미끄러지는 속력"],
-      ["rotation", "막대의 기울기"],
+      ["friction", "미는 힘과 버티는 힘"],
+      ["rotation", "지렛대에 필요한 힘"],
       ["constraints", "두 진자의 각도"],
-      ["pulley", "두 추의 높이"],
-      ["orbit", "큰 별에서 떨어진 거리"],
+      ["pulley", "줄 수에 따른 필요한 힘"],
+      ["orbit", "발사 속력과 궤도 기준"],
       ["buoyancy", "물에 잠긴 깊이"],
     ]);
 
@@ -374,31 +374,35 @@ describe("PhysicsPlayground extended mechanics", () => {
     expect(playground.snapshot().preset).toBe("free-fall");
   });
 
-  it("uses friction to slow a surface object to rest without reversing it", () => {
+  it("holds a pushed box until maximum static friction is exceeded", () => {
     vi.stubGlobal("requestAnimationFrame", () => 0);
-    const playground = new PhysicsPlayground(createCanvas(), { width: 960, height: 600 });
-    const advance = playground as unknown as { advance(dt: number): void };
+    const { canvas, dispatchPointer } = createInteractiveCanvas();
+    const playground = new PhysicsPlayground(canvas, { width: 960, height: 600 });
     playground.loadPreset("friction");
     const body = playground.simulation.allBodies[0];
-    const initialSpeed = body.state.velocity.x;
 
-    for (let frame = 0; frame < 5 * 120; frame += 1) advance.advance(1 / 120);
+    dispatchPointer("pointerdown", 456, 518);
+    dispatchPointer("pointermove", 475, 518);
+    expect(body.state.acceleration.x).toBeCloseTo(0);
 
-    expect(body.state.velocity.x).toBeGreaterThanOrEqual(0);
-    expect(body.state.velocity.x).toBeLessThan(initialSpeed);
-    expect(body.state.velocity.x).toBeCloseTo(0);
+    dispatchPointer("pointermove", 530, 518);
+    expect(body.state.acceleration.x).toBeGreaterThan(0);
+    const values = playground.snapshot().graph!.samples.at(-1)!.values;
+    expect(values[0]).toBeGreaterThan(values[1]);
   });
 
-  it("changes the friction force when the selected material changes", () => {
+  it("changes maximum static friction when the selected material changes", () => {
     vi.stubGlobal("requestAnimationFrame", () => 0);
     const playground = new PhysicsPlayground(createCanvas(), { width: 960, height: 600 });
     playground.loadPreset("friction");
     const body = playground.simulation.allBodies[0];
-    const woodAcceleration = Math.abs(body.state.acceleration.x);
+    const woodLimit = playground.snapshot().graph!.samples.at(-1)!.values[1];
 
     playground.updateSelected({ material: "clay" });
 
-    expect(Math.abs(body.state.acceleration.x)).toBeGreaterThan(woodAcceleration);
+    const clayLimit = playground.snapshot().graph!.samples.at(-1)!.values[1];
+    expect(clayLimit).toBeGreaterThan(woodLimit);
+    expect(body.state.acceleration.x).toBeCloseTo(0);
   });
 
   it("draws the spring as a densely sampled smooth coil", () => {
@@ -465,49 +469,47 @@ describe("PhysicsPlayground extended mechanics", () => {
     expect(Math.hypot(body.state.position.x - anchor.x, body.state.position.y - anchor.y)).toBeCloseTo(length, 4);
   });
 
-  it("moves the heavier pulley weight down by the same distance the light weight rises", () => {
+  it("needs less force when the lever effort point is farther from the pivot", () => {
     vi.stubGlobal("requestAnimationFrame", () => 0);
-    const playground = new PhysicsPlayground(createCanvas(), { width: 960, height: 600 });
-    const advance = playground as unknown as { advance(dt: number): void };
-    playground.loadPreset("pulley");
-    const [left, right] = playground.simulation.allBodies;
-    const leftStart = left.state.position.y;
-    const rightStart = right.state.position.y;
+    const { canvas, dispatchPointer } = createInteractiveCanvas();
+    const playground = new PhysicsPlayground(canvas, { width: 960, height: 600 });
+    playground.loadPreset("rotation");
+    dispatchPointer("pointerdown", 543, 320);
+    const nearForce = playground.snapshot().graph!.samples.at(-1)!.values[1];
 
-    for (let frame = 0; frame < 60; frame += 1) advance.advance(1 / 120);
-
-    expect(left.state.position.y).toBeLessThan(leftStart);
-    expect(right.state.position.y).toBeGreaterThan(rightStart);
-    expect(leftStart - left.state.position.y).toBeCloseTo(right.state.position.y - rightStart, 4);
+    dispatchPointer("pointerdown", 702, 320);
+    const farForce = playground.snapshot().graph!.samples.at(-1)!.values[1];
+    expect(farForce).toBeLessThan(nearForce);
   });
 
-  it("uses long pulley ropes for a wider travel range without touching the floor", () => {
+  it("lifts the lever load when the handle is pulled past the required force", () => {
     vi.stubGlobal("requestAnimationFrame", () => 0);
-    const playground = new PhysicsPlayground(createCanvas(), { width: 960, height: 600 });
-    const advance = playground as unknown as { advance(dt: number): void };
-    playground.loadPreset("pulley");
-    const [left, right] = playground.simulation.allBodies;
-    const [leftObject, rightObject] = [...playground.objects.values()];
-    const rightStart = right.state.position.y;
-
-    expect(left.state.position.y - 90).toBeGreaterThan(250);
-    for (let frame = 0; frame < 240; frame += 1) advance.advance(1 / 120);
-    expect(right.state.position.y - rightStart).toBeGreaterThan(145);
-    expect(left.state.position.y - leftObject.radius).toBeGreaterThan(90 + 58);
-    expect(right.state.position.y + rightObject.radius).toBeLessThan(playground.floorY);
+    const { canvas, dispatchPointer } = createInteractiveCanvas();
+    const playground = new PhysicsPlayground(canvas, { width: 960, height: 600 });
+    playground.loadPreset("rotation");
+    const load = playground.simulation.allBodies[0];
+    const startY = load.state.position.y;
+    dispatchPointer("pointerdown", 692, 390);
+    dispatchPointer("pointermove", 692, 510);
+    expect(load.state.position.y).toBeLessThan(startY);
   });
 
-  it("places the pulley name above the wheel instead of across its spokes", () => {
+  it("trades more pulling distance for lower force with four pulley strands", () => {
     vi.stubGlobal("requestAnimationFrame", () => 0);
-    const { canvas, fillText } = createRenderingCanvas();
+    const { canvas, dispatchPointer } = createInteractiveCanvas();
     const playground = new PhysicsPlayground(canvas, { width: 960, height: 600 });
     playground.loadPreset("pulley");
-    const renderer = playground as unknown as { drawGuidedScene(): void };
+    const load = playground.simulation.allBodies[0];
+    const startY = load.state.position.y;
+    const oneStrandForce = playground.snapshot().graph!.samples.at(-1)!.values[1];
 
-    renderer.drawGuidedScene();
+    dispatchPointer("pointerdown", 584, 86);
+    const fourStrandForce = playground.snapshot().graph!.samples.at(-1)!.values[1];
+    dispatchPointer("pointerdown", 653, 256);
+    dispatchPointer("pointermove", 653, 456);
 
-    const pulleyLabel = fillText.mock.calls.find(([text]) => text === "도르래")!;
-    expect(pulleyLabel[2]).toBeLessThan(90 - 58);
+    expect(fourStrandForce).toBeCloseTo(oneStrandForce / 4);
+    expect(startY - load.state.position.y).toBeCloseTo(50);
   });
 
   it("keeps rope and rod bobs at their fixed constraint lengths", () => {

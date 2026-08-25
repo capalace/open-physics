@@ -4,6 +4,7 @@ import {
   AnchoredSpringLaw,
   BuoyancyRegionLaw,
   HorizontalSurfaceFrictionLaw,
+  PushFrictionLaw,
 } from "./world-mechanics";
 
 const context = { time: 0, dt: 0.1 };
@@ -96,6 +97,42 @@ describe("HorizontalSurfaceFrictionLaw", () => {
     moving.state.velocity.x = 0.1;
 
     expect(law.forceOnBody(moving, [], context).vector.x).toBe(-2);
+  });
+});
+
+describe("PushFrictionLaw", () => {
+  it("matches an applied force until maximum static friction is exceeded", () => {
+    const law = new PushFrictionLaw({
+      bodyId: "target",
+      surfaceY: 100,
+      staticCoefficient: 0.5,
+      kineticCoefficient: 0.3,
+      normalAcceleration: 10,
+    });
+    law.setAppliedForce(8);
+
+    expect(law.maximumStaticForce(body().state)).toBe(10);
+    expect(law.forceOnBody(body(), [], context).vector.x).toBe(0);
+    expect(law.status(body().state)).toBe("holding");
+
+    law.setAppliedForce(12);
+    expect(law.forceOnBody(body(), [], context).vector.x).toBe(6);
+    expect(law.status(body().state)).toBe("moving");
+  });
+
+  it("uses kinetic friction after motion starts and can pull in either direction", () => {
+    const law = new PushFrictionLaw({
+      bodyId: "target",
+      surfaceY: 100,
+      staticCoefficient: 0.5,
+      kineticCoefficient: 0.3,
+      normalAcceleration: 10,
+    });
+    const moving = body();
+    moving.state.velocity.x = 5;
+    law.setAppliedForce(-4);
+
+    expect(law.forceOnBody(moving, [], context).vector.x).toBe(-10);
   });
 });
 

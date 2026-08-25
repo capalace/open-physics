@@ -133,6 +133,105 @@ export class HorizontalSurfaceFrictionLaw implements WorldForceLaw {
   }
 }
 
+export interface PushFrictionOptions {
+  bodyId: string;
+  surfaceY: number;
+  staticCoefficient: number;
+  kineticCoefficient: number;
+  normalAcceleration: number;
+  contactTolerance?: number;
+}
+
+export type PushFrictionStatus = "holding" | "moving";
+
+/** Static and kinetic friction for a body that the learner pushes or pulls directly. */
+export class PushFrictionLaw implements WorldForceLaw {
+  readonly id: string;
+  readonly bodyId: string;
+  surfaceY: number;
+  staticCoefficient: number;
+  kineticCoefficient: number;
+  normalAcceleration: number;
+  contactTolerance: number;
+  appliedForce = 0;
+
+  constructor(options: PushFrictionOptions) {
+    this.bodyId = options.bodyId;
+    this.id = `friction.push.${options.bodyId}`;
+    this.surfaceY = options.surfaceY;
+    this.staticCoefficient = options.staticCoefficient;
+    this.kineticCoefficient = options.kineticCoefficient;
+    this.normalAcceleration = options.normalAcceleration;
+    this.contactTolerance = options.contactTolerance ?? 2;
+    this.validate();
+  }
+
+  setAppliedForce(force: number): void {
+    if (!Number.isFinite(force)) throw new RangeError("Applied force must be finite.");
+    this.appliedForce = force;
+  }
+
+  setSurfaceY(surfaceY: number): void {
+    if (!Number.isFinite(surfaceY)) throw new RangeError("Surface position must be finite.");
+    this.surfaceY = surfaceY;
+  }
+
+  setCoefficients(staticCoefficient: number, kineticCoefficient: number): void {
+    this.staticCoefficient = staticCoefficient;
+    this.kineticCoefficient = kineticCoefficient;
+    this.validate();
+  }
+
+  setNormalAcceleration(normalAcceleration: number): void {
+    this.normalAcceleration = normalAcceleration;
+    this.validate();
+  }
+
+  maximumStaticForce(state: BodyState): number {
+    return this.staticCoefficient * state.mass * this.normalAcceleration;
+  }
+
+  status(state: BodyState): PushFrictionStatus {
+    const nearlyStopped = Math.abs(state.velocity.x) < 0.01;
+    return nearlyStopped && Math.abs(this.appliedForce) <= this.maximumStaticForce(state)
+      ? "holding"
+      : "moving";
+  }
+
+  force(state: BodyState, context: PhysicsContext): Force {
+    if (this.status(state) === "holding") return zeroForce(this.id);
+
+    const direction = Math.abs(state.velocity.x) >= 0.01
+      ? Math.sign(state.velocity.x)
+      : Math.sign(this.appliedForce);
+    const kineticFriction = this.kineticCoefficient * state.mass * this.normalAcceleration;
+    let netForce = this.appliedForce - direction * kineticFriction;
+    const wouldReverse = state.velocity.x * netForce < 0
+      && Math.abs(netForce) * context.dt / state.mass >= Math.abs(state.velocity.x);
+    if (wouldReverse) netForce = -state.mass * state.velocity.x / context.dt;
+    return {
+      vector: { x: netForce, y: 0 },
+      source: this.id,
+    };
+  }
+
+  forceOnBody(body: Body, _bodies: readonly Body[], context: PhysicsContext): Force {
+    const bottom = body.state.position.y + (body.radius ?? 0);
+    if (body.id !== this.bodyId || Math.abs(bottom - this.surfaceY) > this.contactTolerance) {
+      return zeroForce(this.id);
+    }
+    return this.force(body.state, context);
+  }
+
+  private validate(): void {
+    if (!Number.isFinite(this.surfaceY)) throw new RangeError("Surface position must be finite.");
+    if (this.staticCoefficient < 0) throw new RangeError("Static friction coefficient must be non-negative.");
+    if (this.kineticCoefficient < 0) throw new RangeError("Kinetic friction coefficient must be non-negative.");
+    if (this.normalAcceleration < 0) throw new RangeError("Normal acceleration must be non-negative.");
+    if (this.contactTolerance < 0) throw new RangeError("Contact tolerance must be non-negative.");
+  }
+}
+
 export interface BuoyancyRegionOptions {
   bodyId: string;
   waterline: number;
