@@ -1,4 +1,5 @@
 import type { SubjectExperience, SubjectHosts, SubjectId } from "./subjects/subject-experience";
+import "./subjects/style.css";
 
 const SUBJECT_IDS: readonly SubjectId[] = [
   "mechanics",

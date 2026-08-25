@@ -8,6 +8,9 @@ const markup = readFileSync(new URL("../../index.html", import.meta.url), "utf8"
 const subjectStyles = ["electromagnetism", "waves", "light", "thermal", "modern"]
   .map((subject) => readFileSync(new URL(`./subjects/${subject}/style.css`, import.meta.url), "utf8"))
   .join("\n");
+const subjectShellStyles = readFileSync(new URL("./subjects/style.css", import.meta.url), "utf8");
+const bootstrap = readFileSync(new URL("./main.ts", import.meta.url), "utf8");
+const lightExperience = readFileSync(new URL("./subjects/light/experience.ts", import.meta.url), "utf8");
 
 describe("playground typography", () => {
   it("keeps every interface label at least 12px tall", () => {
@@ -73,5 +76,34 @@ describe("mechanics lab graph", () => {
     expect(markup).toContain('id="lab-graph"');
     expect(markup).toContain('id="lab-graph-canvas"');
     expect(markup).toContain('aria-label="실험 결과 그래프"');
+  });
+});
+
+describe("subject visual shell", () => {
+  it("uses the mechanics surface contract for every subject selector and toolbar", () => {
+    expect(bootstrap).toContain('import "./subjects/style.css"');
+    expect(subjectShellStyles).toContain("--subject-card-background: #fafbfd;");
+    expect(subjectShellStyles).toContain("--subject-toolbar-background: #ffffff;");
+
+    for (const selector of [
+      ".em-lab-button",
+      ".waves-experience__lab",
+      ".light-experience__list button",
+      ".thermal-lab-list button",
+      ".modern-experience__lab",
+    ]) expect(subjectShellStyles).toContain(selector);
+
+    for (const toolbar of [
+      ".em-toolbar",
+      ".waves-experience__toolbar",
+      ".light-experience__toolbar",
+      ".thermal-toolbar",
+      ".modern-experience__toolbar",
+    ]) expect(subjectShellStyles).toContain(toolbar);
+  });
+
+  it("gives the light lab the same visible workspace toolbar contract", () => {
+    expect(lightExperience).toContain('class="light-experience__toolbar"');
+    expect(lightExperience).toContain("data-light-toolbar-reset");
   });
 });

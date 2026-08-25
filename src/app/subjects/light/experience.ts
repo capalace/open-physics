@@ -23,13 +23,19 @@ class LightController implements SubjectController {
     hosts.experimentPanel.classList.add("light-experience__experiments");
     hosts.workspace.classList.add("light-experience__workspace");
     hosts.inspectorPanel.classList.add("light-experience__inspector");
-    hosts.workspace.innerHTML = `<div class="light-experience__stage"><canvas aria-label="빛 실험 장면"></canvas><div class="light-experience__value" aria-live="polite"></div></div>`;
+    hosts.workspace.innerHTML = `<div class="light-experience__shell"><div class="light-experience__toolbar" aria-label="빛 실험 실행"><button type="button" data-light-toolbar-reset>↻ 처음으로</button><span class="light-experience__toolbar-hint">장치를 끌어 빛의 경로를 바꿔 보세요</span></div><div class="light-experience__stage"><canvas aria-label="빛 실험 장면"></canvas><div class="light-experience__value" aria-live="polite"></div></div></div>`;
     this.canvas = hosts.workspace.querySelector("canvas")!;
     hosts.inspectorPanel.innerHTML = `<section class="light-experience__guide"></section><section class="light-experience__graph"><h3></h3><canvas aria-label="실험 그래프"></canvas><div class="light-experience__axes"></div></section><section class="light-experience__palette" hidden></section>`;
     this.graphCanvas = hosts.inspectorPanel.querySelector(".light-experience__graph canvas")!;
     this.renderer = new LightRenderer(this.canvas, this.graphCanvas);
     this.renderExperimentList();
     this.bindPointer();
+    hosts.workspace.querySelector("[data-light-toolbar-reset]")?.addEventListener("click", () => {
+      this.model.reset();
+      this.selectedSandboxDevice = null;
+      this.renderPalette();
+      this.paint();
+    }, { signal: this.events.lifetimeSignal });
     this.activate("propagation");
   }
 
@@ -88,7 +94,7 @@ class LightController implements SubjectController {
   private renderGuide(): void {
     const guide = this.hosts.inspectorPanel.querySelector<HTMLElement>(".light-experience__guide")!;
     const graph = this.hosts.inspectorPanel.querySelector<HTMLElement>(".light-experience__graph")!;
-    const signal = this.events.nextGuideSignal();
+    this.events.nextGuideSignal();
     const graphHeading = lightGraphHeading(this.model.activeScene);
     graph.querySelector("h3")!.textContent = graphHeading.title;
     graph.querySelector(".light-experience__axes")!.textContent = graphHeading.axes;
@@ -97,8 +103,7 @@ class LightController implements SubjectController {
       return;
     }
     const lab = lightLab(this.model.activeScene as LightLabId);
-    guide.innerHTML = `<p class="light-experience__eyebrow">탐구 질문</p><h2>${lab.title}</h2><p class="light-experience__question">${lab.question}</p><ol>${lab.steps.map((step) => `<li>${step}</li>`).join("")}</ol><p class="light-experience__observe"><strong>관찰:</strong> ${lab.observe}</p><details><summary>${lab.law.title}</summary><p>${lab.law.description}</p><code>${lab.law.equation}</code></details><button type="button" data-light-reset>처음으로</button>`;
-    guide.querySelector("[data-light-reset]")?.addEventListener("click", () => { this.model.reset(); this.paint(); }, { signal });
+    guide.innerHTML = `<p class="light-experience__eyebrow">탐구 질문</p><h2>${lab.title}</h2><p class="light-experience__question">${lab.question}</p><ol>${lab.steps.map((step) => `<li>${step}</li>`).join("")}</ol><p class="light-experience__observe"><strong>관찰:</strong> ${lab.observe}</p><details><summary>${lab.law.title}</summary><p>${lab.law.description}</p><code>${lab.law.equation}</code></details>`;
   }
 
   private renderPalette(): void {
@@ -108,16 +113,13 @@ class LightController implements SubjectController {
     if (palette.hidden) return;
     const kinds: readonly LightDeviceKind[] = ["source", "mirror", "boundary", "lens", "prism", "slit", "screen"];
     const labels: Record<LightDeviceKind, string> = { source: "광원", mirror: "거울", boundary: "경계면", lens: "렌즈", prism: "프리즘", slit: "슬릿", screen: "스크린" };
-    palette.innerHTML = `<h3>광학 장치</h3><div>${kinds.map((kind) => `<button type="button" data-add-light="${kind}">+ ${labels[kind]}</button>`).join("")}</div><button type="button" data-delete-light ${this.selectedSandboxDevice ? "" : "disabled"}>선택 장치 지우기</button><button type="button" data-light-reset>처음으로</button>`;
+    palette.innerHTML = `<h3>광학 장치</h3><div>${kinds.map((kind) => `<button type="button" data-add-light="${kind}">+ ${labels[kind]}</button>`).join("")}</div><button type="button" data-delete-light ${this.selectedSandboxDevice ? "" : "disabled"}>선택 장치 지우기</button>`;
     palette.querySelectorAll<HTMLElement>("[data-add-light]").forEach((button) => button.addEventListener("click", () => {
       this.model.addDevice(button.dataset.addLight as LightDeviceKind); this.paint();
     }, { signal }));
     palette.querySelector("[data-delete-light]")?.addEventListener("click", () => {
       if (this.selectedSandboxDevice) this.model.removeDevice(this.selectedSandboxDevice);
       this.selectedSandboxDevice = null; this.renderPalette(); this.paint();
-    }, { signal });
-    palette.querySelector("[data-light-reset]")?.addEventListener("click", () => {
-      this.model.reset(); this.selectedSandboxDevice = null; this.renderPalette(); this.paint();
     }, { signal });
   }
 
