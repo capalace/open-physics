@@ -3,6 +3,20 @@ import { ThermalWorld, type ThermalObject, type ThermalSnapshot } from "./models
 
 const COLORS = { hot: "#ef7044", cold: "#4286d5", mixed: "#805fd1", ink: "#26323f", faint: "#d8e1e8" } as const;
 
+export function thermalControlHandle(snapshot: ThermalSnapshot, width: number, height: number): { x: number; y: number } {
+  const floor = height - 105;
+  switch (snapshot.scene) {
+    case "particles": return { x: width * 0.15, y: floor * 0.835 - snapshot.control * floor * 0.423 };
+    case "heat-transfer": return { x: width * 0.4 + snapshot.control * width * 0.2225, y: floor * 0.52 };
+    case "phase-change": return { x: width * 0.82, y: floor * 0.772 - snapshot.control * floor * 0.494 };
+    case "gas": return { x: width * (0.42 + snapshot.control * 0.48), y: floor * 0.48 };
+    case "heat-energy": return { x: width * (0.2 + snapshot.control * 0.6), y: 72 };
+    case "heat-engine": return { x: width * 0.18, y: floor * 0.709 - snapshot.control * floor * 0.475 };
+    case "entropy": return { x: width * 0.5, y: floor * 0.84 - snapshot.control * floor * 0.587 };
+    case "sandbox": return { x: 70 + snapshot.control * (width - 140), y: height - 52 };
+  }
+}
+
 export class ThermalRenderer {
   private dragging: "control" | string | null = null;
   private readonly listeners: Array<[string, EventListener]> = [];
@@ -60,9 +74,10 @@ export class ThermalRenderer {
   private pointerDown(event: PointerEvent): void {
     const point = this.coordinates(event);
     const snapshot = this.world.snapshot();
-    if (point.y >= point.height - 86) {
+    const handle = thermalControlHandle(snapshot, point.width, point.height);
+    if (Math.hypot(point.x - handle.x, point.y - handle.y) <= 30) {
       this.dragging = "control";
-      this.updateControl(point.x, point.width);
+      this.updateControl(point.x, point.y, point.width, point.height);
     } else if (snapshot.scene === "sandbox") {
       const hit = [...snapshot.objects].reverse().find((object) =>
         Math.hypot(point.x - object.x * point.width, point.y - object.y * (point.height - 90)) <= 30,
@@ -75,14 +90,26 @@ export class ThermalRenderer {
   private pointerMove(event: PointerEvent): void {
     if (!this.dragging) return;
     const point = this.coordinates(event);
-    if (this.dragging === "control") this.updateControl(point.x, point.width);
+    if (this.dragging === "control") this.updateControl(point.x, point.y, point.width, point.height);
     else this.world.moveObject(this.dragging, point.x / point.width, point.y / (point.height - 90));
     this.changed();
     this.render();
   }
 
-  private updateControl(x: number, width: number): void {
-    this.world.setControl((x - 70) / Math.max(1, width - 140));
+  private updateControl(x: number, y: number, width: number, height: number): void {
+    const floor = height - 105;
+    let control: number;
+    switch (this.world.scene) {
+      case "particles": control = (floor * 0.835 - y) / (floor * 0.423); break;
+      case "heat-transfer": control = (x - width * 0.4) / (width * 0.2225); break;
+      case "phase-change": control = (floor * 0.772 - y) / (floor * 0.494); break;
+      case "gas": control = (x / width - 0.42) / 0.48; break;
+      case "heat-energy": control = (x / width - 0.2) / 0.6; break;
+      case "heat-engine": control = (floor * 0.709 - y) / (floor * 0.475); break;
+      case "entropy": control = (floor * 0.84 - y) / (floor * 0.587); break;
+      case "sandbox": control = (x - 70) / Math.max(1, width - 140); break;
+    }
+    this.world.setControl(control);
     this.changed();
     this.render();
   }
@@ -96,8 +123,12 @@ export class ThermalRenderer {
     else if (snapshot.scene === "heat-engine") this.drawEngine(context, snapshot, width, floor);
     else if (snapshot.scene === "phase-change") this.drawPhase(context, snapshot, width, floor);
     else if (snapshot.scene === "entropy") this.drawEntropy(context, snapshot, width, floor);
+    else if (snapshot.scene === "heat-energy") this.drawHeatEnergy(context, snapshot, width, floor);
     else this.drawContainer(context, snapshot, width, floor);
-    if (snapshot.scene === "sandbox") snapshot.objects.forEach((object) => this.drawTool(context, object, width, floor));
+    if (snapshot.scene === "sandbox") {
+      this.drawSandboxConnections(context, snapshot, width, floor);
+      snapshot.objects.forEach((object) => this.drawTool(context, object, snapshot, width, floor));
+    }
     this.drawReadout(context, snapshot, 24, 30);
   }
 
@@ -117,10 +148,13 @@ export class ThermalRenderer {
       context.lineWidth = 1.5;
       context.beginPath();
       context.moveTo(left + particle.x * boxWidth, top + particle.y * boxHeight);
-      context.lineTo(left + particle.x * boxWidth - tail, top + particle.y * boxHeight + ((particle.x * 10) % 5 - 2));
+      context.lineTo(
+        left + particle.x * boxWidth - particle.velocityX / Math.max(0.001, particle.speed) * tail,
+        top + particle.y * boxHeight - particle.velocityY / Math.max(0.001, particle.speed) * tail,
+      );
       context.stroke();
     }
-    if (snapshot.scene === "particles" || snapshot.scene === "heat-energy") {
+    if (snapshot.scene === "particles") {
       const flames = 3 + Math.round(snapshot.control * 6);
       context.fillStyle = "#f28342";
       for (let index = 0; index < flames; index += 1) {
@@ -185,12 +219,28 @@ export class ThermalRenderer {
     context.fillText(`액체 ${(snapshot.liquidFraction * 100).toFixed(0)}% · ${snapshot.temperature.toFixed(1)} °C`, left, top - 18);
   }
 
+  private drawHeatEnergy(context: CanvasRenderingContext2D, snapshot: ThermalSnapshot, width: number, floor: number): void {
+    this.drawContainer(context, snapshot, width, floor);
+    const left = width * 0.2;
+    const boxWidth = width * 0.6;
+    const y = floor * 0.88;
+    context.save();
+    context.fillStyle = COLORS.hot;
+    for (let index = 0; index < 8; index += 1) {
+      const x = left + boxWidth * (index + 1) / 9;
+      context.beginPath(); context.arc(x, y, 6, 0, Math.PI * 2); context.fill();
+    }
+    context.font = "800 14px system-ui"; context.fillStyle = COLORS.ink;
+    context.fillText("항상 같은 열 80 kJ", left, y + 30);
+    context.restore();
+  }
+
   private drawEngine(context: CanvasRenderingContext2D, snapshot: ThermalSnapshot, width: number, floor: number): void {
     const centerX = width / 2; const centerY = floor * 0.48;
     context.fillStyle = "#ffe1d0"; context.fillRect(width * 0.08, centerY - 70, width * 0.2, 140);
     context.fillStyle = "#dceafa"; context.fillRect(width * 0.72, centerY - 70, width * 0.2, 140);
     context.strokeStyle = COLORS.ink; context.strokeRect(centerX - 88, centerY - 82, 176, 164);
-    const piston = centerY + 45 * Math.sin(snapshot.time * 2);
+    const piston = centerY + 45 * (snapshot.volume - 10.5) / 2.5;
     context.fillStyle = "#566676"; context.fillRect(centerX - 75, piston, 150, 13);
     context.strokeStyle = COLORS.hot; context.lineWidth = 6; context.beginPath(); context.moveTo(width * 0.28, centerY); context.lineTo(centerX - 88, centerY); context.stroke();
     context.strokeStyle = COLORS.cold; context.beginPath(); context.moveTo(centerX + 88, centerY); context.lineTo(width * 0.72, centerY); context.stroke();
@@ -210,34 +260,74 @@ export class ThermalRenderer {
     context.fillText(`ΔS ${snapshot.entropy.toFixed(2)} J/K`, width * 0.42, floor * 0.12);
   }
 
-  private drawTool(context: CanvasRenderingContext2D, object: ThermalObject, width: number, floor: number): void {
+  private drawSandboxConnections(context: CanvasRenderingContext2D, snapshot: ThermalSnapshot, width: number, floor: number): void {
+    const containers = snapshot.objects.filter((object) => object.type === "container");
+    const sources = snapshot.objects.filter((object) => object.type === "heater" || object.type === "cooler");
+    context.save();
+    for (const source of sources) for (const container of containers) {
+      const distance = Math.hypot(source.x - container.x, source.y - container.y);
+      context.globalAlpha = Math.max(0.08, Math.exp(-distance * 4.5));
+      context.strokeStyle = source.type === "heater" ? COLORS.hot : COLORS.cold;
+      context.lineWidth = 5;
+      context.beginPath(); context.moveTo(source.x * width, source.y * floor); context.lineTo(container.x * width, container.y * floor); context.stroke();
+    }
+    context.restore();
+  }
+
+  private drawTool(context: CanvasRenderingContext2D, object: ThermalObject, snapshot: ThermalSnapshot, width: number, floor: number): void {
     const x = object.x * width; const y = object.y * floor;
     const symbol: Record<ThermalObject["type"], string> = { container: "▣", heater: "♨", cooler: "❄", conductor: "═", insulator: "▥", piston: "↔", thermometer: "🌡" };
     context.beginPath(); context.fillStyle = "#ffffff"; context.strokeStyle = "#4c6675"; context.lineWidth = 2; context.arc(x, y, 25, 0, Math.PI * 2); context.fill(); context.stroke();
     context.font = "22px system-ui"; context.textAlign = "center"; context.textBaseline = "middle"; context.fillStyle = COLORS.ink; context.fillText(symbol[object.type], x, y);
+    const reading = snapshot.thermometerReadings.find((item) => item.id === object.id);
+    if (reading) {
+      context.font = "700 12px system-ui";
+      context.fillText(`${reading.temperature.toFixed(0)} ${reading.unit}`, x, y + 40);
+    }
     context.textAlign = "start"; context.textBaseline = "alphabetic";
   }
 
   private drawReadout(context: CanvasRenderingContext2D, snapshot: ThermalSnapshot, x: number, y: number): void {
     context.fillStyle = "rgba(255,255,255,.9)"; context.fillRect(x - 10, y - 20, 230, 54);
     context.font = "700 14px system-ui"; context.fillStyle = COLORS.ink;
-    context.fillText(`온도 ${snapshot.temperature.toFixed(1)} K`, x, y);
+    context.fillText(`온도 ${snapshot.temperature.toFixed(1)} ${snapshot.temperatureUnit}`, x, y);
     if (snapshot.pressure > 0) context.fillText(`압력 ${snapshot.pressure.toFixed(1)} kPa`, x, y + 22);
     else context.fillText(`에너지 ${snapshot.energy.toFixed(1)} kJ`, x, y + 22);
   }
 
   private drawControl(context: CanvasRenderingContext2D, snapshot: ThermalSnapshot, width: number, height: number): void {
-    const y = height - 52; const left = 70; const right = width - 70;
-    context.strokeStyle = COLORS.faint; context.lineWidth = 12; context.lineCap = "round"; context.beginPath(); context.moveTo(left, y); context.lineTo(right, y); context.stroke();
-    const x = left + snapshot.control * (right - left);
-    context.fillStyle = snapshot.control > 0.5 ? COLORS.hot : COLORS.cold; context.beginPath(); context.arc(x, y, 15, 0, Math.PI * 2); context.fill();
+    const handle = thermalControlHandle(snapshot, width, height);
     const labels: Record<ThermalSnapshot["scene"], readonly [string, string]> = {
       particles: ["차갑게", "뜨겁게"], "heat-transfer": ["단열체", "전도체"],
       "phase-change": ["열 조금", "열 많이"], gas: ["좁게", "넓게"],
       "heat-energy": ["적은 양", "많은 양"], "heat-engine": ["작은 온도 차", "큰 온도 차"],
       entropy: ["칸막이 닫기", "완전히 섞기"], sandbox: ["약하게", "강하게"],
     };
-    context.font = "700 13px system-ui"; context.fillStyle = COLORS.ink; context.fillText(labels[snapshot.scene][0], left, y + 34); context.textAlign = "right"; context.fillText(labels[snapshot.scene][1], right, y + 34); context.textAlign = "start";
+    const vertical = ["particles", "phase-change", "heat-engine", "entropy"].includes(snapshot.scene);
+    const railStart = vertical
+      ? { x: handle.x, y: snapshot.scene === "entropy" ? 100 : 90 }
+      : { x: snapshot.scene === "gas" ? width * 0.42 : snapshot.scene === "heat-transfer" ? width * 0.4 : snapshot.scene === "heat-energy" ? width * 0.2 : 70, y: handle.y };
+    const railEnd = vertical
+      ? { x: handle.x, y: snapshot.scene === "entropy" ? height - 168 : height - 170 }
+      : { x: snapshot.scene === "gas" ? width * 0.9 : snapshot.scene === "heat-transfer" ? width * 0.6225 : snapshot.scene === "heat-energy" ? width * 0.8 : width - 70, y: handle.y };
+    context.save();
+    context.strokeStyle = COLORS.faint; context.lineWidth = 9; context.lineCap = "round";
+    context.beginPath(); context.moveTo(railStart.x, railStart.y); context.lineTo(railEnd.x, railEnd.y); context.stroke();
+    context.fillStyle = snapshot.control > 0.5 ? COLORS.hot : COLORS.cold; context.strokeStyle = "#fff"; context.lineWidth = 3;
+    context.beginPath(); context.arc(handle.x, handle.y, 15, 0, Math.PI * 2); context.fill(); context.stroke();
+    context.font = "700 13px system-ui"; context.fillStyle = COLORS.ink;
+    if (vertical) {
+      context.fillText(labels[snapshot.scene][1], handle.x + 22, railStart.y + 4);
+      context.fillText(labels[snapshot.scene][0], handle.x + 22, railEnd.y + 4);
+    } else {
+      context.fillText(labels[snapshot.scene][0], railStart.x, railStart.y + 34);
+      context.textAlign = "right"; context.fillText(labels[snapshot.scene][1], railEnd.x, railEnd.y + 34);
+    }
+    if (snapshot.scene === "heat-energy") {
+      const mass = snapshot.mass;
+      context.textAlign = "center"; context.fillText(`${mass.toFixed(1)} kg · ${snapshot.particles.length}개 입자`, handle.x, handle.y - 25);
+    }
+    context.restore();
   }
 }
 

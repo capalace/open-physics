@@ -22,6 +22,8 @@ export interface ThermalParticle {
   readonly x: number;
   readonly y: number;
   readonly speed: number;
+  readonly velocityX: number;
+  readonly velocityY: number;
   readonly group: "hot" | "cold" | "mixed";
 }
 
@@ -33,9 +35,11 @@ export interface ThermalSnapshot {
   readonly time: number;
   readonly control: number;
   readonly temperature: number;
+  readonly temperatureUnit: "K" | "°C";
   readonly secondaryTemperature: number;
   readonly pressure: number;
   readonly volume: number;
+  readonly mass: number;
   readonly heatFlow: number;
   readonly energy: number;
   readonly liquidFraction: number;
@@ -43,6 +47,7 @@ export interface ThermalSnapshot {
   readonly entropy: number;
   readonly particles: readonly ThermalParticle[];
   readonly objects: readonly ThermalObject[];
+  readonly thermometerReadings: readonly { id: string; temperature: number; unit: "K" }[];
   readonly graph: readonly ThermalGraphPoint[];
 }
 
@@ -102,9 +107,47 @@ function deterministicParticles(
     const x = 0.08 + 0.84 * Math.abs(((seedX + Math.cos(angle) * drift) % 2 + 2) % 2 - 1);
     const y = 0.14 + 0.72 * Math.abs(((seedY + Math.sin(angle) * drift) % 2 + 2) % 2 - 1);
     const group = split === 0 ? "mixed" : index / count < split ? "hot" : "cold";
-    return { x, y, speed: relativeSpeed * speedBand, group };
+    const speed = relativeSpeed * speedBand;
+    return { x, y, speed, velocityX: Math.cos(angle) * speed, velocityY: Math.sin(angle) * speed, group };
   });
 }
+
+function entropyParticles(count: number, hotTemperature: number, coldTemperature: number, mixing: number, time: number): ThermalParticle[] {
+  const half = Math.floor(count / 2);
+  return Array.from({ length: count }, (_, index) => {
+    const hot = index < half;
+    const local = index % half;
+    const temperature = hot ? hotTemperature : coldTemperature;
+    const speedBand = 0.65 + ((local * 37) % 61) / 70;
+    const speed = Math.sqrt(temperature / 300) * speedBand;
+    const angle = index * 2.399963 + time * speed;
+    const sideSeed = ((local * 47 + 13) % 101) / 101;
+    const sideCenter = hot ? 0.27 : 0.73;
+    const spread = 0.18 + mixing * 0.25;
+    const x = clamp(sideCenter + (sideSeed - 0.5) * spread * 2 + Math.cos(angle) * 0.025 * time, 0.08, 0.92);
+    const ySeed = ((local * 71 + 29) % 103) / 103;
+    const y = 0.14 + 0.72 * Math.abs(((ySeed + Math.sin(angle) * 0.02 * time) % 2 + 2) % 2 - 1);
+    return {
+      x, y, speed,
+      velocityX: Math.cos(angle) * speed,
+      velocityY: Math.sin(angle) * speed,
+      group: mixing >= 0.999 ? "mixed" : hot ? "hot" : "cold",
+    };
+  });
+}
+
+const pointSegmentDistance = (
+  point: Pick<ThermalObject, "x" | "y">,
+  start: Pick<ThermalObject, "x" | "y">,
+  end: Pick<ThermalObject, "x" | "y">,
+): number => {
+  const dx = end.x - start.x;
+  const dy = end.y - start.y;
+  const lengthSquared = dx * dx + dy * dy;
+  if (lengthSquared === 0) return Math.hypot(point.x - start.x, point.y - start.y);
+  const t = clamp(((point.x - start.x) * dx + (point.y - start.y) * dy) / lengthSquared);
+  return Math.hypot(point.x - (start.x + t * dx), point.y - (start.y + t * dy));
+};
 
 export class ThermalWorld {
   private sceneValue: ThermalSceneId;
@@ -114,6 +157,7 @@ export class ThermalWorld {
   private objectCounter = 0;
   private objectsValue: ThermalObject[] = [];
   private history: ThermalGraphPoint[] = [];
+  private accumulatedHeatValue = 0;
 
   constructor(scene: ThermalSceneId = "particles") {
     this.sceneValue = scene;
@@ -131,6 +175,7 @@ export class ThermalWorld {
     this.objectsValue = makeObjects(scene);
     this.objectCounter = this.objectsValue.length;
     this.history = [];
+    this.accumulatedHeatValue = 0;
     this.record();
   }
 
@@ -145,6 +190,9 @@ export class ThermalWorld {
 
   step(seconds = 1 / 30): void {
     if (!this.runningValue || seconds <= 0) return;
+    if (this.sceneValue === "heat-transfer") {
+      this.accumulatedHeatValue = Math.min(64, this.accumulatedHeatValue + Math.abs(this.transferRate()) * seconds);
+    }
     this.timeValue += seconds;
     this.record();
   }
@@ -153,12 +201,13 @@ export class ThermalWorld {
     if (this.sceneValue !== "sandbox") throw new Error("안내 실험의 핵심 장치는 추가하거나 삭제할 수 없습니다.");
     const object: ThermalObject = { id: `sandbox-${type}-${++this.objectCounter}`, type, x: clamp(x), y: clamp(y), protected: false };
     this.objectsValue.push(object);
+    this.record();
     return object;
   }
 
   moveObject(id: string, x: number, y: number): boolean {
     const object = this.objectsValue.find((item) => item.id === id);
-    if (!object) return false;
+    if (!object || object.protected) return false;
     object.x = clamp(x);
     object.y = clamp(y);
     this.record();
@@ -169,6 +218,7 @@ export class ThermalWorld {
     const index = this.objectsValue.findIndex((item) => item.id === id);
     if (index < 0 || this.objectsValue[index].protected) return false;
     this.objectsValue.splice(index, 1);
+    this.record();
     return true;
   }
 
@@ -178,11 +228,13 @@ export class ThermalWorld {
     let secondaryTemperature = 293;
     let pressure = 0;
     let volume = 15;
+    let mass = 1;
     let heatFlow = 0;
     let energy = 0;
     let liquidFraction = 0;
     let efficiency = 0;
     let entropy = 0;
+    let temperatureUnit: "K" | "°C" = "K";
 
     switch (this.sceneValue) {
       case "particles":
@@ -190,17 +242,15 @@ export class ThermalWorld {
         energy = 1.5 * temperature;
         break;
       case "heat-transfer": {
-        const elapsed = Math.min(this.timeValue, 20);
-        const conductivity = c < 0.5 ? 0.04 : 220;
-        const length = 0.18 + Math.abs(c - 0.5) * 0.9;
-        heatFlow = conductionHeatRate(conductivity, 0.015, 160, length) / 1000;
-        const transferred = Math.min(64, heatFlow * elapsed);
+        heatFlow = this.transferRate();
+        const transferred = this.accumulatedHeatValue;
         temperature = 420 - transferred / 0.8;
         secondaryTemperature = 260 + transferred / 0.8;
         energy = transferred;
         break;
       }
       case "phase-change": {
+        temperatureUnit = "°C";
         energy = c * 500;
         if (energy < 42) temperature = -20 + energy / 2.1;
         else if (energy < 376) { temperature = 0; liquidFraction = (energy - 42) / 334; }
@@ -214,18 +264,18 @@ export class ThermalWorld {
         energy = 1.5 * 0.6 * 8.314 * temperature;
         break;
       case "heat-energy": {
-        const mass = 0.5 + c * 4.5;
+        temperatureUnit = "°C";
+        mass = 0.5 + c * 4.5;
         energy = 80;
         temperature = 20 + energy / (mass * 4.18);
-        volume = mass;
         break;
       }
       case "heat-engine":
         temperature = 350 + c * 450;
         secondaryTemperature = 290;
         efficiency = carnotEfficiency(temperature, secondaryTemperature);
-        volume = 8 + 5 * (1 + Math.sin(this.timeValue * 2)) / 2;
-        pressure = 120 + 45 * Math.cos(this.timeValue * 2);
+        volume = this.engineVolume(this.timeValue * 2);
+        pressure = this.enginePressure(this.timeValue * 2, c);
         energy = 100 * efficiency;
         heatFlow = 100 - energy;
         break;
@@ -239,43 +289,59 @@ export class ThermalWorld {
         break;
       }
       case "sandbox": {
-        const heaters = this.objectsValue.filter((object) => object.type === "heater").length;
-        const coolers = this.objectsValue.filter((object) => object.type === "cooler").length;
-        const conductors = this.objectsValue.filter((object) => object.type === "conductor").length;
-        const insulators = this.objectsValue.filter((object) => object.type === "insulator").length;
-        temperature = clamp(293 + (heaters - coolers) * 55 * c, 120, 900);
-        heatFlow = (heaters - coolers) * (1 + conductors * 0.8) / (1 + insulators * 2);
-        volume = this.objectsValue.some((object) => object.type === "piston") ? 5 + c * 20 : 15;
+        const containers = this.objectsValue.filter((object) => object.type === "container");
+        const targets = containers.length ? containers : [{ x: 0.5, y: 0.5 }];
+        const temperatures = targets.map((target) => this.sandboxTemperatureAt(target));
+        temperature = temperatures.reduce((sum, value) => sum + value, 0) / temperatures.length;
+        heatFlow = temperatures.reduce((sum, value) => sum + value - 293, 0) / temperatures.length;
+        const piston = this.objectsValue.find((object) => object.type === "piston"
+          && targets.some((target) => Math.hypot(object.x - target.x, object.y - target.y) < 0.36));
+        volume = piston ? 5 + c * 20 : 15;
         pressure = idealGasPressure(0.5, temperature, volume, 8.314);
         energy = temperature * 1.5;
         break;
       }
     }
 
-    const split = this.sceneValue === "entropy" ? (1 - c) * 0.5 : 0;
+    const particleCount = this.sceneValue === "heat-energy" ? Math.round(16 + mass * 8) : 36;
+    const particleTemperature = temperatureUnit === "°C" ? temperature + 273.15 : temperature;
+    const particles = this.sceneValue === "entropy"
+      ? entropyParticles(36, temperature, secondaryTemperature, c, this.timeValue)
+      : deterministicParticles(particleCount, Math.max(1, particleTemperature), this.timeValue);
+    const thermometerReadings = this.sceneValue === "sandbox"
+      ? this.objectsValue.filter((object) => object.type === "thermometer").map((thermometer) => ({
+        id: thermometer.id,
+        temperature: this.sandboxTemperatureAt(thermometer),
+        unit: "K" as const,
+      }))
+      : [];
     return {
       scene: this.sceneValue,
       running: this.runningValue,
       time: this.timeValue,
       control: c,
       temperature,
+      temperatureUnit,
       secondaryTemperature,
       pressure,
       volume,
+      mass,
       heatFlow,
       energy,
       liquidFraction,
       efficiency,
       entropy,
-      particles: deterministicParticles(36, Math.max(1, (temperature + secondaryTemperature) / 2), this.timeValue, split),
+      particles,
       objects: this.objectsValue.map((object) => ({ ...object })),
-      graph: this.graphForCurrentState({ temperature, secondaryTemperature, pressure, volume, heatFlow, energy, liquidFraction, efficiency, entropy }),
+      thermometerReadings,
+      graph: this.graphForCurrentState({ temperature, secondaryTemperature, pressure, volume, heatFlow, energy, liquidFraction, efficiency, entropy }, particles),
     };
   }
 
   private record(): void {
     const value = this.currentGraphValue();
-    const next = { x: this.sceneValue === "heat-transfer" ? this.timeValue : this.controlValue, values: value };
+    const snapshot = this.snapshotWithoutGraph();
+    const next = { x: this.graphX(snapshot), values: value };
     const last = this.history.at(-1);
     if (!last || Math.abs(last.x - next.x) > 0.005 || last.values.some((item, index) => Math.abs(item - next.values[index]) > 1e-8)) {
       this.history.push(next);
@@ -288,8 +354,7 @@ export class ThermalWorld {
     switch (this.sceneValue) {
       case "particles": return [rmsMolecularSpeed(8.314, snapshot.temperature, 0.029) / 10];
       case "heat-transfer": {
-        const transferred = snapshot.energy + Math.abs(snapshot.heatFlow) * 0.1;
-        return [transferred, transferred];
+        return [snapshot.energy, snapshot.energy];
       }
       case "phase-change": return [snapshot.temperature];
       case "gas": return [snapshot.pressure];
@@ -309,24 +374,73 @@ export class ThermalWorld {
     return rest;
   }
 
-  private graphForCurrentState(current: { pressure: number; volume: number; temperature: number; [key: string]: number }): readonly ThermalGraphPoint[] {
+  private graphForCurrentState(
+    current: { pressure: number; volume: number; temperature: number; [key: string]: number },
+    particles: readonly ThermalParticle[] = [],
+  ): readonly ThermalGraphPoint[] {
     if (this.sceneValue === "particles") {
-      const center = Math.sqrt(current.temperature / 300) * 5;
-      return Array.from({ length: 13 }, (_, index) => ({ x: index, values: [36 * Math.exp(-((index - center) ** 2) / 6)] }));
+      return Array.from({ length: 13 }, (_, index) => ({
+        x: index * 0.2,
+        values: [particles.filter((particle) => particle.speed >= index * 0.2 && particle.speed < (index + 1) * 0.2).length],
+      }));
     }
     if (this.sceneValue === "heat-engine") {
-      const scale = 0.65 + this.controlValue * 0.7;
+      const startPhase = this.timeValue * 2;
       return Array.from({ length: 25 }, (_, index) => {
-        const angle = index / 24 * Math.PI * 2;
-        return { x: 10 + Math.cos(angle) * 3.4, values: [(125 + Math.sin(angle) * 44) * scale] };
+        const angle = startPhase + index / 24 * Math.PI * 2;
+        return { x: this.engineVolume(angle), values: [this.enginePressure(angle, this.controlValue)] };
       });
     }
     if (this.sceneValue === "gas") {
       return Array.from({ length: 12 }, (_, index) => {
         const volume = 5 + index * 20 / 11;
         return { x: volume, values: [idealGasPressure(0.6, 320, volume, 8.314)] };
-      }).concat({ x: current.volume, values: [current.pressure] });
+      }).concat({ x: current.volume, values: [current.pressure] }).sort((a, b) => a.x - b.x);
+    }
+    if (this.sceneValue === "sandbox") {
+      return Array.from({ length: 21 }, (_, index) => ({
+        x: index * 5,
+        values: [this.sandboxTemperatureAt({ x: index / 20, y: 0.52 })],
+      }));
     }
     return this.history.map((point) => ({ x: point.x, values: [...point.values] }));
+  }
+
+  private graphX(snapshot: Omit<ThermalSnapshot, "graph">): number {
+    switch (this.sceneValue) {
+      case "heat-transfer": return snapshot.time;
+      case "phase-change": return snapshot.energy;
+      case "gas": return snapshot.volume;
+      case "heat-energy": return snapshot.mass;
+      case "entropy": return snapshot.control * 100;
+      case "particles": return snapshot.control;
+      case "heat-engine": return snapshot.volume;
+      case "sandbox": return snapshot.objects.reduce((sum, object) => sum + object.x * 0.01 + object.y * 0.001, snapshot.control);
+    }
+  }
+
+  private transferRate(): number {
+    const conductivity = this.controlValue < 0.5 ? 0.04 : 220;
+    return conductionHeatRate(conductivity, 0.015, 160, 0.3) / 1000;
+  }
+
+  private engineVolume(phase: number): number { return 10.5 + 2.5 * Math.sin(phase); }
+  private enginePressure(phase: number, control: number): number {
+    return 120 + (25 + 40 * control) * Math.cos(phase);
+  }
+
+  private sandboxTemperatureAt(point: Pick<ThermalObject, "x" | "y">): number {
+    const sources = this.objectsValue.filter((object) => object.type === "heater" || object.type === "cooler");
+    const conductors = this.objectsValue.filter((object) => object.type === "conductor");
+    const insulators = this.objectsValue.filter((object) => object.type === "insulator");
+    let temperature = 293;
+    for (const source of sources) {
+      const distance = Math.hypot(point.x - source.x, point.y - source.y);
+      const proximity = Math.exp(-distance * 4.5);
+      const conducted = conductors.some((material) => pointSegmentDistance(material, source, point) < 0.1) ? 1.8 : 1;
+      const insulated = insulators.some((material) => pointSegmentDistance(material, source, point) < 0.085) ? 0.18 : 1;
+      temperature += (source.type === "heater" ? 1 : -1) * 150 * this.controlValue * proximity * conducted * insulated;
+    }
+    return clamp(temperature, 120, 900);
   }
 }
