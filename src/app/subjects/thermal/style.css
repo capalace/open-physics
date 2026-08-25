@@ -8,7 +8,7 @@
 .thermal-lab-list { display: grid; gap: 9px; }
 .thermal-lab-list button { min-height: 56px; display: grid; grid-template-columns: 32px 1fr auto; align-items: center; gap: 8px; width: 100%; padding: 9px 11px; border: 1px solid #cddae1; border-radius: 12px; color: #26323f; background: #fff; text-align: left; cursor: pointer; }
 .thermal-lab-list button:hover, .thermal-lab-list button.is-active { border-color: #df6f3c; background: #fff2ea; box-shadow: 0 4px 14px rgba(178,78,38,.12); }
-.thermal-lab-list button span { color: #bd592f; font-size: 20px; text-align: center; }
+.thermal-lab-list .preset-icon { color: #bd592f; font-size: 20px; text-align: center; }
 .thermal-lab-list button small { color: #73818d; }
 .thermal-palette { display: grid; gap: 8px; margin-top: 16px; }
 .thermal-palette p { margin: 0; font-weight: 800; }

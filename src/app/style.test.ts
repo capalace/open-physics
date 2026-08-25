@@ -9,6 +9,8 @@ const subjectStyles = ["electromagnetism", "waves", "light", "thermal", "modern"
   .map((subject) => readFileSync(new URL(`./subjects/${subject}/style.css`, import.meta.url), "utf8"))
   .join("\n");
 const subjectShellStyles = readFileSync(new URL("./subjects/style.css", import.meta.url), "utf8");
+const lightStyles = readFileSync(new URL("./subjects/light/style.css", import.meta.url), "utf8");
+const thermalStyles = readFileSync(new URL("./subjects/thermal/style.css", import.meta.url), "utf8");
 const bootstrap = readFileSync(new URL("./main.ts", import.meta.url), "utf8");
 const lightExperience = readFileSync(new URL("./subjects/light/experience.ts", import.meta.url), "utf8");
 const subjectUi = readFileSync(new URL("./subjects/subject-ui.ts", import.meta.url), "utf8");
@@ -141,5 +143,14 @@ describe("subject visual shell", () => {
     expect(subjectShellStyles).toMatch(/\.light-experience__inspector\s*\{[^}]*padding:\s*24px 20px/s);
     expect(thermalExperience).toContain("shell.clientWidth");
     expect(thermalExperience).toContain("shell.clientHeight - toolbar.offsetHeight");
+  });
+
+  it("keeps experiment card copy left-aligned in every subject", () => {
+    expect(styles).toMatch(/\.quick-start > span:last-child\s*\{[^}]*text-align:\s*left/s);
+    expect(subjectShellStyles).toMatch(/\.subject-browser \.quick-start > span:last-child\s*\{[^}]*text-align:\s*left/s);
+    expect(lightStyles).not.toContain(".light-experience__list button > span");
+    expect(lightStyles).toContain(".light-experience__list .preset-icon");
+    expect(thermalStyles).not.toContain(".thermal-lab-list button span");
+    expect(thermalStyles).toContain(".thermal-lab-list .preset-icon");
   });
 });

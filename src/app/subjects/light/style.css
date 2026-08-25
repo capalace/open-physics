@@ -10,7 +10,7 @@
 .light-experience__list button { min-height: 58px; display: grid; grid-template-columns: 34px 1fr auto; align-items: center; gap: 8px; border: 1px solid #d9e2f4; border-radius: 14px; padding: 10px 12px; color: #233858; background: #fff; text-align: left; cursor: pointer; }
 .light-experience__list button:hover,
 .light-experience__list button.is-active { border-color: #5a87dd; background: #eaf2ff; box-shadow: 0 4px 16px rgba(50,90,160,.12); }
-.light-experience__list button > span { color: #4d7bd0; font-size: 1.35rem; text-align: center; }
+.light-experience__list .preset-icon { color: #4d7bd0; font-size: 1.35rem; text-align: center; }
 .light-experience__list small { color: #6b7890; }
 
 .light-experience__workspace { position: relative; min-width: 0; background: #081426; }

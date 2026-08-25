@@ -137,6 +137,7 @@ body[data-subject]:not([data-subject="mechanics"]) :is(
 body[data-subject]:not([data-subject="mechanics"]) .subject-browser .quick-start > span:last-child {
   display: block;
   min-width: 0;
+  text-align: left;
 }
 
 body[data-subject]:not([data-subject="mechanics"]) .subject-browser .preset-icon {
