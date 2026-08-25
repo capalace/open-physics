@@ -29,13 +29,13 @@ export class ThermalExperienceController implements SubjectController {
   private disposed = false;
 
   constructor(private readonly hosts: SubjectHosts) {
-    hosts.workspace.innerHTML = `<section class="thermal-experience"><div class="thermal-toolbar world-toolbar" aria-label="열 실험 실행"><button class="primary-button" type="button" data-action="play">⏸ 멈춤</button><button class="icon-button text-button" type="button" data-action="step">한 단계</button><button class="icon-button text-button" type="button" data-action="reset">↻ 처음으로</button></div><canvas class="thermal-canvas" aria-label="열 실험 장면"></canvas></section>`;
+    hosts.workspace.innerHTML = `<section class="thermal-experience"><div class="thermal-toolbar world-toolbar" aria-label="열 실험 실행"><button class="primary-button" type="button" data-action="play">⏸ 멈춤</button><button class="icon-button text-button" type="button" data-action="step">한 단계</button><button class="icon-button text-button" type="button" data-action="reset">↻ 처음으로</button><div class="thermal-palette creation-controls" hidden></div></div><canvas class="thermal-canvas" aria-label="열 실험 장면"></canvas></section>`;
     hosts.experimentPanel.innerHTML = `${subjectBrowserMarkup(thermalDefinition, {
       rootClass: "thermal-panel",
       listClass: "thermal-lab-list",
       buttonClass: "thermal-lab-button",
       choiceAttribute: "data-scene",
-    })}<div class="thermal-palette" hidden></div>`;
+    })}`;
     hosts.inspectorPanel.innerHTML = `<article class="thermal-guide"></article><section class="thermal-graph-card"><h3></h3><p class="thermal-current" aria-live="polite"></p><canvas class="thermal-graph" aria-label="열 실험 그래프"></canvas><div class="thermal-legend"></div></section>`;
     const canvas = hosts.workspace.querySelector<HTMLCanvasElement>(".thermal-canvas")!;
     this.graphCanvas = hosts.inspectorPanel.querySelector<HTMLCanvasElement>(".thermal-graph")!;
@@ -85,7 +85,8 @@ export class ThermalExperienceController implements SubjectController {
 
   private refreshPanels(): void {
     const guide = this.hosts.inspectorPanel.querySelector<HTMLElement>(".thermal-guide")!;
-    const paletteHost = this.hosts.experimentPanel.querySelector<HTMLElement>(".thermal-palette")!;
+    const paletteHost = this.hosts.workspace.querySelector<HTMLElement>(".thermal-palette")!;
+    this.hosts.workspace.querySelector(".world-toolbar")?.classList.toggle("is-sandbox", this.world.scene === "sandbox");
     this.hosts.experimentPanel.querySelectorAll<HTMLElement>("[data-scene]").forEach((button) => {
       const active = button.dataset.scene === this.world.scene;
       button.classList.toggle("is-active", active);
@@ -94,11 +95,11 @@ export class ThermalExperienceController implements SubjectController {
     if (this.world.scene === "sandbox") {
       guide.innerHTML = subjectSandboxGuideMarkup(
         thermalDefinition,
-        ["팔레트에서 장치를 추가해요.", "장치를 끌어 서로 가까이 놓아요.", "손잡이로 세기를 바꾸고 측정해요."],
+        ["위 도구에서 장치를 추가해요.", "장치를 끌어 서로 가까이 놓아요.", "손잡이로 세기를 바꾸고 측정해요."],
         "장면의 입자 운동과 온도·압력 측정이 함께 달라지는지 보세요.",
       );
       paletteHost.hidden = false;
-      paletteHost.innerHTML = `<p>장치 팔레트</p>${palette.map((item) => `<button type="button" data-tool="${item.type}">＋ ${item.label}</button>`).join("")}<button type="button" data-remove>마지막 장치 지우기</button>`;
+      paletteHost.innerHTML = `<span class="palette-label">추가</span>${palette.map((item) => `<button type="button" data-tool="${item.type}">＋ ${item.label}</button>`).join("")}<button type="button" data-remove>마지막 장치 지우기</button>`;
       paletteHost.querySelectorAll<HTMLButtonElement>("[data-tool]").forEach((button) => button.addEventListener("click", () => { this.world.addObject(button.dataset.tool as ThermalTool, 0.45 + (this.world.snapshot().objects.length % 4) * 0.1, 0.48); this.refresh(); }));
       paletteHost.querySelector<HTMLButtonElement>("[data-remove]")!.addEventListener("click", () => { const removable = [...this.world.snapshot().objects].reverse().find((object) => !object.protected); if (removable) this.world.removeObject(removable.id); this.refresh(); });
       const card = this.hosts.inspectorPanel.querySelector<HTMLElement>(".thermal-graph-card")!;

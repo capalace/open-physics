@@ -100,6 +100,15 @@ class WavesController implements SubjectController {
     step.className = "icon-button text-button";
     reset.className = "icon-button text-button";
     transport.append(play, step, reset); toolbar.append(transport);
+    const sandboxTools = document.createElement("div");
+    sandboxTools.className = "waves-experience__palette creation-controls";
+    sandboxTools.hidden = true;
+    palette.forEach(({ kind, label }) => {
+      sandboxTools.append(this.actionButton(`＋ ${label}`, () => {
+        this.model.addDevice(kind); this.renderInspector(); this.refreshReadout();
+      }));
+    });
+    toolbar.append(sandboxTools);
     this.canvas.className = "waves-experience__canvas";
     this.canvas.setAttribute("aria-label", "직접 조작할 수 있는 파동 실험 Canvas");
     shell.append(toolbar, this.canvas);
@@ -115,6 +124,9 @@ class WavesController implements SubjectController {
     this.active = mode;
     this.model.activate(mode);
     this.markActive();
+    const toolbar = this.hosts.workspace.querySelector<HTMLElement>(".world-toolbar")!;
+    toolbar.classList.toggle("is-sandbox", mode === "sandbox");
+    toolbar.querySelector<HTMLElement>(".waves-experience__palette")!.hidden = mode !== "sandbox";
     this.renderInspector();
     this.refreshReadout();
   }
@@ -153,15 +165,9 @@ class WavesController implements SubjectController {
     const article = document.createElement("article");
     article.innerHTML = `${subjectSandboxGuideMarkup(
       wavesDefinition,
-      ["아래 팔레트에서 장치를 추가해요.", "Canvas에서 장치를 잡아 옮겨요.", "파형과 측정값의 변화를 비교해요."],
+      ["위 도구에서 장치를 추가해요.", "Canvas에서 장치를 잡아 옮겨요.", "파형과 측정값의 변화를 비교해요."],
       "장치를 옮길 때 파동이 멈추고, 놓으면 새 배치에서 다시 이어지는지 보세요.",
-    )}<h3>장치 팔레트</h3>`;
-    const controls = document.createElement("div"); controls.className = "waves-experience__palette";
-    palette.forEach(({ kind, label }) => {
-      const button = document.createElement("button"); button.type = "button"; button.textContent = `＋ ${label}`;
-      this.listen(button, "click", () => { this.model.addDevice(kind); this.renderInspector(); this.refreshReadout(); }, "inspector");
-      controls.append(button);
-    });
+    )}<h3>놓은 장치</h3>`;
     const list = document.createElement("ul"); list.className = "waves-experience__device-list";
     snapshot.devices.forEach((item) => {
       const row = document.createElement("li"); row.textContent = palette.find(({ kind }) => kind === item.kind)?.label ?? item.kind;
@@ -170,7 +176,7 @@ class WavesController implements SubjectController {
       row.append(remove); list.append(row);
     });
     this.measurement.className = "waves-experience__measurement";
-    article.append(controls, list, this.measurement); fragment.append(article);
+    article.append(list, this.measurement); fragment.append(article);
   }
 
   private refreshReadout(): void {

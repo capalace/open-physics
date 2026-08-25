@@ -10,8 +10,6 @@
 .thermal-lab-list button:hover, .thermal-lab-list button.is-active { border-color: #df6f3c; background: #fff2ea; box-shadow: 0 4px 14px rgba(178,78,38,.12); }
 .thermal-lab-list .preset-icon { color: #bd592f; font-size: 20px; text-align: center; }
 .thermal-lab-list button small { color: #73818d; }
-.thermal-palette { display: grid; gap: 8px; margin-top: 16px; }
-.thermal-palette p { margin: 0; font-weight: 800; }
 .thermal-guide h2, .thermal-graph-card h3 { margin: 4px 0 10px; font-size: 22px; }
 .thermal-guide ol { padding-left: 22px; }
 .thermal-guide li { margin: 8px 0; }

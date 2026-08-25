@@ -82,7 +82,7 @@ class ElectromagnetismController implements SubjectController {
           <button class="icon-button text-button" type="button" data-em-action="step">한 단계</button>
           <button class="icon-button text-button" type="button" data-em-action="reset">↻ 처음으로</button>
         </div>
-        <div class="em-palette" data-em-sandbox-tools hidden>
+        <div class="em-palette creation-controls" data-em-sandbox-tools hidden>
           ${sandboxKinds.map(([kind, icon, label]) => `<button type="button" data-em-add="${kind}"><b>${icon}</b>${label}</button>`).join("")}
           <button type="button" data-em-action="delete">삭제</button>
         </div>
@@ -179,6 +179,7 @@ class ElectromagnetismController implements SubjectController {
       button.classList.toggle("is-active", active);
       button.setAttribute("aria-pressed", String(active));
     });
+    this.require<HTMLElement>(this.hosts.workspace, ".em-toolbar").classList.toggle("is-sandbox", mode === "sandbox");
     this.require<HTMLElement>(this.hosts.workspace, "[data-em-sandbox-tools]").hidden = mode !== "sandbox";
     this.renderGuide();
     this.renderControls();

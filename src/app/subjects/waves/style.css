@@ -40,7 +40,6 @@
 .waves-experience__law code { display: inline-block; padding: 7px 10px; border-radius: 8px; background: #06121e; color: #7dd3fc; font-size: 1rem; }
 .waves-experience__measurement { min-height: 28px; margin: 10px 0 6px; color: #786000; font-weight: 800; }
 .waves-experience__graph-canvas { display: block; width: 100%; height: 220px; border-radius: 10px; }
-.waves-experience__palette { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .waves-experience__device-list { margin: 14px 0; padding: 0; list-style: none; }
 .waves-experience__device-list li { display: flex; align-items: center; justify-content: space-between; padding: 7px 0; border-bottom: 1px solid #d2e3ea; }
 .waves-experience__device-list button { min-height: 40px; color: #fecdd3; }
@@ -48,5 +47,4 @@
 @media (max-width: 720px) {
   .waves-experience { min-height: 430px; }
   .waves-experience__canvas { min-height: 370px; }
-  .waves-experience__palette { grid-template-columns: 1fr; }
 }

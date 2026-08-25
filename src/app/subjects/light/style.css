@@ -36,10 +36,6 @@
 .light-experience__graph h3 { margin: 0 0 8px; font-size: 1.05rem; }
 .light-experience__graph canvas { width: 100%; height: 230px; border-radius: 12px; }
 .light-experience__axes { margin-top: 6px; color: #66758e; font-size: .85rem; }
-.light-experience__palette { margin-top: 18px; padding-top: 16px; border-top: 1px solid #dce4f2; }
-.light-experience__palette > div { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-bottom: 10px; }
-.light-experience__palette > button { margin-right: 8px; margin-top: 8px; }
-
 @media (max-width: 760px) {
   .light-experience__stage,
   .light-experience__stage canvas { min-height: 420px; }

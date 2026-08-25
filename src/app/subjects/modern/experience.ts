@@ -63,9 +63,12 @@ class ModernController implements SubjectController {
     const shell = document.createElement("section"); shell.className = "modern-experience"; const toolbar = document.createElement("div"); toolbar.className = "modern-experience__toolbar world-toolbar";
     const play = this.button("재생·멈춤", () => { this.model.toggleRunning(); this.refresh(); }); const step = this.button("한 단계", () => { const running = this.model.snapshot().running; this.model.setRunning(true); this.model.step(1 / 30); this.model.setRunning(running); this.refresh(); }); const reset = this.button("처음으로", () => { this.model.reset(); this.renderInspector(); this.refresh(); });
     const transport = document.createElement("div"); transport.className = "transport-controls"; play.className = "primary-button"; step.className = "icon-button text-button"; reset.className = "icon-button text-button"; transport.append(play, step, reset); toolbar.append(transport);
+    const sandboxTools = document.createElement("div"); sandboxTools.className = "modern-experience__palette creation-controls"; sandboxTools.hidden = true;
+    palette.forEach(({ kind, label }) => sandboxTools.append(this.button(`＋ ${label}`, () => { this.model.addDevice(kind); this.renderInspector(); this.refresh(); })));
+    toolbar.append(sandboxTools);
     this.canvas.className = "modern-experience__canvas"; this.canvas.setAttribute("aria-label", "직접 조작할 수 있는 현대물리 실험 Canvas"); shell.append(toolbar, this.canvas); this.hosts.workspace.replaceChildren(shell);
   }
-  private activate(mode: ModernLabId | "sandbox"): void { this.active = mode; this.model.activate(mode); this.markActive(); this.renderInspector(); this.refresh(); }
+  private activate(mode: ModernLabId | "sandbox"): void { this.active = mode; this.model.activate(mode); this.markActive(); const toolbar = this.hosts.workspace.querySelector<HTMLElement>(".world-toolbar")!; toolbar.classList.toggle("is-sandbox", mode === "sandbox"); toolbar.querySelector<HTMLElement>(".modern-experience__palette")!.hidden = mode !== "sandbox"; this.renderInspector(); this.refresh(); }
   private markActive(): void { this.hosts.experimentPanel.querySelectorAll<HTMLButtonElement>("[data-lab-id]").forEach((button) => { const active = button.dataset.labId === this.active; button.classList.toggle("is-active", active); button.setAttribute("aria-pressed", String(active)); }); }
   private renderInspector(): void {
     this.listeners.clearInspector();
@@ -79,10 +82,9 @@ class ModernController implements SubjectController {
     this.measurement.className = "modern-experience__measurement"; this.graphCanvas.className = "modern-experience__graph-canvas"; article.querySelector(".modern-experience__graph")?.append(this.measurement, this.graphCanvas); fragment.append(article);
   }
   private sandboxInspector(fragment: DocumentFragment, snapshot: ModernSnapshot): void {
-    const article = document.createElement("article"); article.innerHTML = `${subjectSandboxGuideMarkup(modernDefinition, ["아래 팔레트에서 장치를 추가해요.", "Canvas에서 장치를 잡아 옮겨요.", "검출 사건과 측정값을 비교해요."], "장치를 배치하는 동안 검출이 멈추고, 놓으면 새 조건에서 다시 시작하는지 보세요.")}<h3>장치 팔레트</h3>`;
-    const controls = document.createElement("div"); controls.className = "modern-experience__palette"; palette.forEach(({ kind, label }) => controls.append(this.button(`＋ ${label}`, () => { this.model.addDevice(kind); this.renderInspector(); this.refresh(); }, "inspector")));
+    const article = document.createElement("article"); article.innerHTML = `${subjectSandboxGuideMarkup(modernDefinition, ["위 도구에서 장치를 추가해요.", "Canvas에서 장치를 잡아 옮겨요.", "검출 사건과 측정값을 비교해요."], "장치를 배치하는 동안 검출이 멈추고, 놓으면 새 조건에서 다시 시작하는지 보세요.")}<h3>놓은 장치</h3>`;
     const list = document.createElement("ul"); list.className = "modern-experience__device-list"; snapshot.devices.forEach((item) => { const row = document.createElement("li"); row.textContent = palette.find(({ kind }) => kind === item.kind)?.label ?? item.kind; row.append(this.button("삭제", () => { this.model.removeDevice(item.id); this.renderInspector(); this.refresh(); }, "inspector")); list.append(row); });
-    this.measurement.className = "modern-experience__measurement"; article.append(controls, list, this.measurement); fragment.append(article);
+    this.measurement.className = "modern-experience__measurement"; article.append(list, this.measurement); fragment.append(article);
   }
   private refresh(): void { const snapshot = this.model.snapshot(); this.measurement.textContent = snapshot.measurement; if (this.active !== "sandbox" && this.graphCanvas.isConnected) drawModernGraph(this.graphCanvas, snapshot); }
 }

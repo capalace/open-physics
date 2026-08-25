@@ -24,9 +24,9 @@ class LightController implements SubjectController {
     hosts.experimentPanel.classList.add("light-experience__experiments");
     hosts.workspace.classList.add("light-experience__workspace");
     hosts.inspectorPanel.classList.add("light-experience__inspector");
-    hosts.workspace.innerHTML = `<div class="light-experience__shell"><div class="light-experience__toolbar world-toolbar" aria-label="빛 실험 실행"><button class="icon-button text-button" type="button" data-light-toolbar-reset>↻ 처음으로</button><span class="light-experience__toolbar-hint">장치를 끌어 빛의 경로를 바꿔 보세요</span></div><div class="light-experience__stage"><canvas aria-label="빛 실험 장면"></canvas><div class="light-experience__value" aria-live="polite"></div></div></div>`;
+    hosts.workspace.innerHTML = `<div class="light-experience__shell"><div class="light-experience__toolbar world-toolbar" aria-label="빛 실험 실행"><button class="icon-button text-button" type="button" data-light-toolbar-reset>↻ 처음으로</button><span class="light-experience__toolbar-hint">장치를 끌어 빛의 경로를 바꿔 보세요</span><div class="light-experience__palette creation-controls" hidden></div></div><div class="light-experience__stage"><canvas aria-label="빛 실험 장면"></canvas><div class="light-experience__value" aria-live="polite"></div></div></div>`;
     this.canvas = hosts.workspace.querySelector("canvas")!;
-    hosts.inspectorPanel.innerHTML = `<section class="light-experience__guide"></section><section class="light-experience__graph"><h3></h3><canvas aria-label="실험 그래프"></canvas><div class="light-experience__axes"></div></section><section class="light-experience__palette" hidden></section>`;
+    hosts.inspectorPanel.innerHTML = `<section class="light-experience__guide"></section><section class="light-experience__graph"><h3></h3><canvas aria-label="실험 그래프"></canvas><div class="light-experience__axes"></div></section>`;
     this.graphCanvas = hosts.inspectorPanel.querySelector(".light-experience__graph canvas")!;
     this.renderer = new LightRenderer(this.canvas, this.graphCanvas);
     this.renderExperimentList();
@@ -91,6 +91,7 @@ class LightController implements SubjectController {
       button.classList.toggle("is-active", active);
       button.setAttribute("aria-pressed", String(active));
     });
+    this.hosts.workspace.querySelector(".world-toolbar")?.classList.toggle("is-sandbox", sceneId === "sandbox");
     this.renderGuide();
     this.renderPalette();
     this.paint();
@@ -106,7 +107,7 @@ class LightController implements SubjectController {
     if (this.model.activeScene === "sandbox") {
       guide.innerHTML = subjectSandboxGuideMarkup(
         lightDefinition,
-        ["아래 팔레트에서 장치를 추가해요.", "Canvas에서 장치를 잡아 옮겨요.", "필요 없는 장치를 선택해 지워요."],
+        ["위 도구에서 장치를 추가해요.", "Canvas에서 장치를 잡아 옮겨요.", "필요 없는 장치를 선택해 지워요."],
         "광원과 장치를 옮길 때 실제 광선 경로가 함께 이어지는지 확인하세요.",
       );
       return;
@@ -116,13 +117,13 @@ class LightController implements SubjectController {
   }
 
   private renderPalette(): void {
-    const palette = this.hosts.inspectorPanel.querySelector<HTMLElement>(".light-experience__palette")!;
+    const palette = this.hosts.workspace.querySelector<HTMLElement>(".light-experience__palette")!;
     const signal = this.events.nextPaletteSignal();
     palette.hidden = this.model.activeScene !== "sandbox";
     if (palette.hidden) return;
     const kinds: readonly LightDeviceKind[] = ["source", "mirror", "boundary", "lens", "prism", "slit", "screen"];
     const labels: Record<LightDeviceKind, string> = { source: "광원", mirror: "거울", boundary: "경계면", lens: "렌즈", prism: "프리즘", slit: "슬릿", screen: "스크린" };
-    palette.innerHTML = `<h3>광학 장치</h3><div>${kinds.map((kind) => `<button type="button" data-add-light="${kind}">+ ${labels[kind]}</button>`).join("")}</div><button type="button" data-delete-light ${this.selectedSandboxDevice ? "" : "disabled"}>선택 장치 지우기</button>`;
+    palette.innerHTML = `<span class="palette-label">추가</span>${kinds.map((kind) => `<button type="button" data-add-light="${kind}">＋ ${labels[kind]}</button>`).join("")}<button type="button" data-delete-light ${this.selectedSandboxDevice ? "" : "disabled"}>선택 장치 지우기</button>`;
     palette.querySelectorAll<HTMLElement>("[data-add-light]").forEach((button) => button.addEventListener("click", () => {
       this.model.addDevice(button.dataset.addLight as LightDeviceKind); this.paint();
     }, { signal }));

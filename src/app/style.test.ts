@@ -153,4 +153,19 @@ describe("subject visual shell", () => {
     expect(thermalStyles).not.toContain(".thermal-lab-list button span");
     expect(thermalStyles).toContain(".thermal-lab-list .preset-icon");
   });
+
+  it("puts every empty-lab creation palette in the visible workspace toolbar", () => {
+    const paletteClasses = [
+      "em-palette creation-controls",
+      "waves-experience__palette creation-controls",
+      "light-experience__palette creation-controls",
+      "thermal-palette creation-controls",
+      "modern-experience__palette creation-controls",
+    ];
+
+    subjectExperienceSources.forEach((source, index) => {
+      expect(source).toContain(paletteClasses[index]);
+    });
+    expect(subjectShellStyles).toMatch(/\.world-toolbar\.is-sandbox \.creation-controls\s*\{/);
+  });
 });
