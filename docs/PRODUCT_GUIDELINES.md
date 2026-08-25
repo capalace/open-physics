@@ -5,9 +5,9 @@
 
 ## 1. Product Goal
 
-Open Physics is not primarily a collection of physics lessons or isolated simulations.
+Open Physics is not a collection of disconnected simulations, and it is not only an empty sandbox.
 
-It is a **physics sandbox in which users can directly manipulate objects and observe physics models operating on them**.
+It is a **guided physics lab and free sandbox built on one reusable physics world**. Guided labs help users discover a specific relationship; the sandbox lets them continue with their own questions.
 
 The core product experience is:
 
@@ -21,11 +21,25 @@ The intended audience is broad: children, students, and anyone who wants to expl
 - **Direct manipulation:** Users should be able to create, place, drag, connect, and modify objects.
 - **Model-based physics:** Objects interact according to the equations and assumptions of the active physical model rather than attempting to reproduce every detail of the real world.
 - **Progressive complexity:** The same world can expose simple or more advanced physical models depending on the current section, preset, or user configuration.
-- **Exploration over instruction:** Guided content should help users get started, but it must not turn the sandbox into a rigid sequence of button presses.
-- **Presets are starting states:** A preset configures a useful physical situation. Users should be able to modify it and continue experimenting.
+- **Purposeful guidance:** A lab gives users a question, a small set of useful actions, and a clear observation target without grading or forcing a single answer.
+- **One experiment selector, distinct affordances:** Guided labs and the empty lab belong at the same navigation level. Guided labs protect essential apparatus and expose only relevant controls; `빈 실험실 만들기` exposes general creation and editing tools, including fixed points, rope and rod connections, direct forces, gravity and water environments, and reusable spring, lever, and pulley apparatus.
+- **Labs lead into composition:** Every core mechanics phenomenon offered as a guided lab should also be reproducible from sandbox parts. A lab supplies the question and prepared starting state; the sandbox keeps the underlying objects, forces, connections, environments, and observations available for new combinations.
+- **Presets are implementation details:** A preset configures a useful physical situation; a user-facing lab adds purpose, instructions, observation, and allowed controls around it.
 - **Visual understanding:** Important physical quantities and relationships should be observable through motion, vectors, fields, graphs, energy displays, waves, particles, and other appropriate visualizations.
 - **Physics first, curriculum second:** The product structure should represent physics naturally. Educational curricula are references for coverage and progression, not hard architectural boundaries.
 - **Client-side first:** The simulation should run entirely in the browser. A backend is not required for the core physics experience.
+
+### 현재 역학 실험의 직접 조작 기준
+
+준비된 실험은 법칙을 자동으로 보여주는 애니메이션보다 사용자가 힘과 방향을 직접 바꾸어 결과를 발견하게 해야 한다.
+
+- 마찰: 안내 실험에서는 손잡이를 실제로 밀거나 당겨 최대 정지 마찰력의 임계점을 찾는다. 자유 놀이터에서는 물체가 바닥이나 재질을 선택한 고정 블록에 닿았을 때 재질·무게·수직항력에 따른 정지·운동 마찰이 자동으로 작용한다. 고정 블록을 15°씩 기울여 빗면을 만들면 중력의 접선 성분과 최대 정지 마찰력을 비교할 수 있어야 한다.
+- 지렛대: 받침점에서 서로 다른 거리의 힘점을 고르고 필요한 힘을 비교한다.
+- 도르래: 짐을 받치는 1·2·4줄을 바꾸고 같은 손동작에서 필요한 힘이 클수록 손잡이가 덜 따라오는 저항감을 제공하며, 힘이 줄어드는 만큼 같은 높이에 필요한 실제 줄의 당김 거리가 늘어나는 관계를 수치로 비교한다.
+- 궤도: 속도 손잡이의 길이와 방향을 조금씩 바꾸며 충돌·공전·이탈 예상 경로를 비교한다.
+- 자유 놀이터: 힘 화살표를 끌어 마찰 임계점을 넘기고, 줄·막대·여러 용수철을 연결하며, 지렛대와 도르래를 함께 놓고, 이동 가능한 중력원과 물 영역에서 궤도·부력을 구성한다. 선택한 물체의 핵심 관찰값과 속력 그래프로 결과를 확인한다.
+
+이 실험들은 메뉴 카드를 더 늘리지 않고 기존 역학 주제 안에서 깊이를 만든다. 고정 도르래가 힘을 줄인다고 표현하지 않으며, 힘을 줄이는 비교에는 움직도르래 또는 여러 지지 줄을 사용한다.
 
 ## 2. Simulation Philosophy: Physics as a Model
 
@@ -328,7 +342,7 @@ Observation
 Free exploration
 ```
 
-Guided experiments should configure an initial state, suggest useful actions, and expose relevant visualizations. They should not fundamentally restrict the underlying sandbox.
+Guided experiments configure an initial state, suggest useful actions, expose relevant visualizations, and protect apparatus that is essential to the phenomenon. They may intentionally hide unrelated controls so the experiment remains legible. The empty lab remains a peer entry in the same experiment selector while exposing the full sandbox toolset after selection.
 
 A section may therefore contain:
 
@@ -338,9 +352,19 @@ A section may therefore contain:
 - variations of the same physical situation;
 - a free-experiment entry point.
 
+The two internal workspace states have different responsibilities, but they are not presented as separate top-level tabs:
+
+```text
+Guided Lab
+= question + protected apparatus + suggested actions + observation target
+
+Free Sandbox
+= object creation + deletion + general parameters + open-ended exploration
+```
+
 ## 10. Presets
 
-A preset is **not a separate simulation implementation**.
+A preset is **not a separate simulation implementation or complete user-facing experiment**.
 
 It is a predefined world state containing some combination of:
 
@@ -364,7 +388,7 @@ Examples include:
 - lens optical system;
 - heat engine.
 
-A user should generally be able to open a preset and then modify it freely.
+A user-facing lab can limit modification to the conditions relevant to its question. A user who wants unrestricted modification can move to the free sandbox, which starts from a clean general-purpose world rather than silently dismantling a lab apparatus.
 
 ## 11. Content Navigation
 

@@ -20,6 +20,14 @@ describe("spatial fields", () => {
     expect(force.y).toBeCloseTo(0);
   });
 
+  it("supports multiple movable point-gravity sources", () => {
+    const field = new PointGravityField({ x: 2, y: 0 }, 5, 1, "field.gravity.point.sandbox-1");
+    field.setSourcePosition({ x: 0, y: 2 });
+
+    expect(field.id).toBe("field.gravity.point.sandbox-1");
+    expect(field.forceAt(state).vector).toEqual({ x: 0, y: 2.5 });
+  });
+
   it("applies a uniform electric field to a charged body", () => {
     const force = new UniformElectricField({ x: 3, y: 4 }).forceAt({ ...state, charge: 2 }).vector;
     expect(force).toEqual({ x: 6, y: 8 });

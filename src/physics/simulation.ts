@@ -7,20 +7,39 @@ import { MultiBodyWorld } from "./world";
 
 export interface SimulatedBody extends Body { readonly charge?: number; }
 
+export interface NetForceModifier {
+  readonly id: string;
+  modifyForce(
+    body: SimulatedBody,
+    bodies: readonly SimulatedBody[],
+    force: Force,
+    context: PhysicsContext,
+  ): Force;
+}
+
 export interface SimulationConfig {
   laws?: WorldForceLaw[];
   fields?: SpatialField[];
   constraints?: DistanceConstraint[];
+  forceModifiers?: NetForceModifier[];
   solver?: Solver;
+  restitutionVelocityThreshold?: number;
 }
 
 /** Explicit simulation pipeline: forces -> integration -> constraints -> collisions -> time. */
 export class PhysicsSimulation extends MultiBodyWorld {
   readonly fields: SpatialField[];
+  readonly forceModifiers: NetForceModifier[];
 
   constructor(config: SimulationConfig = {}) {
-    super(config.laws ?? [], config.solver ?? eulerSolver, config.constraints ?? []);
+    super(
+      config.laws ?? [],
+      config.solver ?? eulerSolver,
+      config.constraints ?? [],
+      config.restitutionVelocityThreshold ?? 0,
+    );
     this.fields = config.fields ?? [];
+    this.forceModifiers = config.forceModifiers ?? [];
   }
 
   addField(field: SpatialField): void { this.fields.push(field); }
@@ -30,6 +49,18 @@ export class PhysicsSimulation extends MultiBodyWorld {
     if (index < 0) return false;
     this.fields.splice(index, 1);
     return true;
+  }
+
+  refreshAccelerations(): void {
+    const context: PhysicsContext = { time: this.currentTime, dt: 1 / 60 };
+    for (const body of this.allBodies as readonly SimulatedBody[]) {
+      if (body.fixed) continue;
+      const force = this.totalForce(body, context);
+      body.state.acceleration = {
+        x: force.vector.x / body.state.mass,
+        y: force.vector.y / body.state.mass,
+      };
+    }
   }
 
   step(dt: number): void {
@@ -57,7 +88,11 @@ export class PhysicsSimulation extends MultiBodyWorld {
     let vector: Vector2 = { x: 0, y: 0 };
     for (const law of this.laws) vector = add(vector, law.forceOnBody(body, this.allBodies, context).vector);
     for (const field of this.fields) vector = add(vector, field.forceAt(body.state as BodyState & { charge?: number }, context).vector);
-    return { vector, source: "simulation-net" };
+    let force: Force = { vector, source: "simulation-net" };
+    for (const modifier of this.forceModifiers) {
+      force = modifier.modifyForce(body, this.allBodies as readonly SimulatedBody[], force, context);
+    }
+    return force;
   }
 
   get collisionEvents(): readonly CollisionEvent[] { return this.collisions; }
