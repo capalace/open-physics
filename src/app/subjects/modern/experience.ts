@@ -29,15 +29,15 @@ export const modernGraphLegendMarkup = (graph: SubjectGraphDefinition): string =
   graph.series.map((series) => `<span><i aria-hidden="true" style="color:${series.color}">●</i> ${series.label}</span>`).join(" ");
 
 class ModernController implements SubjectController {
-  private readonly model = new ModernModel(); private readonly canvas = document.createElement("canvas");
+  private readonly model = new ModernModel("sandbox"); private readonly canvas = document.createElement("canvas");
   private readonly graphCanvas = document.createElement("canvas"); private readonly measurement = document.createElement("p");
-  private readonly renderer: ModernRenderer; private active: ModernLabId | "sandbox" = "relativity";
+  private readonly renderer: ModernRenderer; private active: ModernLabId | "sandbox" = "sandbox";
   private readonly listeners = new ModernListenerRegistry();
 
   constructor(private readonly hosts: SubjectHosts) {
     hosts.experimentPanel.classList.add("modern-experience__experiments"); hosts.workspace.classList.add("modern-experience__workspace"); hosts.inspectorPanel.classList.add("modern-experience__inspector");
     this.renderExperiments(); this.renderWorkspace(); this.renderInspector();
-    this.renderer = new ModernRenderer(this.canvas, this.model, () => this.refresh()); this.refresh();
+    this.renderer = new ModernRenderer(this.canvas, this.model, () => this.refresh()); this.activate("sandbox");
   }
   resize(): void { this.renderer.resize(); this.refresh(); }
   unmount(): void {

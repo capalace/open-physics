@@ -40,12 +40,12 @@ export class WavesListenerRegistry {
 }
 
 class WavesController implements SubjectController {
-  private readonly model = new WavesModel("source");
+  private readonly model = new WavesModel("sandbox");
   private readonly canvas = document.createElement("canvas");
   private readonly graphCanvas = document.createElement("canvas");
   private readonly measurement = document.createElement("p");
   private readonly renderer: WavesRenderer;
-  private active: WavesLabId | "sandbox" = "source";
+  private active: WavesLabId | "sandbox" = "sandbox";
   private readonly listeners = new WavesListenerRegistry();
 
   constructor(private readonly hosts: SubjectHosts) {
@@ -56,7 +56,7 @@ class WavesController implements SubjectController {
     this.renderWorkspace();
     this.renderInspector();
     this.renderer = new WavesRenderer(this.canvas, this.model, () => this.refreshReadout());
-    this.refreshReadout();
+    this.activate("sandbox");
   }
 
   resize(): void { this.renderer.resize(); this.refreshReadout(); }

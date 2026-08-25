@@ -25,7 +25,7 @@ const sandboxKinds: readonly [ElectromagnetismSandboxKind, string, string][] = [
 
 class ElectromagnetismController implements SubjectController {
   private readonly previousHtml: [string, string, string];
-  private readonly model = new ElectromagnetismModel("charge");
+  private readonly model = new ElectromagnetismModel("sandbox");
   private readonly canvas: HTMLCanvasElement;
   private readonly renderer: ElectromagnetismRenderer;
   private frame = 0;
@@ -34,7 +34,7 @@ class ElectromagnetismController implements SubjectController {
   private draggedSandboxId: string | null = null;
   private selectedSandboxId: string | null = null;
   private previousPointerTime = 0;
-  private activeMode: ElectromagnetismLabId | "sandbox" = "charge";
+  private activeMode: ElectromagnetismLabId | "sandbox" = "sandbox";
   private readonly eventScope = new AbortController();
 
   constructor(private readonly hosts: SubjectHosts) {
@@ -46,7 +46,7 @@ class ElectromagnetismController implements SubjectController {
     this.canvas = this.require<HTMLCanvasElement>(hosts.workspace, "[data-em-canvas]");
     this.renderer = new ElectromagnetismRenderer(this.canvas);
     this.bindEvents();
-    this.activate("charge");
+    this.activate("sandbox");
     window.addEventListener("resize", this.resize);
     this.frame = requestAnimationFrame(this.animate);
   }

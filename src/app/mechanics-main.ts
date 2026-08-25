@@ -52,11 +52,11 @@ const objectEditor = required<HTMLElement>("#object-editor");
 const inspectorHeading = required<HTMLElement>("#object-editor .inspector-header h2");
 const inspectorEyebrow = required<HTMLElement>("#object-editor .eyebrow");
 const EARTH_GRAVITY = 9.81;
-let appMode: AppMode = "lab";
+let appMode: AppMode = "sandbox";
 let activeLab = mechanicsLab("free-fall");
 
 const playground = new PhysicsPlayground(canvas, { onUpdate: renderSnapshot });
-activateLab("free-fall", "initial");
+activateSandbox();
 
 playButton.addEventListener("click", () => playground.toggle());
 stepButton.addEventListener("click", () => playground.stepOnce());

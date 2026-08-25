@@ -13,7 +13,7 @@ export const lightGraphHeading = (sceneId: LightSceneId): { title: string; axes:
 };
 
 class LightController implements SubjectController {
-  private readonly model = new LightLabModel();
+  private readonly model = new LightLabModel("sandbox");
   private readonly canvas: HTMLCanvasElement;
   private readonly graphCanvas: HTMLCanvasElement;
   private readonly renderer: LightRenderer;
@@ -37,7 +37,7 @@ class LightController implements SubjectController {
       this.renderPalette();
       this.paint();
     }, { signal: this.events.lifetimeSignal });
-    this.activate("propagation");
+    this.activate("sandbox");
   }
 
   resize(): void { this.renderer.resize(); this.paint(); }

@@ -21,7 +21,7 @@ const palette: ReadonlyArray<{ type: ThermalTool; label: string }> = [
 ];
 
 export class ThermalExperienceController implements SubjectController {
-  readonly world = new ThermalWorld();
+  readonly world = new ThermalWorld("sandbox");
   private renderer: ThermalRenderer;
   private graphCanvas: HTMLCanvasElement;
   private animation = 0;
