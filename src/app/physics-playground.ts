@@ -128,6 +128,8 @@ const VELOCITY_ANGLE_SNAP_RADIANS = 15 * Math.PI / 180;
 const RESIZE_HANDLE_RADIUS = 13;
 const MIN_BLOCK_WIDTH = 28;
 const MIN_BLOCK_HEIGHT = 24;
+const LEVER_FORCE_PER_PIXEL = 1.25;
+const LEVER_LIFT_ANGLE = 0.18;
 const GRAPH_SAMPLE_INTERVAL = 1 / 12;
 const MAX_GRAPH_SAMPLES = 150;
 const TRAJECTORY_PREVIEW_STEP = 0.08;
@@ -2638,11 +2640,12 @@ export class PhysicsPlayground {
     } else if (this.challengeDrag === "lever" && this.guidedScene?.kind === "lever") {
       const dy = Math.max(0, Math.min(190, point.y - origin.y));
       const scene = this.guidedScene;
-      scene.appliedForce = dy * 1.25;
-      scene.angle = scene.model.applyForce(scene.appliedForce).lifting
-        ? Math.min(0.18, (scene.appliedForce - scene.model.requiredForce + 8) / 380)
-        : 0;
-      this.challengeDragPoint = { x: origin.x, y: origin.y + dy };
+      scene.appliedForce = Math.min(scene.model.requiredForce, dy * LEVER_FORCE_PER_PIXEL);
+      scene.angle = scene.model.applyForce(scene.appliedForce).lifting ? LEVER_LIFT_ANGLE : 0;
+      this.challengeDragPoint = {
+        x: origin.x,
+        y: origin.y + scene.appliedForce / LEVER_FORCE_PER_PIXEL,
+      };
       this.applyGuidedScenePoses();
     } else if (this.challengeDrag === "pulley" && this.guidedScene?.kind === "pulley-advantage") {
       const scene = this.guidedScene;

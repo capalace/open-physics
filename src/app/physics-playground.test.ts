@@ -546,6 +546,22 @@ describe("PhysicsPlayground extended mechanics", () => {
     expect(load.state.position.y).toBeLessThan(startY);
   });
 
+  it("stops the lever at its required force after a successful lift", () => {
+    vi.stubGlobal("requestAnimationFrame", () => 0);
+    const { canvas, dispatchPointer } = createInteractiveCanvas();
+    const playground = new PhysicsPlayground(canvas, { width: 960, height: 600 });
+    playground.loadPreset("rotation");
+
+    dispatchPointer("pointerdown", 692, 390);
+    dispatchPointer("pointermove", 692, 500);
+    const [successForce, requiredForce] = playground.snapshot().graph!.samples.at(-1)!.values;
+    dispatchPointer("pointermove", 692, 580);
+    const [extendedForce] = playground.snapshot().graph!.samples.at(-1)!.values;
+
+    expect(successForce).toBeCloseTo(requiredForce);
+    expect(extendedForce).toBeCloseTo(requiredForce);
+  });
+
   it("draws the lever with named effort positions, a fulcrum, and a direct handle", () => {
     vi.stubGlobal("requestAnimationFrame", () => 0);
     const { canvas, fillText } = createRenderingCanvas();
