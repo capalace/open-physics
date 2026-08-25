@@ -16,13 +16,17 @@ describe("playground typography", () => {
   });
 });
 
-describe("quick start content", () => {
-  it("uses ten distinct one-column experiences instead of one card per law", () => {
-    const presets = [...markup.matchAll(/data-preset="([^"]+)"/g)].map((match) => match[1]);
+describe("mechanics lab content", () => {
+  it("offers ten distinct one-column labs and a separate sandbox", () => {
+    const labs = [...markup.matchAll(/data-lab="([^"]+)"/g)].map((match) => match[1]);
 
-    expect(presets).toHaveLength(10);
-    expect(new Set(presets).size).toBe(10);
-    expect(presets).not.toEqual(expect.arrayContaining(["momentum", "energy", "circular", "pendulum"]));
+    expect(labs).toHaveLength(10);
+    expect(new Set(labs).size).toBe(10);
+    expect(labs).not.toEqual(expect.arrayContaining(["momentum", "energy", "circular", "pendulum"]));
+    expect(markup).toContain('data-app-mode="lab"');
+    expect(markup).toContain('data-app-mode="sandbox"');
+    expect(markup).toContain('id="lab-guide"');
+    expect(markup).toContain('id="new-sandbox"');
     expect(styles).toMatch(/\.quick-start-list\s*\{[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\)/s);
   });
 });

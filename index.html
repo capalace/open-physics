@@ -7,7 +7,7 @@
   <link rel="stylesheet" href="/src/app/style.css" />
   <title>Open Physics — 물리를 직접 움직여 보세요</title>
 </head>
-<body>
+<body data-app-mode="lab">
   <header class="topbar">
     <a class="brand" href="#" aria-label="Open Physics 홈">
       <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i></span>
@@ -24,75 +24,67 @@
   </header>
 
   <main class="app-layout">
-    <aside id="experiment-panel" class="panel experiment-panel" aria-label="빠른 시작과 사용법">
-      <section class="panel-section quick-start-section">
-        <div class="section-heading"><h2>빠른 시작</h2><span>시작 상태</span></div>
+    <aside id="experiment-panel" class="panel experiment-panel" aria-label="역학 실험과 자유 놀이터">
+      <div class="mode-switch" role="tablist" aria-label="학습 방식 선택">
+        <button class="is-active" type="button" role="tab" aria-selected="true" data-app-mode="lab">역학 실험실</button>
+        <button type="button" role="tab" aria-selected="false" data-app-mode="sandbox">자유 놀이터</button>
+      </div>
+
+      <section id="lab-browser" class="panel-section quick-start-section">
+        <div class="section-heading"><h2>실험 선택</h2><span>10개 실험</span></div>
         <div class="quick-start-list">
           <span class="topic-label">움직임과 힘</span>
-          <button class="quick-start" type="button" data-preset="free-fall">
+          <button class="quick-start" type="button" data-lab="free-fall">
             <span class="preset-icon blue">↓</span>
-            <strong>떨어뜨려 보기</strong>
+            <span><strong>자유 낙하</strong><small>질량이 달라도 같이 떨어질까?</small></span>
           </button>
-          <button class="quick-start" type="button" data-preset="projectile">
+          <button class="quick-start" type="button" data-lab="projectile">
             <span class="preset-icon green">↗</span>
-            <strong>던져 보기</strong>
+            <span><strong>포물선 운동</strong><small>어떤 각도로 던져야 멀리 갈까?</small></span>
           </button>
-          <button class="quick-start" type="button" data-preset="collision">
+          <button class="quick-start" type="button" data-lab="collision">
             <span class="preset-icon orange">⇄</span>
-            <strong>충돌과 운동량</strong>
+            <span><strong>충돌과 운동량</strong><small>움직임은 어디로 전달될까?</small></span>
           </button>
-          <button class="quick-start" type="button" data-preset="spring">
+          <button class="quick-start" type="button" data-lab="spring">
             <span class="preset-icon purple">⌁</span>
-            <strong>용수철과 에너지</strong>
+            <span><strong>용수철과 에너지</strong><small>에너지를 어떻게 돌려줄까?</small></span>
           </button>
-          <button class="quick-start" type="button" data-preset="friction">
+          <button class="quick-start" type="button" data-lab="friction">
             <span class="preset-icon gold">▰</span>
-            <strong>미끄러뜨리기</strong>
+            <span><strong>마찰</strong><small>어떤 재질이 가장 멀리 갈까?</small></span>
           </button>
           <span class="topic-label">회전과 연결</span>
-          <button class="quick-start" type="button" data-preset="rotation">
+          <button class="quick-start" type="button" data-lab="rotation">
             <span class="preset-icon orange">⚖</span>
-            <strong>회전·토크</strong>
+            <span><strong>회전과 토크</strong><small>회전축에서 멀수록 잘 돌까?</small></span>
           </button>
-          <button class="quick-start" type="button" data-preset="constraints">
+          <button class="quick-start" type="button" data-lab="constraints">
             <span class="preset-icon green">╱</span>
-            <strong>진자와 줄·막대</strong>
+            <span><strong>줄과 막대</strong><small>움직임을 어떻게 제한할까?</small></span>
           </button>
-          <button class="quick-start" type="button" data-preset="pulley">
+          <button class="quick-start" type="button" data-lab="pulley">
             <span class="preset-icon gold">◉</span>
-            <strong>도르래</strong>
+            <span><strong>도르래</strong><small>어느 쪽 추가 내려갈까?</small></span>
           </button>
           <span class="topic-label">중력과 유체</span>
-          <button class="quick-start" type="button" data-preset="orbit">
+          <button class="quick-start" type="button" data-lab="orbit">
             <span class="preset-icon blue">◎</span>
-            <strong>원운동과 궤도</strong>
+            <span><strong>원운동과 궤도</strong><small>별은 왜 날아가지 않을까?</small></span>
           </button>
-          <button class="quick-start" type="button" data-preset="buoyancy">
+          <button class="quick-start" type="button" data-lab="buoyancy">
             <span class="preset-icon blue">≈</span>
-            <strong>부력</strong>
+            <span><strong>부력</strong><small>물체는 언제 물에 뜰까?</small></span>
           </button>
         </div>
-        <div class="law-note" aria-live="polite">
-          <span>지금 보는 법칙</span>
-          <strong id="law-title">중력과 가속도</strong>
-          <p id="law-description">중력은 물체를 아래로 끌어 속도를 계속 바꿉니다.</p>
-          <code id="law-equation">F = mg</code>
-        </div>
       </section>
 
-      <section class="panel-section guide">
-        <div class="section-heading"><h2>빠른 사용법</h2></div>
-        <ol>
-          <li><span>1</span> 시작 상태를 고르고 물체를 드래그합니다.</li>
-          <li><span>2</span> 화살표를 끌면 방향이 15°씩 맞춰집니다.</li>
-          <li><span>3</span> 손을 놓으면 바로 움직입니다.</li>
-        </ol>
+      <section id="sandbox-browser" class="sandbox-browser" hidden>
+        <span class="sandbox-symbol" aria-hidden="true">✦</span>
+        <h2>정답 없는 실험 공간</h2>
+        <p>원을 추가하고 위치·속도·재질·무게·중력을 마음대로 바꿔 보세요.</p>
+        <button id="new-sandbox" type="button">새 자유 월드 시작</button>
       </section>
-
-      <div class="principle-note">
-        <b>✦</b>
-        <p><strong>공식보다 먼저 현상을 보세요.</strong><br />조건을 바꾸면 물리가 바로 답합니다.</p>
-      </div>
     </aside>
 
     <section class="workspace" aria-label="물리 월드">
@@ -100,10 +92,10 @@
         <div class="transport-controls">
           <button id="play" class="primary-button" type="button">▶&nbsp;&nbsp;실행</button>
           <button id="step" class="icon-button text-button" type="button" title="한 단계 진행">한 단계</button>
-          <button id="reset" class="icon-button text-button" type="button" title="빠른 시작 상태로 되돌리기">↻ 처음으로</button>
+          <button id="reset" class="icon-button text-button" type="button" title="현재 실험의 시작 상태로 되돌리기">↻ 처음으로</button>
         </div>
         <div class="toolbar-divider"></div>
-        <div class="creation-controls">
+        <div class="creation-controls" data-sandbox-only>
           <button id="add-object" type="button" title="원형 물체 추가"><i class="shape-circle"></i><span>물체 추가</span></button>
           <button id="delete-object" class="danger-button" type="button" disabled>삭제</button>
         </div>
@@ -124,26 +116,43 @@
 
     </section>
 
-    <aside id="inspector-panel" class="panel inspector-panel" aria-label="속성과 환경">
-      <div class="inspector-header">
-        <div><span class="eyebrow">SELECTED OBJECT</span><h2>물체 설정</h2></div>
-        <span class="shortcut">선택 항목</span>
-      </div>
+    <aside id="inspector-panel" class="panel inspector-panel" aria-label="실험 안내와 조건 설정">
+      <section id="lab-guide" class="lab-guide" aria-live="polite">
+        <span class="eyebrow">MECHANICS LAB</span>
+        <h2 id="lab-guide-title">질량이 달라도 같이 떨어질까?</h2>
+        <p id="lab-guide-question" class="lab-question">가벼운 공과 무거운 공은 바닥에 닿는 시간이 다를까요?</p>
+        <div class="lab-steps">
+          <h3>이렇게 해보세요</h3>
+          <ol>
+            <li id="lab-step-1">세 공의 높이를 맞춰요.</li>
+            <li id="lab-step-2">중력을 달이나 목성으로 바꿔요.</li>
+            <li id="lab-step-3">공들이 바닥에 닿는 순간을 비교해요.</li>
+          </ol>
+        </div>
+        <div class="lab-observation"><strong>눈여겨볼 것</strong><p id="lab-observe">질량보다 중력 환경이 떨어지는 속도 변화에 어떤 영향을 주는지 보세요.</p></div>
+        <div class="lab-law"><span>연결되는 법칙</span><strong id="law-title">중력과 가속도</strong><p id="law-description">중력은 물체를 아래로 끌어 속도를 계속 바꿉니다.</p><code id="law-equation">F = mg</code></div>
+      </section>
 
-      <div id="inspector-empty" class="empty-selection">
-        <span class="empty-orbit"><i></i></span>
-        <strong>물체를 선택하세요</strong>
-        <p>선택한 물체의 재질, 무게, 운동 상태를 변경할 수 있습니다.</p>
-      </div>
+      <section id="object-editor" class="object-editor">
+        <div class="inspector-header">
+          <div><span class="eyebrow">CHANGE A CONDITION</span><h2>바꿔 볼 조건</h2></div>
+          <span class="shortcut">선택한 물체</span>
+        </div>
 
-      <form id="inspector-form" class="inspector-form" hidden>
-        <div class="selection-summary">
+        <div id="inspector-empty" class="empty-selection">
+          <span class="empty-orbit"><i></i></span>
+          <strong>물체를 선택하세요</strong>
+          <p>캔버스에서 바꾸고 싶은 물체를 누르세요.</p>
+        </div>
+
+        <form id="inspector-form" class="inspector-form" hidden>
+          <div class="selection-summary" data-sandbox-only>
           <input id="object-color" type="color" aria-label="물체 색상" />
           <span><strong id="selection-name">선택한 물체</strong><small id="selection-type">원형 물체</small></span>
-        </div>
-        <label class="field"><span>이름</span><input id="object-label" type="text" maxlength="24" /></label>
+          </div>
+          <label class="field" data-sandbox-only><span>이름</span><input id="object-label" type="text" maxlength="24" /></label>
 
-        <section class="choice-section" aria-labelledby="material-title">
+          <section class="choice-section" aria-labelledby="material-title" data-lab-control="material">
           <h3 id="material-title">재질</h3>
           <div class="material-options" role="group" aria-label="재질 선택">
             <button type="button" data-material="rubber"><i class="material-swatch rubber"></i><span><strong>고무</strong></span></button>
@@ -151,26 +160,27 @@
             <button type="button" data-material="steel"><i class="material-swatch steel"></i><span><strong>금속</strong></span></button>
             <button type="button" data-material="clay"><i class="material-swatch clay"></i><span><strong>점토</strong></span></button>
           </div>
-        </section>
+          </section>
 
-        <section class="choice-section" aria-labelledby="mass-title">
+          <section class="choice-section" aria-labelledby="mass-title" data-lab-control="mass">
           <h3 id="mass-title">무게</h3>
           <div class="mass-options" role="group" aria-label="무게 선택">
             <button type="button" data-mass="0.5">가벼움</button>
             <button type="button" data-mass="1">보통</button>
             <button type="button" data-mass="3">무거움</button>
           </div>
-        </section>
+          </section>
 
-        <details class="advanced-controls">
+          <details class="advanced-controls" data-sandbox-only>
           <summary>정확한 무게 설정</summary>
           <div class="field-grid">
             <label class="field"><span>질량 <small>kg</small></span><input id="object-mass" type="number" min="0.1" max="20" step="0.1" /></label>
           </div>
-        </details>
-      </form>
+          </details>
+        </form>
+      </section>
 
-      <section class="environment-section">
+      <section class="environment-section" data-lab-control="gravity">
         <div class="section-heading"><h2>환경 설정</h2><span>전체 적용</span></div>
         <div class="gravity-setting">
           <span><strong>중력</strong><output id="gravity-value">지구 · 1×</output></span>

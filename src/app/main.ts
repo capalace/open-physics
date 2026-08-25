@@ -4,6 +4,9 @@ import {
   type PlaygroundPreset,
   type PlaygroundSnapshot,
 } from "./physics-playground";
+import { mechanicsLab, type LabControl, type MechanicsLab } from "./mechanics-labs";
+
+type AppMode = "lab" | "sandbox";
 
 function required<T extends Element>(selector: string): T {
   const element = document.querySelector<T>(selector);
@@ -26,78 +29,53 @@ const objectColor = required<HTMLInputElement>("#object-color");
 const lawTitle = required<HTMLElement>("#law-title");
 const lawDescription = required<HTMLElement>("#law-description");
 const lawEquation = required<HTMLElement>("#law-equation");
+const labBrowser = required<HTMLElement>("#lab-browser");
+const sandboxBrowser = required<HTMLElement>("#sandbox-browser");
+const labGuide = required<HTMLElement>("#lab-guide");
+const objectEditor = required<HTMLElement>("#object-editor");
+const inspectorHeading = required<HTMLElement>("#object-editor .inspector-header h2");
+const inspectorEyebrow = required<HTMLElement>("#object-editor .eyebrow");
 const EARTH_GRAVITY = 9.81;
-
-const PRESET_GUIDES: Record<PlaygroundPreset, { title: string; description: string; equation: string }> = {
-  "free-fall": {
-    title: "중력과 가속도",
-    description: "중력은 물체를 아래로 끌어 속도를 계속 바꿉니다.",
-    equation: "F = mg",
-  },
-  projectile: {
-    title: "던진 물체의 운동",
-    description: "옆으로 가는 동안 중력이 아래쪽 속도를 더해 곡선으로 움직입니다.",
-    equation: "x = x₀ + v₀t + ½at²",
-  },
-  collision: {
-    title: "충돌·운동량·충격량",
-    description: "부딪히는 순간 운동량이 전달되고, 짧게 작용한 힘이 움직임을 바꿉니다.",
-    equation: "p = mv · J = Δp",
-  },
-  spring: {
-    title: "용수철과 에너지",
-    description: "용수철의 복원력이 저장된 에너지와 움직임 에너지를 서로 바꿉니다.",
-    equation: "F = −kx · E = ½mv² + ½kx²",
-  },
-  friction: {
-    title: "마찰력",
-    description: "마찰력은 움직이는 반대 방향으로 작용해 물체를 천천히 멈춥니다.",
-    equation: "F = μN",
-  },
-  rotation: {
-    title: "회전과 토크",
-    description: "회전축에서 떨어진 곳에 작용하는 힘이 막대를 돌립니다.",
-    equation: "τ = Iα",
-  },
-  orbit: {
-    title: "원운동·만유인력·궤도",
-    description: "중력이 중심 가속도가 되어 작은 별의 속도 방향을 계속 바꿉니다.",
-    equation: "a = v²/r · F = GMm/r²",
-  },
-  buoyancy: {
-    title: "부력",
-    description: "물에 잠긴 부피가 커질수록 위로 미는 힘이 커집니다.",
-    equation: "Fᵦ = ρgV",
-  },
-  constraints: {
-    title: "진자와 줄·막대",
-    description: "길이가 고정된 연결 안에서 중력이 추를 왕복 운동하게 합니다.",
-    equation: "|A − B| = L · T ≈ 2π√(L/g)",
-  },
-  pulley: {
-    title: "도르래",
-    description: "줄로 연결된 두 추는 같은 거리만큼 반대 방향으로 움직입니다.",
-    equation: "a = g(m₂−m₁)/(m₁+m₂)",
-  },
-};
+let appMode: AppMode = "lab";
+let activeLab = mechanicsLab("free-fall");
 
 const playground = new PhysicsPlayground(canvas, { onUpdate: renderSnapshot });
-playground.loadPreset("free-fall");
+activateLab("free-fall");
 
 playButton.addEventListener("click", () => playground.toggle());
 stepButton.addEventListener("click", () => playground.stepOnce());
-required<HTMLButtonElement>("#reset").addEventListener("click", () => playground.reset(true));
-addObjectButton.addEventListener("click", () => playground.addObject());
-deleteButton.addEventListener("click", () => playground.removeSelected());
+required<HTMLButtonElement>("#reset").addEventListener("click", () => {
+  if (appMode === "lab") playground.loadPreset(activeLab.id, true);
+  else playground.startSandbox();
+});
+addObjectButton.addEventListener("click", () => {
+  if (appMode === "sandbox") playground.addObject();
+});
+deleteButton.addEventListener("click", () => {
+  if (appMode === "sandbox") playground.removeSelected();
+});
 focusButton.addEventListener("click", () => setFocusMode(!appLayout.classList.contains("is-focus-mode")));
+
+document.querySelectorAll<HTMLButtonElement>("[data-app-mode]").forEach((button) => {
+  button.addEventListener("click", () => {
+    const mode = button.dataset.appMode as AppMode;
+    if (mode === appMode) return;
+    if (mode === "lab") activateLab(activeLab.id);
+    else activateSandbox();
+  });
+});
+required<HTMLButtonElement>("#new-sandbox").addEventListener("click", () => {
+  playground.startSandbox();
+  pulseWorld();
+});
 
 bindToggle("#show-grid", "grid");
 bindToggle("#show-trails", "trails");
 bindToggle("#show-vectors", "vectors");
 
-document.querySelectorAll<HTMLButtonElement>("[data-preset]").forEach((button) => {
+document.querySelectorAll<HTMLButtonElement>("[data-lab]").forEach((button) => {
   button.addEventListener("click", () => {
-    playground.loadPreset(button.dataset.preset as PlaygroundPreset, true);
+    activateLab(button.dataset.lab as PlaygroundPreset);
   });
 });
 document.querySelectorAll<HTMLButtonElement>("[data-gravity]").forEach((button) => {
@@ -134,7 +112,7 @@ window.addEventListener("keydown", (event) => {
     event.preventDefault();
     playground.toggle();
   } else if (event.code === "Delete" || event.code === "Backspace") {
-    playground.removeSelected();
+    if (appMode === "sandbox") playground.removeSelected();
   } else if (event.code === "ArrowRight" && playground.paused) {
     playground.stepOnce();
   }
@@ -166,17 +144,13 @@ function renderSnapshot(snapshot: PlaygroundSnapshot): void {
   document.querySelectorAll<HTMLButtonElement>("[data-gravity]").forEach((button) => {
     setActive(button, Math.abs(Number(button.dataset.gravity) - snapshot.gravity) < 0.01);
   });
-  document.querySelectorAll<HTMLButtonElement>("[data-preset]").forEach((button) => {
-    setActive(button, button.dataset.preset === snapshot.preset);
+  document.querySelectorAll<HTMLButtonElement>("[data-lab]").forEach((button) => {
+    setActive(button, appMode === "lab" && button.dataset.lab === activeLab.id);
   });
-  const guide = PRESET_GUIDES[snapshot.preset];
-  lawTitle.textContent = guide.title;
-  lawDescription.textContent = guide.description;
-  lawEquation.textContent = guide.equation;
-
-  inspectorEmpty.hidden = Boolean(snapshot.selected);
-  inspectorForm.hidden = !snapshot.selected;
-  deleteButton.disabled = !snapshot.selected;
+  const editorAvailable = !objectEditor.hidden;
+  inspectorEmpty.hidden = !editorAvailable || Boolean(snapshot.selected);
+  inspectorForm.hidden = !editorAvailable || !snapshot.selected;
+  deleteButton.disabled = appMode === "lab" || !snapshot.selected;
 
   if (!snapshot.selected) {
     return;
@@ -196,6 +170,59 @@ function renderSnapshot(snapshot: PlaygroundSnapshot): void {
     setActive(button, Number(button.dataset.mass) === selected.mass);
   });
   if (document.activeElement !== objectColor) objectColor.value = selected.color;
+}
+
+function activateLab(id: PlaygroundPreset): void {
+  appMode = "lab";
+  activeLab = mechanicsLab(id);
+  renderLabGuide(activeLab);
+  applyModeUi();
+  playground.loadPreset(id, true);
+  pulseWorld();
+}
+
+function activateSandbox(): void {
+  appMode = "sandbox";
+  applyModeUi();
+  playground.startSandbox();
+  pulseWorld();
+}
+
+function applyModeUi(): void {
+  document.body.dataset.appMode = appMode;
+  labBrowser.hidden = appMode !== "lab";
+  sandboxBrowser.hidden = appMode !== "sandbox";
+  labGuide.hidden = appMode !== "lab";
+
+  document.querySelectorAll<HTMLButtonElement>("[data-app-mode]").forEach((button) => {
+    const active = button.dataset.appMode === appMode;
+    button.classList.toggle("is-active", active);
+    button.setAttribute("aria-selected", String(active));
+  });
+  document.querySelectorAll<HTMLElement>("[data-sandbox-only]").forEach((element) => {
+    element.hidden = appMode !== "sandbox";
+  });
+  document.querySelectorAll<HTMLElement>("[data-lab-control]").forEach((element) => {
+    const control = element.dataset.labControl;
+    element.hidden = appMode === "lab" && !activeLab.controls.includes(control as LabControl);
+  });
+
+  const hasObjectControl = activeLab.controls.includes("mass") || activeLab.controls.includes("material");
+  objectEditor.hidden = appMode === "lab" && !hasObjectControl;
+  inspectorHeading.textContent = appMode === "lab" ? "바꿔 볼 조건" : "물체 설정";
+  inspectorEyebrow.textContent = appMode === "lab" ? "CHANGE A CONDITION" : "SELECTED OBJECT";
+}
+
+function renderLabGuide(lab: MechanicsLab): void {
+  required<HTMLElement>("#lab-guide-title").textContent = lab.title;
+  required<HTMLElement>("#lab-guide-question").textContent = lab.question;
+  required<HTMLElement>("#lab-step-1").textContent = lab.steps[0];
+  required<HTMLElement>("#lab-step-2").textContent = lab.steps[1];
+  required<HTMLElement>("#lab-step-3").textContent = lab.steps[2];
+  required<HTMLElement>("#lab-observe").textContent = lab.observe;
+  lawTitle.textContent = lab.law.title;
+  lawDescription.textContent = lab.law.description;
+  lawEquation.textContent = lab.law.equation;
 }
 
 function setActive(button: HTMLButtonElement, active: boolean): void {

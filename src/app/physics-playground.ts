@@ -200,6 +200,26 @@ export class PhysicsPlayground {
     return this.addCircle(420 + Math.random() * 120, 100, 25, { label: `물체 ${this.objects.size + 1}` });
   }
 
+  startSandbox(): void {
+    this._paused = true;
+    this.currentPreset = "free-fall";
+    this.accumulator = 0;
+    this.trailTick = 0;
+    this.selectedId = null;
+    this.objects.clear();
+    this.trails.clear();
+    this.clearExperimentLaws();
+    this.simulation.clear();
+    this.replaceGravity(9.81);
+    this.addCircle(this.canvas.width * 0.5, 120, 28, {
+      label: "물체 1",
+      color: "#5b7cfa",
+      mass: 1,
+      material: "rubber",
+    });
+    this.notify();
+  }
+
   addCircle(x = this.canvas.width / 2, y = 120, radius = 25, options: PlaygroundObjectOptions = {}): PlaygroundObject {
     const id = this.nextObjectId();
     const object: PlaygroundObject = {

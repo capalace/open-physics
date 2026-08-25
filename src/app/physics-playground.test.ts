@@ -105,6 +105,23 @@ describe("PhysicsPlayground object creation", () => {
     expect(added.label).toContain("물체");
     expect(addedBody.state.velocity).toEqual({ x: 0, y: 0 });
   });
+
+  it("starts a clean sandbox without carrying over lab apparatus", () => {
+    vi.stubGlobal("requestAnimationFrame", () => 0);
+    const playground = new PhysicsPlayground(createCanvas(), { width: 960, height: 600 });
+    playground.loadPreset("pulley", true);
+
+    playground.startSandbox();
+
+    expect(playground.paused).toBe(true);
+    expect(playground.gravity).toBeCloseTo(9.81);
+    expect(playground.objects.size).toBe(1);
+    expect([...playground.objects.values()][0]).toMatchObject({
+      label: "물체 1",
+      shape: "circle",
+      material: "rubber",
+    });
+  });
 });
 
 describe("PhysicsPlayground contacts", () => {

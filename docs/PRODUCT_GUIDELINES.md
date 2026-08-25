@@ -5,9 +5,9 @@
 
 ## 1. Product Goal
 
-Open Physics is not primarily a collection of physics lessons or isolated simulations.
+Open Physics is not a collection of disconnected simulations, and it is not only an empty sandbox.
 
-It is a **physics sandbox in which users can directly manipulate objects and observe physics models operating on them**.
+It is a **guided physics lab and free sandbox built on one reusable physics world**. Guided labs help users discover a specific relationship; the sandbox lets them continue with their own questions.
 
 The core product experience is:
 
@@ -21,8 +21,9 @@ The intended audience is broad: children, students, and anyone who wants to expl
 - **Direct manipulation:** Users should be able to create, place, drag, connect, and modify objects.
 - **Model-based physics:** Objects interact according to the equations and assumptions of the active physical model rather than attempting to reproduce every detail of the real world.
 - **Progressive complexity:** The same world can expose simple or more advanced physical models depending on the current section, preset, or user configuration.
-- **Exploration over instruction:** Guided content should help users get started, but it must not turn the sandbox into a rigid sequence of button presses.
-- **Presets are starting states:** A preset configures a useful physical situation. Users should be able to modify it and continue experimenting.
+- **Purposeful guidance:** A lab gives users a question, a small set of useful actions, and a clear observation target without grading or forcing a single answer.
+- **Separate lab and sandbox affordances:** Guided labs protect essential apparatus and expose only relevant controls. The free sandbox exposes general creation and editing tools.
+- **Presets are implementation details:** A preset configures a useful physical situation; a user-facing lab adds purpose, instructions, observation, and allowed controls around it.
 - **Visual understanding:** Important physical quantities and relationships should be observable through motion, vectors, fields, graphs, energy displays, waves, particles, and other appropriate visualizations.
 - **Physics first, curriculum second:** The product structure should represent physics naturally. Educational curricula are references for coverage and progression, not hard architectural boundaries.
 - **Client-side first:** The simulation should run entirely in the browser. A backend is not required for the core physics experience.
@@ -328,7 +329,7 @@ Observation
 Free exploration
 ```
 
-Guided experiments should configure an initial state, suggest useful actions, and expose relevant visualizations. They should not fundamentally restrict the underlying sandbox.
+Guided experiments configure an initial state, suggest useful actions, expose relevant visualizations, and protect apparatus that is essential to the phenomenon. They may intentionally hide unrelated controls so the experiment remains legible. This does not reduce the capabilities of the separate free sandbox.
 
 A section may therefore contain:
 
@@ -338,9 +339,19 @@ A section may therefore contain:
 - variations of the same physical situation;
 - a free-experiment entry point.
 
+The two modes have different responsibilities:
+
+```text
+Guided Lab
+= question + protected apparatus + suggested actions + observation target
+
+Free Sandbox
+= object creation + deletion + general parameters + open-ended exploration
+```
+
 ## 10. Presets
 
-A preset is **not a separate simulation implementation**.
+A preset is **not a separate simulation implementation or complete user-facing experiment**.
 
 It is a predefined world state containing some combination of:
 
@@ -364,7 +375,7 @@ Examples include:
 - lens optical system;
 - heat engine.
 
-A user should generally be able to open a preset and then modify it freely.
+A user-facing lab can limit modification to the conditions relevant to its question. A user who wants unrestricted modification can move to the free sandbox, which starts from a clean general-purpose world rather than silently dismantling a lab apparatus.
 
 ## 11. Content Navigation
 
