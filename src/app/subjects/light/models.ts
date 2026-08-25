@@ -8,7 +8,7 @@ import {
   refractedAngle,
   telescopeMagnification,
 } from "../../../physics/laws/optics";
-import type { LightLabId } from "./catalog";
+import { lightLab, type LightLabId } from "./catalog";
 
 export type LightSceneId = LightLabId | "sandbox";
 export type LightDeviceKind = "source" | "mirror" | "boundary" | "lens" | "prism" | "slit" | "screen";
@@ -18,6 +18,8 @@ export interface LightDevice extends Point {
   kind: LightDeviceKind;
   label: string;
   angle?: number;
+  /** Educational Canvas distance between a double slit's aperture centers. */
+  separation?: number;
   protected: boolean;
 }
 export interface RaySegment { from: Point; to: Point; color: string; width?: number; dashed?: boolean }
@@ -27,6 +29,9 @@ export interface LightSnapshot {
   devices: readonly LightDevice[];
   rays: readonly RaySegment[];
   graph: readonly GraphPoint[];
+  graphSeries: { label: string; color: string };
+  graphCurrent?: GraphPoint;
+  graphIsCurrentState?: boolean;
   graphValue: string;
   handle: Point | null;
   screenPattern?: readonly GraphPoint[];
@@ -40,6 +45,7 @@ const HEIGHT = 600;
 const CM_TO_PX = 10;
 const clamp = (value: number, min: number, max: number): number => Math.max(min, Math.min(max, value));
 const degrees = (radians: number): number => radians * 180 / Math.PI;
+const normalizeAngle = (radians: number): number => Math.atan2(Math.sin(radians), Math.cos(radians));
 const pointAlong = (from: Point, angle: number, length: number): Point => ({
   x: from.x + Math.cos(angle) * length,
   y: from.y + Math.sin(angle) * length,
@@ -103,6 +109,7 @@ export class LightLabModel {
     const offset = (this.devices.length % 5) * 42;
     const startAngle = kind === "mirror" || kind === "boundary" ? Math.PI / 2 : 0;
     const created = device(id, kind, this.deviceLabel(kind), 260 + offset, 180 + offset / 2, startAngle, false);
+    if (kind === "slit") created.separation = 280 / 3;
     this.devices.push(created);
     return { ...created };
   }
@@ -147,7 +154,7 @@ export class LightLabModel {
       case "refraction": this.parameters.refractionSourceX = clamp(point.x, 120, 430); break;
       case "lenses": this.parameters.objectX = clamp(point.x, 120, 370); break;
       case "prism": this.parameters.prismAngle = Math.atan2(point.y - 300, point.x - 500); break;
-      case "diffraction": this.parameters.slitSeparation = clamp(Math.abs(point.y - 300) * 3e-6, 80e-6, 500e-6); break;
+      case "diffraction": this.parameters.slitSeparation = clamp(Math.abs(point.y - 300) * 6e-6, 80e-6, 500e-6); break;
       case "polarization": this.parameters.analyzerAngle = Math.atan2(point.y - 300, point.x - 590); break;
       case "instruments": this.parameters.eyepieceFocalCm = clamp((420 - point.y) / 18, 3, 12); break;
       default: return false;
@@ -159,7 +166,10 @@ export class LightLabModel {
   pointerUp(): void { this.drag = null; }
 
   snapshot(): LightSnapshot {
-    const base = { sceneId: this.sceneId, devices: this.devices.map((item) => ({ ...item })) };
+    const graphSeries = this.sceneId === "sandbox"
+      ? { label: "광선 진행 방향", color: "#ffe066" }
+      : { ...lightLab(this.sceneId).graph.series[0] };
+    const base = { sceneId: this.sceneId, devices: this.devices.map((item) => ({ ...item })), graphSeries };
     switch (this.sceneId) {
       case "propagation": return { ...base, ...this.propagationSnapshot() };
       case "reflection": return { ...base, ...this.reflectionSnapshot() };
@@ -200,11 +210,11 @@ export class LightLabModel {
         device("prism", "prism", "프리즘", 500, 300, this.parameters.prismAngle),
         device("screen", "screen", "색 스크린", 820, 300),
       ];
-      case "diffraction": return [
-        device("source", "source", "레이저", 140, 300),
-        device("slit", "slit", "이중 슬릿", 470, 300),
-        device("screen", "screen", "무늬 스크린", 820, 300),
-      ];
+      case "diffraction": {
+        const slit = device("slit", "slit", "이중 슬릿", 470, 300);
+        slit.separation = this.parameters.slitSeparation / 3e-6;
+        return [device("source", "source", "레이저", 140, 300), slit, device("screen", "screen", "무늬 스크린", 820, 300)];
+      }
       case "polarization": return [
         device("source", "source", "편광된 빛", 130, 300),
         device("polarizer", "boundary", "첫 편광판", 390, 300),
@@ -214,7 +224,7 @@ export class LightLabModel {
       case "instruments": return [
         device("star", "source", "먼 별", 100, 250),
         device("objective", "lens", "대물렌즈", 390, 300),
-        device("eyepiece", "lens", "접안렌즈", 680, 300),
+        device("eyepiece", "lens", "접안렌즈", 630 + this.parameters.eyepieceFocalCm * CM_TO_PX, 300),
         device("eye", "screen", "눈", 850, 300),
       ];
       case "sandbox": return [
@@ -232,6 +242,8 @@ export class LightLabModel {
     update("object", { x: this.parameters.objectX });
     update("prism", { angle: this.parameters.prismAngle });
     update("analyzer", { angle: this.parameters.analyzerAngle });
+    update("slit", { separation: this.parameters.slitSeparation / 3e-6 });
+    update("eyepiece", { x: 630 + this.parameters.eyepieceFocalCm * CM_TO_PX });
   }
 
   private controlHandle(): Point | null {
@@ -243,12 +255,12 @@ export class LightLabModel {
       case "prism": return pointAlong({ x: 500, y: 300 }, this.parameters.prismAngle, 75);
       case "diffraction": return { x: 470, y: 300 + this.parameters.slitSeparation / 6e-6 };
       case "polarization": return pointAlong({ x: 590, y: 300 }, this.parameters.analyzerAngle, 58);
-      case "instruments": return { x: 680, y: 420 - this.parameters.eyepieceFocalCm * 18 };
+      case "instruments": return { x: 630 + this.parameters.eyepieceFocalCm * CM_TO_PX, y: 420 - this.parameters.eyepieceFocalCm * 18 };
       default: return null;
     }
   }
 
-  private propagationSnapshot(): Omit<LightSnapshot, "sceneId" | "devices"> {
+  private propagationSnapshot(): Omit<LightSnapshot, "sceneId" | "devices" | "graphSeries"> {
     const source = { x: 120, y: this.parameters.sourceY };
     const aperture = { x: 480, y: 300 };
     const slope = (aperture.y - source.y) / (aperture.x - source.x);
@@ -257,10 +269,10 @@ export class LightLabModel {
       const x = index * 4.375;
       return { x, y: (source.y + slope * (x * CM_TO_PX) - 300) / CM_TO_PX };
     });
-    return { rays: [{ from: source, to: screen, color: "#ffd34d", width: 4 }], graph, graphValue: `스크린 높이 ${(screen.y - 300) / CM_TO_PX >= 0 ? "+" : ""}${((screen.y - 300) / CM_TO_PX).toFixed(1)} cm`, handle: this.controlHandle() };
+    return { rays: [{ from: source, to: screen, color: "#ffd34d", width: 4 }], graph, graphCurrent: graph.at(-1), graphValue: `스크린 높이 ${(screen.y - 300) / CM_TO_PX >= 0 ? "+" : ""}${((screen.y - 300) / CM_TO_PX).toFixed(1)} cm`, handle: this.controlHandle() };
   }
 
-  private reflectionSnapshot(): Omit<LightSnapshot, "sceneId" | "devices"> {
+  private reflectionSnapshot(): Omit<LightSnapshot, "sceneId" | "devices" | "graphSeries"> {
     const source = { x: 150, y: 390 };
     const hit = { x: 500, y: 300 };
     const incident = Math.atan2(hit.y - source.y, hit.x - source.x);
@@ -269,33 +281,33 @@ export class LightLabModel {
     const end = pointAlong(hit, outgoing, 430);
     const incidence = Math.abs(((incident - normalAngle + Math.PI * 3) % (Math.PI * 2)) - Math.PI);
     const acute = Math.min(incidence, Math.PI - incidence);
-    const currentDegrees = Math.max(1, degrees(acute));
-    const graph = Array.from({ length: 11 }, (_, index) => ({ x: currentDegrees * index / 10, y: currentDegrees * index / 10 }));
+    const currentDegrees = degrees(acute);
+    const graph = Array.from({ length: 19 }, (_, index) => ({ x: index * 5, y: index * 5 }));
     return {
       rays: [{ from: source, to: hit, color: "#ffd34d", width: 4 }, { from: hit, to: end, color: "#70d6ff", width: 4 }],
-      graph, graphValue: `입사각 = 반사각 ${degrees(acute).toFixed(1)}°`, handle: this.controlHandle(),
+      graph, graphCurrent: { x: currentDegrees, y: currentDegrees }, graphValue: `입사각 = 반사각 ${currentDegrees.toFixed(1)}°`, handle: this.controlHandle(),
       normal: { from: pointAlong(hit, normalAngle, -90), to: pointAlong(hit, normalAngle, 90) },
     };
   }
 
-  private refractionSnapshot(): Omit<LightSnapshot, "sceneId" | "devices"> {
+  private refractionSnapshot(): Omit<LightSnapshot, "sceneId" | "devices" | "graphSeries"> {
     const source = { x: this.parameters.refractionSourceX, y: 100 };
     const hit = { x: 480, y: 300 };
     const incidentFromNormal = Math.atan2(hit.x - source.x, hit.y - source.y);
     const refracted = refractedAngle(incidentFromNormal, 1, 1.333)!;
     const end = { x: hit.x + Math.sin(refracted) * 310, y: hit.y + Math.cos(refracted) * 310 };
-    const graph = Array.from({ length: 16 }, (_, index) => {
-      const angle = incidentFromNormal * index / 15;
+    const graph = Array.from({ length: 15 }, (_, index) => {
+      const angle = 70 * Math.PI / 180 * index / 14;
       return { x: degrees(angle), y: degrees(refractedAngle(angle, 1, 1.333)!) };
     });
     return {
       rays: [{ from: source, to: hit, color: "#ffe066", width: 4 }, { from: hit, to: end, color: "#4cc9f0", width: 4 }],
-      graph, graphValue: `입사 ${degrees(incidentFromNormal).toFixed(1)}° → 굴절 ${degrees(refracted).toFixed(1)}°`, handle: this.controlHandle(),
+      graph, graphCurrent: { x: degrees(incidentFromNormal), y: degrees(refracted) }, graphValue: `입사 ${degrees(incidentFromNormal).toFixed(1)}° → 굴절 ${degrees(refracted).toFixed(1)}°`, handle: this.controlHandle(),
       normal: { from: { x: hit.x, y: 210 }, to: { x: hit.x, y: 390 } },
     };
   }
 
-  private lensSnapshot(): Omit<LightSnapshot, "sceneId" | "devices"> {
+  private lensSnapshot(): Omit<LightSnapshot, "sceneId" | "devices" | "graphSeries"> {
     const lensX = 480;
     const objectTop = { x: this.parameters.objectX, y: 220 };
     const objectDistancePx = lensX - objectTop.x;
@@ -303,46 +315,62 @@ export class LightLabModel {
     const imageDistancePx = lensImageDistance(focalPx, objectDistancePx);
     const magnification = lensMagnification(imageDistancePx, objectDistancePx);
     const imageX = Number.isFinite(imageDistancePx) ? lensX + imageDistancePx : WIDTH + 200;
-    const imageY = 300 - (objectTop.y - 300) * magnification;
+    const imageY = 300 + (objectTop.y - 300) * magnification;
     const parallelHit = { x: lensX, y: objectTop.y };
     const center = { x: lensX, y: 300 };
     const image = { x: imageX, y: 300, height: imageY - 300, virtual: imageDistancePx < 0 };
-    const maxEnd = { x: clamp(imageX, 0, WIDTH), y: imageY };
+    const imageTop = { x: imageX, y: imageY };
     const currentDistanceCm = objectDistancePx / CM_TO_PX;
-    const graph = Array.from({ length: 20 }, (_, index) => {
-      const distance = 12.5 + (currentDistanceCm - 12.5) * index / 19;
+    const graph = Array.from({ length: 26 }, (_, index) => {
+      const distance = 11 + index;
       const imageDistance = lensImageDistance(12, distance);
-      return { x: distance, y: Math.min(6, Math.abs(lensMagnification(imageDistance, distance))) };
+      return { x: distance, y: clamp(lensMagnification(imageDistance, distance), -6, 6) };
     });
+    const forwardX = WIDTH;
+    const centralForward = { x: forwardX, y: center.y + (center.y - objectTop.y) / (center.x - objectTop.x) * (forwardX - center.x) };
+    const focus = { x: lensX + focalPx, y: 300 };
+    const parallelForward = { x: forwardX, y: parallelHit.y + (focus.y - parallelHit.y) / (focus.x - parallelHit.x) * (forwardX - parallelHit.x) };
+    const outgoing = Number.isFinite(imageDistancePx) && imageDistancePx > 0
+      ? [{ from: center, to: imageTop, color: "#80ed99", width: 3 }, { from: parallelHit, to: imageTop, color: "#ffd166", width: 3 }]
+      : [
+          { from: center, to: centralForward, color: "#80ed99", width: 3 },
+          { from: parallelHit, to: parallelForward, color: "#ffd166", width: 3 },
+          ...(Number.isFinite(imageDistancePx) ? [
+            { from: center, to: imageTop, color: "#80ed99", width: 2, dashed: true },
+            { from: parallelHit, to: imageTop, color: "#ffd166", width: 2, dashed: true },
+          ] : []),
+        ];
     return {
       rays: [
         { from: objectTop, to: center, color: "#80ed99", width: 3 },
-        { from: center, to: maxEnd, color: "#80ed99", width: 3 },
+        outgoing[0],
         { from: objectTop, to: parallelHit, color: "#ffd166", width: 3 },
-        { from: parallelHit, to: maxEnd, color: "#ffd166", width: 3 },
+        outgoing[1],
+        ...outgoing.slice(2),
       ],
-      graph, graphValue: `상거리 ${(imageDistancePx / CM_TO_PX).toFixed(1)} cm · 배율 ${magnification.toFixed(2)}배`, handle: this.controlHandle(), image,
+      graph, graphCurrent: { x: currentDistanceCm, y: clamp(magnification, -6, 6) }, graphValue: `상거리 ${Number.isFinite(imageDistancePx) ? (imageDistancePx / CM_TO_PX).toFixed(1) : "∞"} cm · 배율 ${magnification.toFixed(2)}배`, handle: this.controlHandle(), image,
     };
   }
 
-  private prismSnapshot(): Omit<LightSnapshot, "sceneId" | "devices"> {
+  private prismSnapshot(): Omit<LightSnapshot, "sceneId" | "devices" | "graphSeries"> {
     const source = { x: 130, y: 300 };
     const prism = { x: 500, y: 300 };
     const wavelengths = [650, 590, 540, 490, 440];
     const colors = ["#ff595e", "#ffca3a", "#8ac926", "#1982c4", "#6a4c93"];
-    const graph = wavelengths.map((wavelength) => {
+    const spectrum = wavelengths.map((wavelength) => {
       const index = 1.514 + (650 - wavelength) * 0.00009;
-      return { x: wavelength, y: degrees(this.parameters.prismAngle + prismDeviation(index, Math.PI / 3)) };
+      const angle = normalizeAngle(this.parameters.prismAngle + prismDeviation(index, Math.PI / 3));
+      return { wavelength, angle };
     });
+    const graph = spectrum.map(({ wavelength, angle }) => ({ x: wavelength, y: degrees(angle) }));
     const rays: RaySegment[] = [{ from: source, to: prism, color: "#fff4d6", width: 7 }];
-    graph.forEach((sample, index) => {
-      const angle = this.parameters.prismAngle + (sample.y - 30) * Math.PI / 180;
-      rays.push({ from: prism, to: pointAlong(prism, angle, 380), color: colors[index], width: 4 });
+    spectrum.forEach((sample, index) => {
+      rays.push({ from: prism, to: pointAlong(prism, sample.angle, 380), color: colors[index], width: 4 });
     });
-    return { rays, graph, graphValue: `중심 ${degrees(this.parameters.prismAngle).toFixed(0)}° · 색 벌어짐 ${(Math.max(...graph.map((p) => p.y)) - Math.min(...graph.map((p) => p.y))).toFixed(1)}°`, handle: this.controlHandle() };
+    return { rays, graph, graphIsCurrentState: true, graphValue: `중심 ${degrees(this.parameters.prismAngle).toFixed(0)}° · 색 벌어짐 ${(Math.max(...graph.map((p) => p.y)) - Math.min(...graph.map((p) => p.y))).toFixed(1)}°`, handle: this.controlHandle() };
   }
 
-  private diffractionSnapshot(): Omit<LightSnapshot, "sceneId" | "devices"> {
+  private diffractionSnapshot(): Omit<LightSnapshot, "sceneId" | "devices" | "graphSeries"> {
     const wavelength = 532e-9;
     const screenDistance = 1.2;
     const graph = Array.from({ length: 81 }, (_, index) => {
@@ -350,21 +378,25 @@ export class LightLabModel {
       const angle = Math.atan((positionMm / 1000) / screenDistance);
       return { x: positionMm, y: doubleSlitIntensity(angle, wavelength, this.parameters.slitSeparation, 45e-6) };
     });
+    const slitOffset = this.parameters.slitSeparation / 6e-6;
+    const upperSlit = { x: 470, y: 300 - slitOffset };
+    const lowerSlit = { x: 470, y: 300 + slitOffset };
     return {
       rays: [
-        { from: { x: 140, y: 300 }, to: { x: 470, y: 300 }, color: "#ff70a6", width: 4 },
-        { from: { x: 470, y: 286 }, to: { x: 820, y: 210 }, color: "#ff70a6", width: 1 },
-        { from: { x: 470, y: 314 }, to: { x: 820, y: 390 }, color: "#ff70a6", width: 1 },
+        { from: { x: 140, y: 300 }, to: upperSlit, color: "#ff70a6", width: 2 },
+        { from: { x: 140, y: 300 }, to: lowerSlit, color: "#ff70a6", width: 2 },
+        { from: upperSlit, to: { x: 820, y: 300 }, color: "#ff70a6", width: 1 },
+        { from: lowerSlit, to: { x: 820, y: 300 }, color: "#ff70a6", width: 1 },
       ],
-      graph, screenPattern: graph, graphValue: `슬릿 간격 ${(this.parameters.slitSeparation * 1e6).toFixed(0)} μm`, handle: this.controlHandle(),
+      graph, graphIsCurrentState: true, screenPattern: graph, graphValue: `슬릿 간격 ${(this.parameters.slitSeparation * 1e6).toFixed(0)} μm`, handle: this.controlHandle(),
     };
   }
 
-  private polarizationSnapshot(): Omit<LightSnapshot, "sceneId" | "devices"> {
+  private polarizationSnapshot(): Omit<LightSnapshot, "sceneId" | "devices" | "graphSeries"> {
     const intensity = polarizedIntensity(1, this.parameters.analyzerAngle);
     const currentAngle = Math.abs(degrees(this.parameters.analyzerAngle));
     const graph = Array.from({ length: 19 }, (_, index) => {
-      const angle = currentAngle * index / 18;
+      const angle = index * 10;
       return { x: angle, y: polarizedIntensity(100, angle * Math.PI / 180) };
     });
     return {
@@ -373,76 +405,127 @@ export class LightLabModel {
         { from: { x: 390, y: 300 }, to: { x: 590, y: 300 }, color: "#ffb347", width: 6 },
         { from: { x: 590, y: 300 }, to: { x: 820, y: 300 }, color: `rgba(255,159,28,${0.15 + intensity * 0.85})`, width: 3 + intensity * 7 },
       ],
-      graph, graphValue: `통과 밝기 ${(intensity * 100).toFixed(0)}%`, handle: this.controlHandle(), screenIntensity: intensity,
+      graph, graphCurrent: { x: currentAngle, y: intensity * 100 }, graphValue: `통과 밝기 ${(intensity * 100).toFixed(0)}%`, handle: this.controlHandle(), screenIntensity: intensity,
     };
   }
 
-  private instrumentSnapshot(): Omit<LightSnapshot, "sceneId" | "devices"> {
+  private instrumentSnapshot(): Omit<LightSnapshot, "sceneId" | "devices" | "graphSeries"> {
     const objectiveFocalCm = 24;
     const magnification = telescopeMagnification(objectiveFocalCm, this.parameters.eyepieceFocalCm);
     const graph = Array.from({ length: 19 }, (_, index) => {
-      const focal = 3 + (this.parameters.eyepieceFocalCm - 3) * index / 18;
+      const focal = 3 + 9 * index / 18;
       return { x: focal, y: Math.abs(telescopeMagnification(objectiveFocalCm, focal)) };
     });
-    const objective = { x: 390, y: 300 };
-    const focus = { x: 630, y: 300 };
-    const eye = { x: 850, y: 300 };
+    const objectiveX = 390;
+    const focusX = 630;
+    const eyepieceX = focusX + this.parameters.eyepieceFocalCm * CM_TO_PX;
+    const eyeX = 850;
+    const incomingAngle = 0.04;
+    const incomingSlope = Math.tan(incomingAngle);
+    const focus = { x: focusX, y: 300 + incomingSlope * 240 };
+    const outgoingSlope = Math.tan(-incomingAngle * Math.abs(magnification));
+    const objectiveHits = [250, 350];
+    const rays: RaySegment[] = [];
+    for (const hitY of objectiveHits) {
+      const start = { x: 100, y: hitY - incomingSlope * (objectiveX - 100) };
+      const objectiveHit = { x: objectiveX, y: hitY };
+      const eyepieceHit = {
+        x: eyepieceX,
+        y: focus.y + (focus.y - hitY) / (focusX - objectiveX) * (eyepieceX - focusX),
+      };
+      rays.push(
+        { from: start, to: objectiveHit, color: "#d8f3ff", width: 3 },
+        { from: objectiveHit, to: focus, color: "#d8f3ff", width: 3 },
+        { from: focus, to: eyepieceHit, color: "#a8dadc", width: 3 },
+        { from: eyepieceHit, to: { x: eyeX, y: eyepieceHit.y + outgoingSlope * (eyeX - eyepieceX) }, color: "#a8dadc", width: 3 },
+      );
+    }
     return {
-      rays: [
-        { from: { x: 100, y: 220 }, to: objective, color: "#d8f3ff", width: 3 },
-        { from: objective, to: focus, color: "#d8f3ff", width: 3 },
-        { from: focus, to: { x: eye.x, y: 300 - magnification * 4 }, color: "#a8dadc", width: 3 },
-        { from: { x: 100, y: 300 }, to: eye, color: "#fff", width: 2 },
-      ],
-      graph, graphValue: `각배율 ${Math.abs(magnification).toFixed(1)}배`, handle: this.controlHandle(),
+      rays,
+      graph, graphCurrent: { x: this.parameters.eyepieceFocalCm, y: Math.abs(magnification) }, graphValue: `각배율 ${Math.abs(magnification).toFixed(1)}배`, handle: this.controlHandle(),
     };
   }
 
-  private sandboxSnapshot(): Omit<LightSnapshot, "sceneId" | "devices"> {
+  private sandboxSnapshot(): Omit<LightSnapshot, "sceneId" | "devices" | "graphSeries"> {
     const sources = this.devices.filter((item) => item.kind === "source");
     const rays: RaySegment[] = [];
     const directions: number[] = [];
     for (const source of sources) {
-      const train = this.devices
-        .filter((item) => item.id !== source.id && item.x > source.x)
-        .sort((a, b) => a.x - b.x);
       let current: Point = source;
       let direction = 0;
-      for (let index = 0; index < train.length; index += 1) {
-        const item = train[index];
-        const hit = { x: item.x, y: current.y + Math.tan(direction) * (item.x - current.x) };
-        if (Math.abs(hit.y - item.y) > 115 && item.kind !== "screen") continue;
-        rays.push({ from: current, to: hit, color: "#ffe066", width: 3 });
-        current = hit;
-        if (item.kind === "screen") break;
-        if (item.kind === "mirror") {
-          direction = reflectedAngle(direction, (item.angle ?? Math.PI / 2) - Math.PI / 2);
-          directions.push(degrees(direction));
-          rays.push({ from: current, to: pointAlong(current, direction, 260), color: "#70d6ff", width: 3 });
+      let rayColor = "#ffe066";
+      const visited = new Set<string>([source.id]);
+      for (let step = 0; step < 12; step += 1) {
+        const next = this.nextSandboxIntersection(current, direction, visited);
+        if (!next) {
+          rays.push({ from: current, to: pointAlong(current, direction, 300), color: rayColor, width: 3 });
           break;
         }
-        if (item.kind === "boundary") {
-          const relative = Math.atan2(Math.sin(direction), Math.cos(direction));
-          direction = refractedAngle(relative, 1, 1.333) ?? reflectedAngle(direction, 0);
+        const { item, hit } = next;
+        visited.add(item.id);
+        rays.push({ from: current, to: hit, color: rayColor, width: 3 });
+        current = hit;
+        if (item.kind === "screen") { directions.push(degrees(direction)); break; }
+        if (item.kind === "mirror") {
+          direction = reflectedAngle(direction, (item.angle ?? Math.PI / 2) - Math.PI / 2);
+          rayColor = "#70d6ff";
+        } else if (item.kind === "boundary") {
+          const normal = (item.angle ?? Math.PI / 2) - Math.PI / 2;
+          const relative = Math.atan2(Math.sin(direction - normal), Math.cos(direction - normal));
+          const refracted = refractedAngle(relative, 1, 1.333);
+          direction = refracted === null ? reflectedAngle(direction, normal) : normal + refracted;
+          rayColor = "#4cc9f0";
         } else if (item.kind === "lens") {
-          const focus = { x: item.x + 120, y: item.y };
+          const focus = { x: item.x + Math.sign(Math.cos(direction) || 1) * 120, y: item.y };
           direction = Math.atan2(focus.y - hit.y, focus.x - hit.x);
+          rayColor = "#80ed99";
         } else if (item.kind === "prism") {
           direction += prismDeviation(1.52, Math.PI / 3) * Math.sign((item.angle ?? 0) || 1);
+          rayColor = "#b77bff";
         } else if (item.kind === "slit") {
-          const screen = train.slice(index + 1).find((candidate) => candidate.kind === "screen");
-          if (screen) {
-            rays.push({ from: hit, to: { x: screen.x, y: screen.y - 65 }, color: "#ff70a6", width: 1 });
-            rays.push({ from: hit, to: { x: screen.x, y: screen.y + 65 }, color: "#ff70a6", width: 1 });
-          }
+          rayColor = "#ff70a6";
         }
         directions.push(degrees(direction));
+        current = pointAlong(current, direction, 0.01);
       }
     }
     return {
-      rays, graph: directions.length ? directions.map((angle, index) => ({ x: index + 1, y: angle })) : [{ x: 0, y: 0 }, { x: 1, y: 0 }],
+      rays, graph: directions.length ? directions.map((angle, index) => ({ x: index + 1, y: angle })) : [{ x: 0, y: 0 }, { x: 1, y: 0 }], graphIsCurrentState: true,
       graphValue: `${this.devices.length}개 장치 · ${rays.length}개 광선 구간`, handle: null,
     };
+  }
+
+  private nextSandboxIntersection(
+    origin: Point,
+    direction: number,
+    visited: ReadonlySet<string>,
+  ): { item: LightDevice; hit: Point; distance: number } | null {
+    const ray = { x: Math.cos(direction), y: Math.sin(direction) };
+    const candidates: { item: LightDevice; hit: Point; distance: number }[] = [];
+    for (const item of this.devices) {
+      if (visited.has(item.id) || item.kind === "source") continue;
+      let distance: number;
+      let hit: Point;
+      let offset: number;
+      if (item.kind === "mirror" || item.kind === "boundary") {
+        const tangentAngle = item.angle ?? Math.PI / 2;
+        const tangent = { x: Math.cos(tangentAngle), y: Math.sin(tangentAngle) };
+        const denominator = ray.x * tangent.y - ray.y * tangent.x;
+        if (Math.abs(denominator) < 1e-9) continue;
+        const delta = { x: item.x - origin.x, y: item.y - origin.y };
+        distance = (delta.x * tangent.y - delta.y * tangent.x) / denominator;
+        offset = (delta.x * ray.y - delta.y * ray.x) / denominator;
+        hit = pointAlong(origin, direction, distance);
+      } else {
+        if (Math.abs(ray.x) < 1e-9) continue;
+        distance = (item.x - origin.x) / ray.x;
+        hit = pointAlong(origin, direction, distance);
+        offset = hit.y - item.y;
+      }
+      const halfHeight = ({ mirror: 70, boundary: 90, lens: 92, prism: 65, slit: 100, screen: 110, source: 0 } as const)[item.kind];
+      if (distance > 0.05 && Math.abs(offset) <= halfHeight) candidates.push({ item, hit, distance });
+    }
+    return candidates.sort((a, b) => a.distance - b.distance)[0] ?? null;
   }
 
   private deviceLabel(kind: LightDeviceKind): string {

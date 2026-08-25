@@ -2,14 +2,21 @@ import type { SubjectController, SubjectExperience, SubjectHosts } from "../subj
 import { lightDefinition, lightLab, type LightLabId } from "./catalog";
 import { LightLabModel, type LightDeviceKind, type LightSceneId } from "./models";
 import { LightRenderer } from "./renderer";
+import { LightEventScopes } from "./lifecycle";
 import "./style.css";
+
+export const lightGraphHeading = (sceneId: LightSceneId): { title: string; axes: string } => {
+  if (sceneId === "sandbox") return { title: "장치 순서에 따른 광선 경로", axes: "만난 장치 (번째) · 진행 방향 (°)" };
+  const graph = lightLab(sceneId).graph;
+  return { title: graph.title, axes: `${graph.xLabel} · ${graph.yLabel}` };
+};
 
 class LightController implements SubjectController {
   private readonly model = new LightLabModel();
   private readonly canvas: HTMLCanvasElement;
   private readonly graphCanvas: HTMLCanvasElement;
   private readonly renderer: LightRenderer;
-  private readonly abort = new AbortController();
+  private readonly events = new LightEventScopes();
   private selectedSandboxDevice: string | null = null;
 
   constructor(private readonly hosts: SubjectHosts) {
@@ -29,7 +36,7 @@ class LightController implements SubjectController {
   resize(): void { this.renderer.resize(); this.paint(); }
 
   unmount(): void {
-    this.abort.abort();
+    this.events.dispose();
     this.hosts.experimentPanel.classList.remove("light-experience__experiments");
     this.hosts.workspace.classList.remove("light-experience__workspace");
     this.hosts.inspectorPanel.classList.remove("light-experience__inspector");
@@ -42,7 +49,7 @@ class LightController implements SubjectController {
     const cards = lightDefinition.labs.map((lab) => `<button type="button" data-light-lab="${lab.id}"><span>${lab.icon}</span><strong>${lab.title}</strong><small>${lab.category}</small></button>`).join("");
     this.hosts.experimentPanel.innerHTML = `<div class="light-experience"><p class="light-experience__eyebrow">${lightDefinition.eyebrow}</p><h2>빛 실험 선택</h2><div class="light-experience__list">${cards}<button type="button" data-light-lab="sandbox"><span>＋</span><strong>${lightDefinition.sandboxTitle}</strong><small>자유 구성</small></button></div></div>`;
     this.hosts.experimentPanel.querySelectorAll<HTMLElement>("[data-light-lab]").forEach((button) => {
-      button.addEventListener("click", () => this.activate(button.dataset.lightLab as LightSceneId), { signal: this.abort.signal });
+      button.addEventListener("click", () => this.activate(button.dataset.lightLab as LightSceneId), { signal: this.events.lifetimeSignal });
     });
   }
 
@@ -53,16 +60,16 @@ class LightController implements SubjectController {
       if (this.model.pointerDown(world)) {
         this.canvas.setPointerCapture(event.pointerId);
         if (this.model.activeScene === "sandbox") {
-          const nearest = this.model.snapshot().devices.find((item) => Math.hypot(item.x - world.x, item.y - world.y) <= 30);
+          const nearest = [...this.model.snapshot().devices].reverse().find((item) => Math.hypot(item.x - world.x, item.y - world.y) <= 30);
           this.selectedSandboxDevice = nearest?.id ?? null;
           this.renderPalette();
         }
       }
-    }, { signal: this.abort.signal });
-    this.canvas.addEventListener("pointermove", (event) => { if (this.model.pointerMove(point(event))) this.paint(); }, { signal: this.abort.signal });
+    }, { signal: this.events.lifetimeSignal });
+    this.canvas.addEventListener("pointermove", (event) => { if (this.model.pointerMove(point(event))) this.paint(); }, { signal: this.events.lifetimeSignal });
     const release = () => this.model.pointerUp();
-    this.canvas.addEventListener("pointerup", release, { signal: this.abort.signal });
-    this.canvas.addEventListener("pointercancel", release, { signal: this.abort.signal });
+    this.canvas.addEventListener("pointerup", release, { signal: this.events.lifetimeSignal });
+    this.canvas.addEventListener("pointercancel", release, { signal: this.events.lifetimeSignal });
   }
 
   private activate(sceneId: LightSceneId): void {
@@ -80,20 +87,23 @@ class LightController implements SubjectController {
 
   private renderGuide(): void {
     const guide = this.hosts.inspectorPanel.querySelector<HTMLElement>(".light-experience__guide")!;
+    const graph = this.hosts.inspectorPanel.querySelector<HTMLElement>(".light-experience__graph")!;
+    const signal = this.events.nextGuideSignal();
+    const graphHeading = lightGraphHeading(this.model.activeScene);
+    graph.querySelector("h3")!.textContent = graphHeading.title;
+    graph.querySelector(".light-experience__axes")!.textContent = graphHeading.axes;
     if (this.model.activeScene === "sandbox") {
       guide.innerHTML = `<p class="light-experience__eyebrow">자유 구성</p><h2>${lightDefinition.sandboxTitle}</h2><p>${lightDefinition.sandboxDescription}</p><ol><li>아래 팔레트에서 장치를 추가해요.</li><li>Canvas에서 장치를 잡아 옮겨요.</li><li>필요 없는 장치를 선택해 지워요.</li></ol><p class="light-experience__observe">광원과 장치를 옮길 때 실제 광선 경로가 함께 이어지는지 확인하세요.</p>`;
       return;
     }
     const lab = lightLab(this.model.activeScene as LightLabId);
     guide.innerHTML = `<p class="light-experience__eyebrow">탐구 질문</p><h2>${lab.title}</h2><p class="light-experience__question">${lab.question}</p><ol>${lab.steps.map((step) => `<li>${step}</li>`).join("")}</ol><p class="light-experience__observe"><strong>관찰:</strong> ${lab.observe}</p><details><summary>${lab.law.title}</summary><p>${lab.law.description}</p><code>${lab.law.equation}</code></details><button type="button" data-light-reset>처음으로</button>`;
-    guide.querySelector("[data-light-reset]")?.addEventListener("click", () => { this.model.reset(); this.paint(); }, { signal: this.abort.signal });
-    const graph = this.hosts.inspectorPanel.querySelector<HTMLElement>(".light-experience__graph")!;
-    graph.querySelector("h3")!.textContent = lab.graph.title;
-    graph.querySelector(".light-experience__axes")!.textContent = `${lab.graph.xLabel} · ${lab.graph.yLabel}`;
+    guide.querySelector("[data-light-reset]")?.addEventListener("click", () => { this.model.reset(); this.paint(); }, { signal });
   }
 
   private renderPalette(): void {
     const palette = this.hosts.inspectorPanel.querySelector<HTMLElement>(".light-experience__palette")!;
+    const signal = this.events.nextPaletteSignal();
     palette.hidden = this.model.activeScene !== "sandbox";
     if (palette.hidden) return;
     const kinds: readonly LightDeviceKind[] = ["source", "mirror", "boundary", "lens", "prism", "slit", "screen"];
@@ -101,14 +111,14 @@ class LightController implements SubjectController {
     palette.innerHTML = `<h3>광학 장치</h3><div>${kinds.map((kind) => `<button type="button" data-add-light="${kind}">+ ${labels[kind]}</button>`).join("")}</div><button type="button" data-delete-light ${this.selectedSandboxDevice ? "" : "disabled"}>선택 장치 지우기</button><button type="button" data-light-reset>처음으로</button>`;
     palette.querySelectorAll<HTMLElement>("[data-add-light]").forEach((button) => button.addEventListener("click", () => {
       this.model.addDevice(button.dataset.addLight as LightDeviceKind); this.paint();
-    }, { signal: this.abort.signal }));
+    }, { signal }));
     palette.querySelector("[data-delete-light]")?.addEventListener("click", () => {
       if (this.selectedSandboxDevice) this.model.removeDevice(this.selectedSandboxDevice);
       this.selectedSandboxDevice = null; this.renderPalette(); this.paint();
-    }, { signal: this.abort.signal });
+    }, { signal });
     palette.querySelector("[data-light-reset]")?.addEventListener("click", () => {
       this.model.reset(); this.selectedSandboxDevice = null; this.renderPalette(); this.paint();
-    }, { signal: this.abort.signal });
+    }, { signal });
   }
 
   private paint(): void {

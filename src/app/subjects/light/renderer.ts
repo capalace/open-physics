@@ -6,6 +6,9 @@ const WORLD_HEIGHT = 600;
 export class LightRenderer {
   private readonly context: CanvasRenderingContext2D;
   private readonly graphContext: CanvasRenderingContext2D;
+  private graphRatio = 1;
+  private graphWidth = 420;
+  private readonly graphHeight = 230;
 
   constructor(private readonly canvas: HTMLCanvasElement, private readonly graphCanvas: HTMLCanvasElement) {
     const context = canvas.getContext("2d");
@@ -23,9 +26,10 @@ export class LightRenderer {
     this.canvas.width = Math.round(width * ratio);
     this.canvas.height = Math.round(height * ratio);
     this.context.setTransform(this.canvas.width / WORLD_WIDTH, 0, 0, this.canvas.height / WORLD_HEIGHT, 0, 0);
-    const graphWidth = this.graphCanvas.clientWidth || 420;
-    this.graphCanvas.width = Math.round(graphWidth * ratio);
-    this.graphCanvas.height = Math.round(230 * ratio);
+    this.graphRatio = ratio;
+    this.graphWidth = this.graphCanvas.clientWidth || 420;
+    this.graphCanvas.width = Math.round(this.graphWidth * ratio);
+    this.graphCanvas.height = Math.round(this.graphHeight * ratio);
   }
 
   worldPoint(event: PointerEvent): Point {
@@ -122,7 +126,16 @@ export class LightRenderer {
         ctx.beginPath(); ctx.moveTo(0, -65); ctx.lineTo(62, 45); ctx.lineTo(-62, 45); ctx.closePath(); ctx.fill(); ctx.stroke();
         break;
       case "slit":
-        ctx.fillStyle = "#ff70a6"; ctx.fillRect(-7, -100, 14, 78); ctx.fillRect(-7, 22, 14, 78);
+        {
+          const separation = item.separation ?? 44;
+          const upper = -separation / 2;
+          const lower = separation / 2;
+          const halfOpening = 6;
+          ctx.fillStyle = "#ff70a6";
+          ctx.fillRect(-7, -100, 14, Math.max(0, upper - halfOpening + 100));
+          ctx.fillRect(-7, upper + halfOpening, 14, Math.max(0, lower - upper - halfOpening * 2));
+          ctx.fillRect(-7, lower + halfOpening, 14, Math.max(0, 100 - lower - halfOpening));
+        }
         break;
       case "screen":
         ctx.fillStyle = `rgba(255,224,102,${0.12 + intensity * 0.55})`; ctx.strokeStyle = "#d8e5ff";
@@ -164,24 +177,61 @@ export class LightRenderer {
 
   private drawGraph(snapshot: LightSnapshot): void {
     const ctx = this.graphContext;
-    const width = this.graphCanvas.width;
-    const height = this.graphCanvas.height;
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    const width = this.graphWidth;
+    const height = this.graphHeight;
+    ctx.setTransform(this.graphRatio, 0, 0, this.graphRatio, 0, 0);
     ctx.clearRect(0, 0, width, height);
     ctx.fillStyle = "#0c1830"; ctx.fillRect(0, 0, width, height);
-    const pad = 36;
+    const left = 48;
+    const right = 16;
+    const top = 36;
+    const bottom = 34;
     const points = snapshot.graph;
     if (!points.length) return;
-    const minX = Math.min(...points.map((point) => point.x));
-    const maxX = Math.max(...points.map((point) => point.x));
-    const minY = Math.min(0, ...points.map((point) => point.y));
-    const maxY = Math.max(...points.map((point) => point.y), minY + 1e-6);
-    const sx = (value: number) => pad + (value - minX) / Math.max(1e-9, maxX - minX) * (width - pad * 1.5);
-    const sy = (value: number) => height - pad - (value - minY) / (maxY - minY) * (height - pad * 1.5);
+    const minX = Math.min(...points.map((point) => point.x), snapshot.graphCurrent?.x ?? Number.POSITIVE_INFINITY);
+    const maxX = Math.max(...points.map((point) => point.x), snapshot.graphCurrent?.x ?? Number.NEGATIVE_INFINITY);
+    const minY = Math.min(0, ...points.map((point) => point.y), snapshot.graphCurrent?.y ?? Number.POSITIVE_INFINITY);
+    const maxY = Math.max(0, ...points.map((point) => point.y), snapshot.graphCurrent?.y ?? Number.NEGATIVE_INFINITY, minY + 1e-6);
+    const sx = (value: number) => left + (value - minX) / Math.max(1e-9, maxX - minX) * (width - left - right);
+    const sy = (value: number) => height - bottom - (value - minY) / Math.max(1e-9, maxY - minY) * (height - top - bottom);
+    const tick = (value: number) => Math.abs(value) >= 100 ? value.toFixed(0) : Math.abs(value) >= 10 ? value.toFixed(1) : value.toFixed(2);
     ctx.strokeStyle = "rgba(220,235,255,.35)"; ctx.lineWidth = 2;
-    ctx.beginPath(); ctx.moveTo(pad, 14); ctx.lineTo(pad, height - pad); ctx.lineTo(width - 12, height - pad); ctx.stroke();
-    ctx.strokeStyle = "#ffd34d"; ctx.lineWidth = 3; ctx.beginPath();
+    ctx.beginPath(); ctx.moveTo(left, top); ctx.lineTo(left, height - bottom); ctx.lineTo(width - right, height - bottom); ctx.stroke();
+    ctx.font = "11px system-ui";
+    ctx.fillStyle = "rgba(220,235,255,.72)";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "top";
+    for (let index = 0; index <= 4; index += 1) {
+      const fraction = index / 4;
+      const xValue = minX + (maxX - minX) * fraction;
+      const x = sx(xValue);
+      ctx.beginPath(); ctx.moveTo(x, height - bottom); ctx.lineTo(x, height - bottom + 4); ctx.stroke();
+      ctx.fillText(tick(xValue), x, height - bottom + 6);
+    }
+    ctx.textAlign = "right";
+    ctx.textBaseline = "middle";
+    for (let index = 0; index <= 4; index += 1) {
+      const fraction = index / 4;
+      const yValue = minY + (maxY - minY) * fraction;
+      const y = sy(yValue);
+      ctx.beginPath(); ctx.moveTo(left - 4, y); ctx.lineTo(left, y); ctx.stroke();
+      ctx.fillText(tick(yValue), left - 7, y);
+    }
+    ctx.strokeStyle = snapshot.graphSeries.color; ctx.lineWidth = 3; ctx.beginPath();
     points.forEach((point, index) => index === 0 ? ctx.moveTo(sx(point.x), sy(point.y)) : ctx.lineTo(sx(point.x), sy(point.y)));
     ctx.stroke();
+    if (snapshot.graphCurrent) {
+      ctx.fillStyle = snapshot.graphSeries.color;
+      ctx.strokeStyle = "#fff";
+      ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(sx(snapshot.graphCurrent.x), sy(snapshot.graphCurrent.y), 5, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+    }
+    ctx.textAlign = "left";
+    ctx.textBaseline = "middle";
+    ctx.fillStyle = snapshot.graphSeries.color;
+    ctx.fillRect(left, 14, 18, 4);
+    ctx.fillStyle = "#e7f0ff";
+    ctx.font = "600 12px system-ui";
+    ctx.fillText(`${snapshot.graphIsCurrentState ? "현재 " : ""}${snapshot.graphSeries.label}`, left + 25, 16);
   }
 }
