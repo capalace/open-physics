@@ -7,20 +7,28 @@ import { MultiBodyWorld } from "./world";
 
 export interface SimulatedBody extends Body { readonly charge?: number; }
 
+export interface NetForceModifier {
+  readonly id: string;
+  modifyForce(body: SimulatedBody, force: Force, context: PhysicsContext): Force;
+}
+
 export interface SimulationConfig {
   laws?: WorldForceLaw[];
   fields?: SpatialField[];
   constraints?: DistanceConstraint[];
+  forceModifiers?: NetForceModifier[];
   solver?: Solver;
 }
 
 /** Explicit simulation pipeline: forces -> integration -> constraints -> collisions -> time. */
 export class PhysicsSimulation extends MultiBodyWorld {
   readonly fields: SpatialField[];
+  readonly forceModifiers: NetForceModifier[];
 
   constructor(config: SimulationConfig = {}) {
     super(config.laws ?? [], config.solver ?? eulerSolver, config.constraints ?? []);
     this.fields = config.fields ?? [];
+    this.forceModifiers = config.forceModifiers ?? [];
   }
 
   addField(field: SpatialField): void { this.fields.push(field); }
@@ -69,7 +77,9 @@ export class PhysicsSimulation extends MultiBodyWorld {
     let vector: Vector2 = { x: 0, y: 0 };
     for (const law of this.laws) vector = add(vector, law.forceOnBody(body, this.allBodies, context).vector);
     for (const field of this.fields) vector = add(vector, field.forceAt(body.state as BodyState & { charge?: number }, context).vector);
-    return { vector, source: "simulation-net" };
+    let force: Force = { vector, source: "simulation-net" };
+    for (const modifier of this.forceModifiers) force = modifier.modifyForce(body, force, context);
+    return force;
   }
 
   get collisionEvents(): readonly CollisionEvent[] { return this.collisions; }

@@ -344,6 +344,42 @@ describe("PhysicsPlayground contacts", () => {
     expect(collided).toBe(true);
     expect(maximumSpeed).toBeLessThan(0.05);
   });
+
+  it("slows a clay object more strongly than a steel object on the sandbox floor", () => {
+    vi.stubGlobal("requestAnimationFrame", () => 0);
+    const finalSpeed = (material: "clay" | "steel"): number => {
+      const playground = new PhysicsPlayground(createCanvas(), { width: 960, height: 600 });
+      playground.startSandbox();
+      const object = [...playground.objects.values()][0];
+      playground.updateSelected({ material });
+      const body = playground.simulation.getBody(object.id)!;
+      const advance = playground as unknown as { advance(dt: number): void };
+      body.state.position.y = playground.floorY - object.radius;
+      body.state.velocity.x = 240;
+
+      for (let frame = 0; frame < 60; frame += 1) advance.advance(1 / 120);
+      return Math.abs(body.state.velocity.x);
+    };
+
+    expect(finalSpeed("clay")).toBeLessThan(finalSpeed("steel"));
+  });
+
+  it("does not apply floor friction without gravity", () => {
+    vi.stubGlobal("requestAnimationFrame", () => 0);
+    const playground = new PhysicsPlayground(createCanvas(), { width: 960, height: 600 });
+    playground.startSandbox();
+    playground.setGravity(0);
+    const object = [...playground.objects.values()][0];
+    playground.updateSelected({ material: "clay" });
+    const body = playground.simulation.getBody(object.id)!;
+    const advance = playground as unknown as { advance(dt: number): void };
+    body.state.position.y = playground.floorY - object.radius;
+    body.state.velocity.x = 120;
+
+    for (let frame = 0; frame < 60; frame += 1) advance.advance(1 / 120);
+
+    expect(body.state.velocity.x).toBeCloseTo(120);
+  });
 });
 
 describe("PhysicsPlayground gravity visualization", () => {

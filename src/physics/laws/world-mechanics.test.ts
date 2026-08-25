@@ -1,8 +1,11 @@
 import { describe, expect, it } from "vitest";
+import { PhysicsSimulation } from "../simulation";
 import type { Body } from "../world";
+import type { WorldForceLaw } from "../world";
 import {
   AnchoredSpringLaw,
   BuoyancyRegionLaw,
+  HorizontalGroundFrictionModifier,
   HorizontalSurfaceFrictionLaw,
   PushFrictionLaw,
 } from "./world-mechanics";
@@ -56,6 +59,50 @@ describe("AnchoredSpringLaw", () => {
     moving.state.velocity.x = 4;
 
     expect(law.forceOnBody(moving, [], context).vector).toEqual({ x: -12, y: 0 });
+  });
+});
+
+describe("HorizontalGroundFrictionModifier", () => {
+  it("cancels a small horizontal force while a body is resting on the ground", () => {
+    const friction = new HorizontalGroundFrictionModifier({ surfaceY: 100, normalAcceleration: 10 });
+    const resting = body({ staticFriction: 0.5, kineticFriction: 0.3 });
+
+    expect(friction.modifyForce(resting, { vector: { x: 8, y: 20 }, source: "external" }, context).vector)
+      .toEqual({ x: 0, y: 20 });
+  });
+
+  it("uses kinetic friction after the maximum static force is exceeded", () => {
+    const friction = new HorizontalGroundFrictionModifier({ surfaceY: 100, normalAcceleration: 10 });
+    const resting = body({ staticFriction: 0.5, kineticFriction: 0.3 });
+
+    expect(friction.modifyForce(resting, { vector: { x: 12, y: 20 }, source: "external" }, context).vector.x)
+      .toBe(6);
+  });
+
+  it("stops a moving body without reversing it", () => {
+    const friction = new HorizontalGroundFrictionModifier({ surfaceY: 100, normalAcceleration: 10 });
+    const moving = body({ staticFriction: 0.7, kineticFriction: 0.6 });
+    moving.state.velocity.x = 0.1;
+
+    expect(friction.modifyForce(moving, { vector: { x: 0, y: 20 }, source: "external" }, context).vector.x)
+      .toBe(-2);
+  });
+
+  it("modifies the combined force before the simulation integrates it", () => {
+    const push: WorldForceLaw = {
+      id: "push",
+      force: () => ({ vector: { x: 8, y: 20 }, source: "push" }),
+      forceOnBody: () => ({ vector: { x: 8, y: 20 }, source: "push" }),
+    };
+    const simulation = new PhysicsSimulation({
+      laws: [push],
+      forceModifiers: [new HorizontalGroundFrictionModifier({ surfaceY: 100, normalAcceleration: 10 })],
+    });
+    simulation.addBody(body({ staticFriction: 0.5, kineticFriction: 0.3 }));
+
+    simulation.refreshAccelerations();
+
+    expect(simulation.getBody("target")?.state.acceleration.x).toBe(0);
   });
 });
 

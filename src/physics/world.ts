@@ -8,6 +8,8 @@ export interface Body {
   radius?: number;
   collider?: BodyCollider;
   restitution?: number;
+  staticFriction?: number;
+  kineticFriction?: number;
   readonly fixed?: boolean;
 }
 

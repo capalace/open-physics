@@ -1,6 +1,7 @@
 import type { BodyState, PhysicsContext, Vector2 } from "../core";
 import type { Force } from "../quantities";
 import type { Body, WorldForceLaw } from "../world";
+import type { NetForceModifier, SimulatedBody } from "../simulation";
 
 const zeroForce = (source: string): Force => ({ vector: { x: 0, y: 0 }, source });
 
@@ -62,6 +63,94 @@ export class AnchoredSpringLaw implements WorldForceLaw {
     if (this.stiffness < 0) throw new RangeError("Spring stiffness must be non-negative.");
     if (this.restLength < 0) throw new RangeError("Spring rest length must be non-negative.");
     if (this.damping < 0) throw new RangeError("Spring damping must be non-negative.");
+  }
+}
+
+export interface HorizontalGroundFrictionOptions {
+  surfaceY: number;
+  normalAcceleration: number;
+  contactTolerance?: number;
+}
+
+/** Applies static or kinetic friction after all other forces have been combined. */
+export class HorizontalGroundFrictionModifier implements NetForceModifier {
+  readonly id = "friction.ground.horizontal";
+  surfaceY: number;
+  normalAcceleration: number;
+  contactTolerance: number;
+  private readonly excludedBodyIds = new Set<string>();
+
+  constructor(options: HorizontalGroundFrictionOptions) {
+    this.surfaceY = options.surfaceY;
+    this.normalAcceleration = options.normalAcceleration;
+    this.contactTolerance = options.contactTolerance ?? 2;
+    this.validate();
+  }
+
+  setSurfaceY(surfaceY: number): void {
+    this.surfaceY = surfaceY;
+    this.validate();
+  }
+
+  setNormalAcceleration(normalAcceleration: number): void {
+    this.normalAcceleration = normalAcceleration;
+    this.validate();
+  }
+
+  excludeBody(id: string): void { this.excludedBodyIds.add(id); }
+  clearExcludedBodies(): void { this.excludedBodyIds.clear(); }
+
+  modifyForce(body: SimulatedBody, force: Force, context: PhysicsContext): Force {
+    const kineticCoefficient = body.kineticFriction ?? 0;
+    const staticCoefficient = body.staticFriction ?? kineticCoefficient;
+    if (
+      body.fixed
+      || this.excludedBodyIds.has(body.id)
+      || this.normalAcceleration === 0
+      || (staticCoefficient === 0 && kineticCoefficient === 0)
+      || Math.abs(this.bodyBottom(body) - this.surfaceY) > this.contactTolerance
+    ) {
+      return force;
+    }
+
+    const speed = Math.abs(body.state.velocity.x);
+    const maximumStaticFriction = staticCoefficient * body.state.mass * this.normalAcceleration;
+    if (speed < 0.01 && Math.abs(force.vector.x) <= maximumStaticFriction) {
+      return { vector: { x: 0, y: force.vector.y }, source: this.id };
+    }
+
+    const direction = speed >= 0.01
+      ? Math.sign(body.state.velocity.x)
+      : Math.sign(force.vector.x);
+    const kineticFriction = kineticCoefficient * body.state.mass * this.normalAcceleration;
+    let horizontalForce = force.vector.x - direction * kineticFriction;
+    if (speed >= 0.01) {
+      const nextVelocity = body.state.velocity.x + horizontalForce / body.state.mass * context.dt;
+      if (body.state.velocity.x * nextVelocity <= 0) {
+        horizontalForce = -body.state.mass * body.state.velocity.x / context.dt;
+      }
+    }
+    return {
+      vector: { x: horizontalForce, y: force.vector.y },
+      source: this.id,
+    };
+  }
+
+  private bodyBottom(body: Body): number {
+    const halfHeight = body.collider?.kind === "box"
+      ? body.collider.halfHeight
+      : body.collider?.kind === "circle" ? body.collider.radius : body.radius ?? 0;
+    return body.state.position.y + halfHeight;
+  }
+
+  private validate(): void {
+    if (!Number.isFinite(this.surfaceY)) throw new RangeError("Surface position must be finite.");
+    if (!Number.isFinite(this.normalAcceleration) || this.normalAcceleration < 0) {
+      throw new RangeError("Normal acceleration must be finite and non-negative.");
+    }
+    if (!Number.isFinite(this.contactTolerance) || this.contactTolerance < 0) {
+      throw new RangeError("Contact tolerance must be finite and non-negative.");
+    }
   }
 }
 
