@@ -171,7 +171,7 @@ button:focus-visible, input:focus-visible { outline: 3px solid #91a8ff; outline-
   box-shadow: 0 8px 24px #22304a0a;
 }
 body[data-app-mode="sandbox"] .world-toolbar { flex-wrap: wrap; }
-body[data-app-mode="sandbox"] .creation-controls { order: 2; flex: 0 0 100%; border-top: 1px solid #e5eaf1; padding: 7px 4px 1px; }
+body[data-app-mode="sandbox"] .creation-controls { order: 2; flex: 0 0 100%; flex-wrap: wrap; border-top: 1px solid #e5eaf1; padding: 7px 4px 1px; }
 body[data-app-mode="sandbox"] .creation-controls .danger-button { margin-left: auto; }
 .transport-controls, .creation-controls { display: flex; align-items: center; gap: 6px; }
 .primary-button, .icon-button, .creation-controls button {
@@ -195,6 +195,9 @@ button:disabled { opacity: .45; cursor: not-allowed; }
 .toolbar-divider { align-self: stretch; width: 1px; margin: 3px 2px; background: #e4e9f0; }
 .creation-controls button { display: inline-flex; flex: 0 0 auto; align-items: center; gap: 6px; padding: 0 10px; white-space: nowrap; }
 .palette-label { color: #8a96a8; font-size: 12px; font-weight: 800; }
+.palette-divider { align-self: stretch; width: 1px; margin: 5px 3px; background: #e1e7f0; }
+.apparatus-symbol { display: inline-grid; width: 17px; place-items: center; color: #5575e8; font-size: 16px; font-style: normal; font-weight: 900; line-height: 1; }
+.apparatus-symbol.lever { font-size: 12px; transform: rotate(-9deg); }
 .shape-circle { display: inline-block; width: 11px; height: 11px; border: 2px solid #5575e8; border-radius: 50%; }
 .shape-box, .shape-block { display: inline-block; border: 2px solid #5575e8; border-radius: 2px; }
 .shape-box { width: 12px; height: 12px; }

@@ -39,6 +39,13 @@ describe("sandbox object palette", () => {
     expect(objectKinds).toEqual(["ball", "box", "block"]);
   });
 
+  it("offers reusable mechanics apparatus in the sandbox", () => {
+    const apparatusKinds = [...markup.matchAll(/data-apparatus-kind="([^"]+)"/g)]
+      .map((match) => match[1]);
+
+    expect(apparatusKinds).toEqual(["spring", "lever", "pulley"]);
+  });
+
   it("uses direct manipulation instead of size presets", () => {
     const sizes = [...markup.matchAll(/data-size="([^"]+)"/g)].map((match) => match[1]);
 

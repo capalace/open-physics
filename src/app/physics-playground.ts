@@ -33,6 +33,7 @@ export type PlaygroundPreset =
   | "pulley";
 export type PlaygroundMaterial = "rubber" | "wood" | "steel" | "clay";
 export type SandboxObjectKind = "ball" | "box" | "block";
+export type SandboxApparatusKind = "spring" | "lever" | "pulley";
 
 export const MATERIALS: Readonly<Record<PlaygroundMaterial, {
   restitution: number;
@@ -78,6 +79,7 @@ export interface PlaygroundSnapshot {
     mass: number;
     material: PlaygroundMaterial;
     fixed: boolean;
+    guided: boolean;
   } | null;
   graph: PlaygroundGraph | null;
 }
@@ -351,6 +353,34 @@ export class PhysicsPlayground {
     });
   }
 
+  addSandboxApparatus(kind: SandboxApparatusKind): PlaygroundObject {
+    this._paused = true;
+    this.labMode = false;
+    this.accumulator = 0;
+    this.clearSandboxApparatus();
+    if (kind === "spring") {
+      const selected = this.selectedId ? this.objects.get(this.selectedId) : undefined;
+      const selectedBody = selected ? this.simulation.getBody(selected.id) : undefined;
+      const object = selected && !selectedBody?.fixed
+        ? selected
+        : this.addCircle(this.canvas.width * 0.56, this.floorY * 0.48, 28, {
+          label: "용수철 공",
+          color: "#a069dc",
+          material: "wood",
+        });
+      this.connectSpring(object);
+      this.notify();
+      return object;
+    }
+
+    this.moveOrdinaryObjectsBelowApparatusHeader();
+    const object = kind === "lever"
+      ? this.createLeverChallenge()
+      : this.createPulleyChallenge();
+    this.notify();
+    return object;
+  }
+
   startSandbox(): void {
     this._paused = true;
     this.labMode = false;
@@ -462,15 +492,7 @@ export class PhysicsPlayground {
         mass: 1,
         material: "wood",
       });
-      this.springLaw = new AnchoredSpringLaw({
-        bodyId: object.id,
-        anchor,
-        restLength,
-        stiffness: 5,
-        damping: 0.45,
-      });
-      this.simulation.addLaw(this.springLaw);
-      this.simulation.refreshAccelerations();
+      this.connectSpring(object, anchor, restLength);
     } else if (preset === "friction") {
       this.replaceGravity(9.81);
       const object = this.addBox(this.canvas.width * 0.34, this.floorY - 34, 76, 68, {
@@ -490,32 +512,7 @@ export class PhysicsPlayground {
       this.simulation.refreshAccelerations();
     } else if (preset === "rotation") {
       this.replaceGravity(9.81);
-      const center = { x: this.canvas.width * 0.46, y: this.floorY * 0.58 };
-      const beamLength = Math.min(this.canvas.width * 0.58, 560);
-      const loadArm = beamLength * 0.22;
-      const effortArm = beamLength * 0.45;
-      const load = this.addBox(center.x - loadArm, center.y - 45, 74, 74, {
-        label: "무거운 짐",
-        color: "#f27a54",
-        mass: 20,
-        material: "wood",
-        fixed: true,
-      });
-      this.guidedScene = {
-        kind: "lever",
-        loadId: load.id,
-        model: new LeverChallenge({
-          loadMass: 20,
-          gravity: this.gravity,
-          loadArm,
-          effortArm,
-        }),
-        center,
-        beamLength,
-        appliedForce: 0,
-        angle: 0,
-      };
-      this.applyGuidedScenePoses();
+      this.createLeverChallenge();
     } else if (preset === "orbit") {
       this.replaceGravity(0);
       const center = { x: this.canvas.width * 0.5, y: this.floorY * 0.5 };
@@ -601,30 +598,7 @@ export class PhysicsPlayground {
       this.setBodyPose(rodObject.id, rodPose);
     } else {
       this.replaceGravity(9.81);
-      const fixedY = 210;
-      const loadX = this.canvas.width * 0.38;
-      const loadStartY = this.floorY - 52;
-      const pullX = this.canvas.width * 0.68;
-      const load = this.addBox(loadX, loadStartY, 82, 82, {
-        label: "들어 올릴 짐",
-        color: "#f27a54",
-        mass: 20,
-        material: "wood",
-        fixed: true,
-      });
-      this.guidedScene = {
-        kind: "pulley-advantage",
-        loadId: load.id,
-        model: new PulleyAdvantageChallenge({ loadMass: 20, gravity: this.gravity, supportStrands: 1 }),
-        fixedY,
-        loadX,
-        loadStartY,
-        pullX,
-        pullStartY: fixedY + 113,
-        pullDistance: 0,
-        maxLift: Math.max(0, loadStartY - fixedY - 90),
-      };
-      this.applyGuidedScenePoses();
+      this.createPulleyChallenge();
     }
     this._paused = !autoPlay;
     this.recordGraphSample(true);
@@ -645,13 +619,7 @@ export class PhysicsPlayground {
     if (!this.selectedId) return;
     const guidedIds = this.guidedBodyIds();
     if (guidedIds.includes(this.selectedId)) {
-      for (const id of guidedIds) {
-        this.simulation.removeBody(id);
-        this.objects.delete(id);
-        this.trails.delete(id);
-      }
-      this.guidedScene = null;
-      this.selectedId = null;
+      this.removeGuidedApparatus();
       this.notify();
       return;
     }
@@ -753,6 +721,7 @@ export class PhysicsPlayground {
           mass: body.state.mass,
           material: object.material,
           fixed: Boolean(body.fixed),
+          guided: this.isGuidedBody(object.id),
         };
       }
     }
@@ -882,6 +851,124 @@ export class PhysicsPlayground {
 
   private presetX(referenceX: number): number {
     return referenceX / PRESET_REFERENCE_WIDTH * this.canvas.width;
+  }
+
+  private connectSpring(
+    object: PlaygroundObject,
+    anchor: Vector2 = {
+      x: Math.max(54, object.x - Math.min(this.canvas.width * 0.25, 240)),
+      y: object.y,
+    },
+    restLength = Math.hypot(object.x - anchor.x, object.y - anchor.y),
+  ): void {
+    if (this.springLaw) this.simulation.removeLaw(this.springLaw.id);
+    this.springLaw = new AnchoredSpringLaw({
+      bodyId: object.id,
+      anchor,
+      restLength,
+      stiffness: 5,
+      damping: 0.45,
+    });
+    this.simulation.addLaw(this.springLaw);
+    this.simulation.refreshAccelerations();
+    this.select(object.id);
+  }
+
+  private createLeverChallenge(): PlaygroundObject {
+    const center = { x: this.canvas.width * 0.46, y: this.floorY * 0.58 };
+    const beamLength = Math.min(this.canvas.width * 0.58, 560);
+    const loadArm = beamLength * 0.22;
+    const effortArm = beamLength * 0.45;
+    const load = this.addBox(center.x - loadArm, center.y - 45, 74, 74, {
+      label: "무거운 짐",
+      color: "#f27a54",
+      mass: 20,
+      material: "wood",
+      fixed: true,
+    });
+    this.guidedScene = {
+      kind: "lever",
+      loadId: load.id,
+      model: new LeverChallenge({
+        loadMass: 20,
+        gravity: Math.max(this.gravity, 0.01),
+        loadArm,
+        effortArm,
+      }),
+      center,
+      beamLength,
+      appliedForce: 0,
+      angle: 0,
+    };
+    this.applyGuidedScenePoses();
+    return load;
+  }
+
+  private createPulleyChallenge(): PlaygroundObject {
+    const fixedY = Math.min(210, this.floorY * 0.38);
+    const loadX = this.canvas.width * 0.38;
+    const loadStartY = this.floorY - 52;
+    const pullX = this.canvas.width * 0.68;
+    const load = this.addBox(loadX, loadStartY, 82, 82, {
+      label: "들어 올릴 짐",
+      color: "#f27a54",
+      mass: 20,
+      material: "wood",
+      fixed: true,
+    });
+    this.guidedScene = {
+      kind: "pulley-advantage",
+      loadId: load.id,
+      model: new PulleyAdvantageChallenge({
+        loadMass: 20,
+        gravity: Math.max(this.gravity, 0.01),
+        supportStrands: 1,
+      }),
+      fixedY,
+      loadX,
+      loadStartY,
+      pullX,
+      pullStartY: fixedY + 113,
+      pullDistance: 0,
+      maxLift: Math.max(0, loadStartY - fixedY - 90),
+    };
+    this.applyGuidedScenePoses();
+    return load;
+  }
+
+  private removeGuidedApparatus(): void {
+    const guidedIds = this.guidedBodyIds();
+    for (const id of guidedIds) {
+      this.simulation.removeBody(id);
+      this.objects.delete(id);
+      this.trails.delete(id);
+    }
+    if (this.selectedId && guidedIds.includes(this.selectedId)) this.selectedId = null;
+    this.guidedScene = null;
+    this.challengeDrag = null;
+    this.challengeDragOrigin = null;
+    this.challengeDragPoint = null;
+    this.challengeDragStartPullDistance = 0;
+  }
+
+  private clearSandboxApparatus(): void {
+    if (this.springLaw) this.simulation.removeLaw(this.springLaw.id);
+    this.springLaw = null;
+    this.removeGuidedApparatus();
+  }
+
+  private moveOrdinaryObjectsBelowApparatusHeader(): void {
+    for (const object of this.objects.values()) {
+      const body = this.simulation.getBody(object.id);
+      if (!body) continue;
+      const halfHeight = object.shape === "circle" ? object.radius : object.height / 2;
+      if (body.state.position.y - halfHeight >= 170) continue;
+      body.state.position.y = this.floorY - halfHeight - 12;
+      body.state.velocity = { x: 0, y: 0 };
+      body.state.acceleration = this.gravityAcceleration();
+    }
+    this.syncObjects();
+    this.clearTrails();
   }
 
   private refreshOrbitAnalysis(): void {

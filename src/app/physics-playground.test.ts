@@ -141,6 +141,45 @@ describe("PhysicsPlayground object creation", () => {
     expect(playground.simulation.getBody(block.id)?.fixed).toBe(true);
   });
 
+  it("connects a sandbox spring to the selected movable object", () => {
+    vi.stubGlobal("requestAnimationFrame", () => 0);
+    const playground = new PhysicsPlayground(createCanvas(), { width: 960, height: 600 });
+    playground.startSandbox();
+    const selected = [...playground.objects.values()][0];
+
+    const connected = playground.addSandboxApparatus("spring");
+    const controller = playground as unknown as {
+      springLaw: { bodyId: string } | null;
+    };
+
+    expect(connected.id).toBe(selected.id);
+    expect(controller.springLaw?.bodyId).toBe(selected.id);
+    expect(playground.objects.size).toBe(1);
+  });
+
+  it("replaces only the guided sandbox apparatus while keeping ordinary objects", () => {
+    vi.stubGlobal("requestAnimationFrame", () => 0);
+    const playground = new PhysicsPlayground(createCanvas(), { width: 960, height: 600 });
+    playground.startSandbox();
+    const ordinary = [...playground.objects.values()][0];
+
+    const leverLoad = playground.addSandboxApparatus("lever");
+    expect(playground.objects.has(ordinary.id)).toBe(true);
+    expect(playground.simulation.getBody(ordinary.id)!.state.position.y).toBeGreaterThan(400);
+
+    const pulleyLoad = playground.addSandboxApparatus("pulley");
+    const controller = playground as unknown as {
+      guidedScene: { kind: string } | null;
+    };
+
+    expect(playground.objects.has(ordinary.id)).toBe(true);
+    expect(playground.objects.has(leverLoad.id)).toBe(false);
+    expect(playground.objects.has(pulleyLoad.id)).toBe(true);
+    expect(playground.objects.size).toBe(2);
+    expect(controller.guidedScene?.kind).toBe("pulley-advantage");
+    expect(playground.snapshot().selected).toMatchObject({ id: pulleyLoad.id, guided: true });
+  });
+
   it("resizes a fixed block by dragging its corner handle", () => {
     vi.stubGlobal("requestAnimationFrame", () => 0);
     const { canvas, dispatchPointer } = createInteractiveCanvas();

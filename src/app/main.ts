@@ -3,6 +3,7 @@ import {
   type PlaygroundMaterial,
   type PlaygroundPreset,
   type PlaygroundSnapshot,
+  type SandboxApparatusKind,
   type SandboxObjectKind,
 } from "./physics-playground";
 import { formatGraphValue, renderLabGraph } from "./lab-graph";
@@ -62,6 +63,14 @@ required<HTMLButtonElement>("#reset").addEventListener("click", () => {
 document.querySelectorAll<HTMLButtonElement>("[data-object-kind]").forEach((button) => {
   button.addEventListener("click", () => {
     if (appMode === "sandbox") playground.addSandboxObject(button.dataset.objectKind as SandboxObjectKind);
+  });
+});
+document.querySelectorAll<HTMLButtonElement>("[data-apparatus-kind]").forEach((button) => {
+  button.addEventListener("click", () => {
+    if (appMode === "sandbox") {
+      playground.addSandboxApparatus(button.dataset.apparatusKind as SandboxApparatusKind);
+      pulseWorld();
+    }
   });
 });
 deleteButton.addEventListener("click", () => {
@@ -173,11 +182,12 @@ function renderSnapshot(snapshot: PlaygroundSnapshot): void {
   inspectorForm.hidden = !editorAvailable || !snapshot.selected;
   blockResizeHelp.hidden = appMode !== "sandbox"
     || !snapshot.selected?.fixed
+    || snapshot.selected.guided
     || snapshot.selected.shape !== "box";
   deleteButton.disabled = appMode === "lab" || !snapshot.selected;
   document.querySelectorAll<HTMLElement>("[data-movable-only]").forEach((element) => {
     element.hidden = appMode === "sandbox"
-      ? Boolean(snapshot.selected?.fixed)
+      ? Boolean(snapshot.selected?.fixed && !snapshot.selected.guided)
       : element.hasAttribute("data-sandbox-only") || !activeLab.controls.includes("mass");
   });
 
@@ -187,8 +197,9 @@ function renderSnapshot(snapshot: PlaygroundSnapshot): void {
 
   const selected = snapshot.selected;
   required<HTMLElement>("#selection-name").textContent = selected.label;
-  required<HTMLElement>("#selection-type").textContent =
-    selected.fixed ? "움직이지 않는 블록" : selected.shape === "circle" ? "움직이는 공" : "움직이는 상자";
+  required<HTMLElement>("#selection-type").textContent = selected.guided
+    ? "장치에 연결된 짐"
+    : selected.fixed ? "움직이지 않는 블록" : selected.shape === "circle" ? "움직이는 공" : "움직이는 상자";
 
   syncInput(objectLabel, selected.label);
   syncInput(objectMass, selected.mass.toFixed(1));
