@@ -82,7 +82,7 @@
       <section id="sandbox-browser" class="sandbox-browser" hidden>
         <span class="sandbox-symbol" aria-hidden="true">✦</span>
         <h2>정답 없는 실험 공간</h2>
-        <p>공과 상자를 놓고, 받침대와 벽으로 나만의 실험 장치를 만들어 보세요.</p>
+        <p>공과 상자를 놓고, 고정 블록을 가로로 늘려 받침대를, 세로로 늘려 벽을 만들어 보세요.</p>
         <button id="new-sandbox" type="button">새 자유 월드 시작</button>
       </section>
     </aside>
@@ -99,8 +99,7 @@
           <span class="palette-label">추가</span>
           <button type="button" data-object-kind="ball" title="움직이는 공 추가"><i class="shape-circle"></i><span>공</span></button>
           <button type="button" data-object-kind="box" title="움직이는 상자 추가"><i class="shape-box"></i><span>상자</span></button>
-          <button type="button" data-object-kind="platform" title="움직이지 않는 받침대 추가"><i class="shape-platform"></i><span>받침대</span></button>
-          <button type="button" data-object-kind="wall" title="움직이지 않는 벽 추가"><i class="shape-wall"></i><span>벽</span></button>
+          <button type="button" data-object-kind="block" title="크기를 직접 바꾸는 고정 블록 추가"><i class="shape-block"></i><span>고정 블록</span></button>
           <button id="delete-object" class="danger-button" type="button" disabled>삭제</button>
         </div>
         <div class="run-indicator" id="run-status" data-running="false">멈춤</div>
@@ -156,14 +155,10 @@
           </div>
           <label class="field" data-sandbox-only><span>이름</span><input id="object-label" type="text" maxlength="24" /></label>
 
-          <section class="choice-section" aria-labelledby="size-title" data-sandbox-only>
-          <h3 id="size-title">크기</h3>
-          <div class="size-options" role="group" aria-label="크기 선택">
-            <button type="button" data-size="small">작게</button>
-            <button type="button" data-size="medium">보통</button>
-            <button type="button" data-size="large">크게</button>
+          <div id="block-resize-help" class="block-resize-help" hidden>
+            <strong>블록 크기 바꾸기</strong>
+            <p>캔버스의 파란 손잡이를 끌어 가로·세로 크기를 바꿔요.</p>
           </div>
-          </section>
 
           <section class="choice-section" aria-labelledby="material-title" data-lab-control="material">
           <h3 id="material-title">재질</h3>

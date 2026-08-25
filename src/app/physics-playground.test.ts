@@ -123,86 +123,72 @@ describe("PhysicsPlayground object creation", () => {
     });
   });
 
-  it("creates four distinct sandbox primitives with matching motion roles", () => {
+  it("creates three distinct sandbox primitives with matching motion roles", () => {
     vi.stubGlobal("requestAnimationFrame", () => 0);
     const playground = new PhysicsPlayground(createCanvas(), { width: 960, height: 600 });
     playground.startSandbox();
 
     const ball = playground.addSandboxObject("ball");
     const box = playground.addSandboxObject("box");
-    const platform = playground.addSandboxObject("platform");
-    const wall = playground.addSandboxObject("wall");
+    const block = playground.addSandboxObject("block");
 
     expect(ball.shape).toBe("circle");
     expect(playground.simulation.getBody(ball.id)?.collider).toEqual({ kind: "circle", radius: 25 });
     expect(box.shape).toBe("box");
     expect(playground.simulation.getBody(box.id)?.collider).toEqual({ kind: "box", halfWidth: 28, halfHeight: 28 });
     expect(playground.simulation.getBody(box.id)?.fixed).not.toBe(true);
-    expect(platform).toMatchObject({ shape: "box", width: 170, height: 26 });
-    expect(playground.simulation.getBody(platform.id)?.fixed).toBe(true);
-    expect(wall).toMatchObject({ shape: "box", width: 28, height: 190 });
-    expect(playground.simulation.getBody(wall.id)?.fixed).toBe(true);
+    expect(block).toMatchObject({ shape: "box", width: 170, height: 26 });
+    expect(playground.simulation.getBody(block.id)?.fixed).toBe(true);
   });
 
-  it("resizes a selected object from its original dimensions and updates its collider", () => {
+  it("resizes a fixed block by dragging its corner handle", () => {
     vi.stubGlobal("requestAnimationFrame", () => 0);
-    const playground = new PhysicsPlayground(createCanvas(), { width: 960, height: 600 });
+    const { canvas, dispatchPointer } = createInteractiveCanvas();
+    const playground = new PhysicsPlayground(canvas, { width: 960, height: 600 });
     playground.startSandbox();
-    const box = playground.addSandboxObject("box");
+    const block = playground.addSandboxObject("block");
+    const left = block.x - block.width / 2;
+    const top = block.y - block.height / 2;
 
-    playground.updateSelected({ size: "large" });
+    dispatchPointer("pointerdown", block.x + block.width / 2, block.y + block.height / 2);
+    dispatchPointer("pointermove", left + 240, top + 120);
+    dispatchPointer("pointerup", left + 240, top + 120);
 
-    expect(box.width).toBeCloseTo(56 * 1.4);
-    expect(box.height).toBeCloseTo(56 * 1.4);
-    expect(playground.simulation.getBody(box.id)?.collider).toEqual({
-      kind: "box",
-      halfWidth: 56 * 0.7,
-      halfHeight: 56 * 0.7,
+    expect(block).toMatchObject({
+      x: left + 120,
+      y: top + 60,
+      width: 240,
+      height: 120,
     });
-
-    playground.updateSelected({ size: "small" });
-
-    expect(box.width).toBeCloseTo(56 * 0.7);
-    expect(box.height).toBeCloseTo(56 * 0.7);
-    expect(playground.snapshot().selected?.size).toBe("small");
-  });
-
-  it("preserves a fixed wall's aspect ratio while resizing it", () => {
-    vi.stubGlobal("requestAnimationFrame", () => 0);
-    const playground = new PhysicsPlayground(createCanvas(), { width: 960, height: 600 });
-    playground.startSandbox();
-    const wall = playground.addSandboxObject("wall");
-
-    playground.updateSelected({ size: "large" });
-
-    expect(wall.width).toBeCloseTo(28 * 1.4);
-    expect(wall.height).toBeCloseTo(190 * 1.4);
-    expect(playground.simulation.getBody(wall.id)?.fixed).toBe(true);
-  });
-
-  it("updates circle and platform colliders when their size changes", () => {
-    vi.stubGlobal("requestAnimationFrame", () => 0);
-    const playground = new PhysicsPlayground(createCanvas(), { width: 960, height: 600 });
-    playground.startSandbox();
-    const ball = playground.addSandboxObject("ball");
-
-    playground.updateSelected({ size: "small" });
-
-    expect(ball.radius).toBeCloseTo(25 * 0.7);
-    expect(playground.simulation.getBody(ball.id)?.collider).toEqual({
-      kind: "circle",
-      radius: 25 * 0.7,
-    });
-
-    const platform = playground.addSandboxObject("platform");
-    playground.updateSelected({ size: "large" });
-
-    expect(platform.width).toBeCloseTo(170 * 1.4);
-    expect(platform.height).toBeCloseTo(26 * 1.4);
-    expect(playground.simulation.getBody(platform.id)?.collider).toEqual({
+    expect(playground.simulation.getBody(block.id)?.collider).toEqual({
       kind: "box",
-      halfWidth: 170 * 0.7,
-      halfHeight: 26 * 0.7,
+      halfWidth: 120,
+      halfHeight: 60,
+    });
+  });
+
+  it("resizes only one axis from a block edge handle", () => {
+    vi.stubGlobal("requestAnimationFrame", () => 0);
+    const { canvas, dispatchPointer } = createInteractiveCanvas();
+    const playground = new PhysicsPlayground(canvas, { width: 960, height: 600 });
+    playground.startSandbox();
+    const block = playground.addSandboxObject("block");
+    const left = block.x - block.width / 2;
+    const top = block.y - block.height / 2;
+
+    dispatchPointer("pointerdown", block.x + block.width / 2, block.y);
+    dispatchPointer("pointermove", left + 230, block.y);
+    dispatchPointer("pointerup", left + 230, block.y);
+    expect(block).toMatchObject({ width: 230, height: 26, x: left + 115 });
+
+    dispatchPointer("pointerdown", block.x, block.y + block.height / 2);
+    dispatchPointer("pointermove", block.x, top + 110);
+    dispatchPointer("pointerup", block.x, top + 110);
+    expect(block).toMatchObject({ width: 230, height: 110, y: top + 55 });
+    expect(playground.simulation.getBody(block.id)?.collider).toEqual({
+      kind: "box",
+      halfWidth: 115,
+      halfHeight: 55,
     });
   });
 });

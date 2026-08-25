@@ -2,7 +2,6 @@ import {
   PhysicsPlayground,
   type PlaygroundMaterial,
   type PlaygroundPreset,
-  type PlaygroundSize,
   type PlaygroundSnapshot,
   type SandboxObjectKind,
 } from "./physics-playground";
@@ -24,6 +23,7 @@ const focusButton = required<HTMLButtonElement>("#focus-mode");
 const appLayout = required<HTMLElement>(".app-layout");
 const inspectorEmpty = required<HTMLElement>("#inspector-empty");
 const inspectorForm = required<HTMLFormElement>("#inspector-form");
+const blockResizeHelp = required<HTMLElement>("#block-resize-help");
 const objectLabel = required<HTMLInputElement>("#object-label");
 const objectMass = required<HTMLInputElement>("#object-mass");
 const objectColor = required<HTMLInputElement>("#object-color");
@@ -102,12 +102,6 @@ document.querySelectorAll<HTMLButtonElement>("[data-mass]").forEach((button) => 
     pulseWorld();
   });
 });
-document.querySelectorAll<HTMLButtonElement>("[data-size]").forEach((button) => {
-  button.addEventListener("click", () => {
-    playground.updateSelected({ size: button.dataset.size as PlaygroundSize });
-    pulseWorld();
-  });
-});
 objectColor.addEventListener("input", () => playground.updateSelected({ color: objectColor.value }));
 
 window.addEventListener("keydown", (event) => {
@@ -159,6 +153,9 @@ function renderSnapshot(snapshot: PlaygroundSnapshot): void {
   const editorAvailable = !objectEditor.hidden;
   inspectorEmpty.hidden = !editorAvailable || Boolean(snapshot.selected);
   inspectorForm.hidden = !editorAvailable || !snapshot.selected;
+  blockResizeHelp.hidden = appMode !== "sandbox"
+    || !snapshot.selected?.fixed
+    || snapshot.selected.shape !== "box";
   deleteButton.disabled = appMode === "lab" || !snapshot.selected;
   document.querySelectorAll<HTMLElement>("[data-movable-only]").forEach((element) => {
     element.hidden = appMode === "sandbox"
@@ -182,9 +179,6 @@ function renderSnapshot(snapshot: PlaygroundSnapshot): void {
   });
   document.querySelectorAll<HTMLButtonElement>("[data-mass]").forEach((button) => {
     setActive(button, Number(button.dataset.mass) === selected.mass);
-  });
-  document.querySelectorAll<HTMLButtonElement>("[data-size]").forEach((button) => {
-    setActive(button, button.dataset.size === selected.size);
   });
   if (document.activeElement !== objectColor) objectColor.value = selected.color;
 }

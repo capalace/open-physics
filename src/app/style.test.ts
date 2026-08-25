@@ -36,12 +36,13 @@ describe("sandbox object palette", () => {
     const objectKinds = [...markup.matchAll(/data-object-kind="([^"]+)"/g)]
       .map((match) => match[1]);
 
-    expect(objectKinds).toEqual(["ball", "box", "platform", "wall"]);
+    expect(objectKinds).toEqual(["ball", "box", "block"]);
   });
 
-  it("offers three simple size choices", () => {
+  it("uses direct manipulation instead of size presets", () => {
     const sizes = [...markup.matchAll(/data-size="([^"]+)"/g)].map((match) => match[1]);
 
-    expect(sizes).toEqual(["small", "medium", "large"]);
+    expect(sizes).toEqual([]);
+    expect(markup).toContain('id="block-resize-help"');
   });
 });

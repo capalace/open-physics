@@ -27,8 +27,7 @@ export type PlaygroundPreset =
   | "constraints"
   | "pulley";
 export type PlaygroundMaterial = "rubber" | "wood" | "steel" | "clay";
-export type SandboxObjectKind = "ball" | "box" | "platform" | "wall";
-export type PlaygroundSize = "small" | "medium" | "large";
+export type SandboxObjectKind = "ball" | "box" | "block";
 
 export const MATERIALS: Readonly<Record<PlaygroundMaterial, {
   restitution: number;
@@ -49,9 +48,6 @@ export interface PlaygroundObject {
   width: number;
   height: number;
   radius: number;
-  baseWidth: number;
-  baseHeight: number;
-  size: PlaygroundSize;
   color: string;
   material: PlaygroundMaterial;
 }
@@ -77,7 +73,6 @@ export interface PlaygroundSnapshot {
     mass: number;
     material: PlaygroundMaterial;
     fixed: boolean;
-    size: PlaygroundSize;
   } | null;
 }
 
@@ -99,7 +94,6 @@ export interface SelectedObjectUpdate {
   color?: string;
   mass?: number;
   material?: PlaygroundMaterial;
-  size?: PlaygroundSize;
 }
 
 const PIXELS_PER_METER = 48;
@@ -114,15 +108,15 @@ const DEFAULT_VELOCITY_HANDLE_OFFSET = 64;
 const VELOCITY_HANDLE_RADIUS = 12;
 const VELOCITY_IDLE_EPSILON = 0.01;
 const VELOCITY_ANGLE_SNAP_RADIANS = 15 * Math.PI / 180;
+const RESIZE_HANDLE_RADIUS = 13;
+const MIN_BLOCK_WIDTH = 28;
+const MIN_BLOCK_HEIGHT = 24;
 const TRAJECTORY_PREVIEW_STEP = 0.08;
 const TRAJECTORY_PREVIEW_STEPS = 45;
 const SPRING_MOUNT_CLEARANCE = 8;
 const COLORS = ["#5b7cfa", "#f27a54", "#25a77a", "#a069dc", "#e2a62b"];
-const SIZE_SCALES: Readonly<Record<PlaygroundSize, number>> = {
-  small: 0.7,
-  medium: 1,
-  large: 1.4,
-};
+
+type ResizeHandle = "width" | "height" | "both";
 
 type GuidedMechanicsScene =
   | {
@@ -168,6 +162,9 @@ export class PhysicsPlayground {
   private pointerId: number | null = null;
   private draggedId: string | null = null;
   private velocityDraggedId: string | null = null;
+  private resizingId: string | null = null;
+  private resizeHandle: ResizeHandle | null = null;
+  private resizeAnchor: Vector2 | null = null;
   private selectedId: string | null = null;
   private lastFrame = 0;
   private lastNotification = 0;
@@ -228,17 +225,9 @@ export class PhysicsPlayground {
         material: "wood",
       });
     }
-    if (kind === "platform") {
-      return this.addBox(this.canvas.width * 0.58, this.floorY - 115, 170, 26, {
-        label: `받침대 ${sequence}`,
-        color: "#718099",
-        material: "steel",
-        fixed: true,
-      });
-    }
-    return this.addBox(this.canvas.width * 0.72, this.floorY - 150, 28, 190, {
-      label: `벽 ${sequence}`,
-      color: "#46536a",
+    return this.addBox(this.canvas.width * 0.58, this.floorY - 115, 170, 26, {
+      label: `고정 블록 ${sequence}`,
+      color: "#718099",
       material: "steel",
       fixed: true,
     });
@@ -275,9 +264,6 @@ export class PhysicsPlayground {
       width: radius * 2,
       height: radius * 2,
       radius,
-      baseWidth: radius * 2,
-      baseHeight: radius * 2,
-      size: "medium",
       color: options.color ?? this.nextColor(),
       material: options.material ?? "rubber",
     };
@@ -296,9 +282,6 @@ export class PhysicsPlayground {
       width,
       height,
       radius: Math.min(width, height) / 2,
-      baseWidth: width,
-      baseHeight: height,
-      size: "medium",
       color: options.color ?? this.nextColor(),
       material: options.material ?? "wood",
     };
@@ -605,7 +588,6 @@ export class PhysicsPlayground {
         this.frictionLaw.setCoefficient(MATERIALS[update.material].friction);
       }
     }
-    if (update.size !== undefined) this.resizeObject(object, body, update.size);
     this.clearTrails();
     this.simulation.refreshAccelerations();
     this.advanceGuidedScene(0);
@@ -626,7 +608,6 @@ export class PhysicsPlayground {
           mass: body.state.mass,
           material: object.material,
           fixed: Boolean(body.fixed),
-          size: object.size,
         };
       }
     }
@@ -640,29 +621,6 @@ export class PhysicsPlayground {
 
   clearTrails(): void {
     for (const [id, object] of this.objects) this.trails.set(id, [{ x: object.x, y: object.y }]);
-  }
-
-  private resizeObject(object: PlaygroundObject, body: Body, size: PlaygroundSize): void {
-    const scale = SIZE_SCALES[size];
-    object.size = size;
-    object.width = object.baseWidth * scale;
-    object.height = object.baseHeight * scale;
-    object.radius = object.shape === "circle"
-      ? object.width / 2
-      : Math.min(object.width, object.height) / 2;
-    body.radius = object.radius;
-    body.collider = object.shape === "circle"
-      ? { kind: "circle", radius: object.radius }
-      : { kind: "box", halfWidth: object.width / 2, halfHeight: object.height / 2 };
-
-    const halfWidth = object.shape === "circle" ? object.radius : object.width / 2;
-    const halfHeight = object.shape === "circle" ? object.radius : object.height / 2;
-    body.state.position = {
-      x: Math.max(14 + halfWidth, Math.min(this.canvas.width - 14 - halfWidth, body.state.position.x)),
-      y: Math.max(14 + halfHeight, Math.min(this.floorY - halfHeight, body.state.position.y)),
-    };
-    object.x = body.state.position.x;
-    object.y = body.state.position.y;
   }
 
   private registerObject(object: PlaygroundObject, options: PlaygroundObjectOptions): void {
@@ -1591,7 +1549,34 @@ export class PhysicsPlayground {
       if (this.visualization.vectors && (!body.fixed || this.isGuidedBody(object.id))) {
         this.drawArrow(object.x, object.y, body.state.acceleration, 0.14, "#e05c3f", "가속도");
       }
+      if (this.isResizableBlock(object, body)) this.drawResizeHandles(object);
     }
+  }
+
+  private drawResizeHandles(object: PlaygroundObject): void {
+    const { ctx } = this;
+    ctx.save();
+    ctx.fillStyle = "#ffffff";
+    ctx.strokeStyle = "#365eea";
+    ctx.lineWidth = 3;
+    ctx.lineCap = "round";
+    for (const handle of this.resizeHandles(object)) {
+      ctx.beginPath();
+      ctx.arc(handle.x, handle.y, 8, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+      ctx.beginPath();
+      if (handle.kind !== "height") {
+        ctx.moveTo(handle.x - 3, handle.y);
+        ctx.lineTo(handle.x + 3, handle.y);
+      }
+      if (handle.kind !== "width") {
+        ctx.moveTo(handle.x, handle.y - 3);
+        ctx.lineTo(handle.x, handle.y + 3);
+      }
+      ctx.stroke();
+    }
+    ctx.restore();
   }
 
   private drawLabel(object: PlaygroundObject): void {
@@ -1746,6 +1731,22 @@ export class PhysicsPlayground {
   private bindPointerEvents(): void {
     this.canvas.addEventListener("pointerdown", (event) => {
       const point = this.pointFromEvent(event);
+      const resizeHit = this.hitResizeHandle(point);
+      if (resizeHit && this.selectedId) {
+        const object = this.objects.get(this.selectedId);
+        if (!object) return;
+        this.paused = true;
+        this.pointerId = event.pointerId;
+        this.resizingId = object.id;
+        this.resizeHandle = resizeHit;
+        this.resizeAnchor = {
+          x: object.x - object.width / 2,
+          y: object.y - object.height / 2,
+        };
+        this.canvas.setPointerCapture(event.pointerId);
+        this.canvas.style.cursor = this.resizeCursor(resizeHit);
+        return;
+      }
       const velocityHit = this.hitVelocityHandle(point);
       if (velocityHit) {
         this.paused = true;
@@ -1766,14 +1767,19 @@ export class PhysicsPlayground {
 
     this.canvas.addEventListener("pointermove", (event) => {
       const point = this.pointFromEvent(event);
+      if (event.pointerId === this.pointerId && this.resizingId) {
+        this.resizeBlockFromPoint(this.resizingId, point);
+        return;
+      }
       if (event.pointerId === this.pointerId && this.velocityDraggedId) {
         this.updateVelocityFromPoint(this.velocityDraggedId, point);
         return;
       }
       if (event.pointerId !== this.pointerId || !this.draggedId) {
-        this.canvas.style.cursor = this.hitVelocityHandle(point)
-          ? "pointer"
-          : this.hitTest(point) ? "grab" : "crosshair";
+        const resizeHandle = this.hitResizeHandle(point);
+        this.canvas.style.cursor = resizeHandle
+          ? this.resizeCursor(resizeHandle)
+          : this.hitVelocityHandle(point) ? "pointer" : this.hitTest(point) ? "grab" : "crosshair";
         return;
       }
       const object = this.objects.get(this.draggedId);
@@ -1817,6 +1823,9 @@ export class PhysicsPlayground {
       this.pointerId = null;
       this.draggedId = null;
       this.velocityDraggedId = null;
+      this.resizingId = null;
+      this.resizeHandle = null;
+      this.resizeAnchor = null;
       this.canvas.style.cursor = "grab";
       if (autoPlay && (launchesVelocity || releasesSpring || releasesGuided)) this.paused = false;
     };
@@ -1845,6 +1854,71 @@ export class PhysicsPlayground {
     const dx = point.x - object.x - vector.x;
     const dy = point.y - object.y - vector.y;
     return dx * dx + dy * dy <= VELOCITY_HANDLE_RADIUS ** 2 ? object : null;
+  }
+
+  private isResizableBlock(object: PlaygroundObject, body: Body): boolean {
+    return object.shape === "box" && Boolean(body.fixed) && !this.isGuidedBody(object.id);
+  }
+
+  private resizeHandles(object: PlaygroundObject): Array<Vector2 & { kind: ResizeHandle }> {
+    return [
+      { kind: "both", x: object.x + object.width / 2, y: object.y + object.height / 2 },
+      { kind: "width", x: object.x + object.width / 2, y: object.y },
+      { kind: "height", x: object.x, y: object.y + object.height / 2 },
+    ];
+  }
+
+  private hitResizeHandle(point: Vector2): ResizeHandle | null {
+    if (!this.selectedId) return null;
+    const object = this.objects.get(this.selectedId);
+    const body = this.simulation.getBody(this.selectedId);
+    if (!object || !body || !this.isResizableBlock(object, body)) return null;
+    let nearest: { kind: ResizeHandle; distanceSquared: number } | null = null;
+    for (const handle of this.resizeHandles(object)) {
+      const dx = point.x - handle.x;
+      const dy = point.y - handle.y;
+      const distanceSquared = dx * dx + dy * dy;
+      if (
+        distanceSquared <= RESIZE_HANDLE_RADIUS ** 2
+        && (!nearest || distanceSquared < nearest.distanceSquared)
+      ) {
+        nearest = { kind: handle.kind, distanceSquared };
+      }
+    }
+    return nearest?.kind ?? null;
+  }
+
+  private resizeCursor(handle: ResizeHandle): string {
+    if (handle === "width") return "ew-resize";
+    if (handle === "height") return "ns-resize";
+    return "nwse-resize";
+  }
+
+  private resizeBlockFromPoint(id: string, point: Vector2): void {
+    const object = this.objects.get(id);
+    const body = this.simulation.getBody(id);
+    const handle = this.resizeHandle;
+    const anchor = this.resizeAnchor;
+    if (!object || !body || !handle || !anchor || !this.isResizableBlock(object, body)) return;
+
+    const width = handle === "height"
+      ? object.width
+      : Math.max(MIN_BLOCK_WIDTH, Math.min(this.canvas.width - 14 - anchor.x, point.x - anchor.x));
+    const height = handle === "width"
+      ? object.height
+      : Math.max(MIN_BLOCK_HEIGHT, Math.min(this.floorY - anchor.y, point.y - anchor.y));
+    object.width = width;
+    object.height = height;
+    object.radius = Math.min(width, height) / 2;
+    object.x = anchor.x + width / 2;
+    object.y = anchor.y + height / 2;
+    body.radius = object.radius;
+    body.collider = { kind: "box", halfWidth: width / 2, halfHeight: height / 2 };
+    body.state.position = { x: object.x, y: object.y };
+    body.state.velocity = { x: 0, y: 0 };
+    this.trails.set(id, [{ x: object.x, y: object.y }]);
+    this.simulation.refreshAccelerations();
+    this.notify();
   }
 
   private updateVelocityFromPoint(id: string, point: Vector2): void {
