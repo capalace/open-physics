@@ -13,6 +13,31 @@ const palette: readonly { kind: WaveDeviceKind; label: string }[] = [
   { kind: "detector", label: "검출기" },
 ];
 
+type ListenerScope = "persistent" | "inspector";
+
+/** Keeps replaced inspector controls from retaining detached DOM and callbacks. */
+export class WavesListenerRegistry {
+  private persistent: Array<() => void> = [];
+  private inspector: Array<() => void> = [];
+
+  listen(target: EventTarget, event: string, listener: EventListener, scope: ListenerScope = "persistent"): void {
+    target.addEventListener(event, listener);
+    const dispose = () => target.removeEventListener(event, listener);
+    (scope === "inspector" ? this.inspector : this.persistent).push(dispose);
+  }
+
+  clearInspector(): void {
+    this.inspector.forEach((dispose) => dispose());
+    this.inspector = [];
+  }
+
+  disposeAll(): void {
+    this.clearInspector();
+    this.persistent.forEach((dispose) => dispose());
+    this.persistent = [];
+  }
+}
+
 class WavesController implements SubjectController {
   private readonly model = new WavesModel("source");
   private readonly canvas = document.createElement("canvas");
@@ -20,7 +45,7 @@ class WavesController implements SubjectController {
   private readonly measurement = document.createElement("p");
   private readonly renderer: WavesRenderer;
   private active: WavesLabId | "sandbox" = "source";
-  private disposers: Array<() => void> = [];
+  private readonly listeners = new WavesListenerRegistry();
 
   constructor(private readonly hosts: SubjectHosts) {
     hosts.experimentPanel.classList.add("waves-experience__experiments");
@@ -37,8 +62,7 @@ class WavesController implements SubjectController {
 
   unmount(): void {
     this.renderer.destroy();
-    this.disposers.forEach((dispose) => dispose());
-    this.disposers = [];
+    this.listeners.disposeAll();
     this.hosts.experimentPanel.replaceChildren();
     this.hosts.workspace.replaceChildren();
     this.hosts.inspectorPanel.replaceChildren();
@@ -47,9 +71,8 @@ class WavesController implements SubjectController {
     this.hosts.inspectorPanel.classList.remove("waves-experience__inspector");
   }
 
-  private listen(element: Element, event: string, listener: EventListener): void {
-    element.addEventListener(event, listener);
-    this.disposers.push(() => element.removeEventListener(event, listener));
+  private listen(element: EventTarget, event: string, listener: EventListener, scope: ListenerScope = "persistent"): void {
+    this.listeners.listen(element, event, listener, scope);
   }
 
   private renderExperimentList(): void {
@@ -105,10 +128,7 @@ class WavesController implements SubjectController {
   }
 
   private renderInspector(): void {
-    const previousDisposers = this.disposers;
-    this.disposers = [];
-    // List/workspace listeners remain attached and are restored to the active disposer set.
-    previousDisposers.forEach((dispose) => this.disposers.push(dispose));
+    this.listeners.clearInspector();
     const fragment = document.createDocumentFragment();
     const snapshot = this.model.snapshot();
     if (this.active === "sandbox") this.renderSandboxInspector(fragment, snapshot);
@@ -141,14 +161,14 @@ class WavesController implements SubjectController {
     const controls = document.createElement("div"); controls.className = "waves-experience__palette";
     palette.forEach(({ kind, label }) => {
       const button = document.createElement("button"); button.type = "button"; button.textContent = `＋ ${label}`;
-      this.listen(button, "click", () => { this.model.addDevice(kind); this.renderInspector(); this.refreshReadout(); });
+      this.listen(button, "click", () => { this.model.addDevice(kind); this.renderInspector(); this.refreshReadout(); }, "inspector");
       controls.append(button);
     });
     const list = document.createElement("ul"); list.className = "waves-experience__device-list";
     snapshot.devices.forEach((item) => {
       const row = document.createElement("li"); row.textContent = palette.find(({ kind }) => kind === item.kind)?.label ?? item.kind;
       const remove = document.createElement("button"); remove.type = "button"; remove.textContent = "삭제";
-      this.listen(remove, "click", () => { this.model.removeDevice(item.id); this.renderInspector(); this.refreshReadout(); });
+      this.listen(remove, "click", () => { this.model.removeDevice(item.id); this.renderInspector(); this.refreshReadout(); }, "inspector");
       row.append(remove); list.append(row);
     });
     this.measurement.className = "waves-experience__measurement";

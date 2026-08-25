@@ -6,12 +6,12 @@ const HANDLE_RADIUS = 18;
 
 export function primaryHandle(snapshot: WavesSnapshot): Point | null {
   switch (snapshot.mode) {
-    case "source": return { x: 120, y: 500 - snapshot.amplitude * 4 };
+    case "source": return { x: 120, y: 600 * (1 - (snapshot.amplitude - 12) / 76) };
     case "propagation": return { x: 70 + (snapshot.speed - 60) / 240 * 860, y: 500 };
     case "interference": return snapshot.devices.find((item) => item.kind === "second-source") ?? null;
     case "standing-wave": return { x: 70 + (snapshot.harmonic - 1) / 4 * 860, y: 500 };
     case "resonance": return { x: 70 + (snapshot.frequency - 1) / 8 * 860, y: 500 };
-    case "sound": return { x: 140, y: 540 - snapshot.amplitude * 5 };
+    case "sound": return { x: 140, y: 600 * (1 - (snapshot.amplitude - 5) / 65) };
     case "doppler": return snapshot.devices.find((item) => item.kind === "source") ?? null;
     case "sandbox": return null;
   }
@@ -257,12 +257,24 @@ export class WavesRenderer {
     const sources = snapshot.devices.filter((item) => item.kind === "source" || item.kind === "second-source");
     const ctx = this.context;
     sources.forEach((source) => {
-      const phase = (snapshot.time * snapshot.speed * 1.2) % 60;
-      for (let radius = phase; radius < 460; radius += 60) {
+      const spacing = Math.max(28, snapshot.wavelength * 35);
+      const phase = (snapshot.time * snapshot.speed * 1.2) % spacing;
+      for (let radius = phase; radius < 460; radius += spacing) {
         ctx.strokeStyle = source.kind === "source" ? "rgba(56,189,248,.3)" : "rgba(251,146,60,.3)";
         ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(source.x, source.y, radius, 0, Math.PI * 2); ctx.stroke();
       }
     });
+    if (sources.length) {
+      ctx.strokeStyle = "rgba(224,242,254,.88)";
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      for (let px = 0; px <= WAVE_WORLD.width; px += 5) {
+        const displacement = this.model.displacementAt(px / 100, 3);
+        const y = 300 - displacement * 1.25;
+        if (px === 0) ctx.moveTo(px, y); else ctx.lineTo(px, y);
+      }
+      ctx.stroke();
+    }
     if (!sources.length) this.label("아래 팔레트에서 파원을 추가해 보세요", 310, 100);
   }
 
@@ -334,5 +346,11 @@ export function drawGraph(canvas: HTMLCanvasElement, snapshot: WavesSnapshot): v
     if (index === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
   });
   ctx.stroke();
+  snapshot.graph.filter((point) => point.current).forEach((point) => {
+    const x = 44 + (point.x - xMin) / xSpan * (width - 64);
+    const y = 18 + (1 - (point.y - min) / span) * (height - 50);
+    ctx.fillStyle = colors[snapshot.mode]; ctx.strokeStyle = "#fff"; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(x, y, 6, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+  });
   ctx.fillStyle = "#bae6fd"; ctx.font = "12px system-ui"; ctx.fillText(max.toFixed(1), 6, 24); ctx.fillText(min.toFixed(1), 6, height - 25);
 }
