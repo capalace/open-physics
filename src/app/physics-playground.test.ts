@@ -528,6 +528,9 @@ describe("PhysicsPlayground extended mechanics", () => {
     const load = playground.simulation.allBodies[0];
     const startY = load.state.position.y;
     const oneStrandForce = playground.snapshot().graph!.samples.at(-1)!.values[1];
+    const controller = playground as unknown as {
+      guidedScene: { kind: string; pullDistance: number };
+    };
 
     dispatchPointer("pointerdown", 584, 86);
     const fourStrandForce = playground.snapshot().graph!.samples.at(-1)!.values[1];
@@ -535,10 +538,11 @@ describe("PhysicsPlayground extended mechanics", () => {
     dispatchPointer("pointermove", 653, 523);
 
     expect(fourStrandForce).toBeCloseTo(oneStrandForce / 4);
-    expect(startY - load.state.position.y).toBeCloseTo(50);
+    expect(startY - load.state.position.y).toBeCloseTo(200);
+    expect(controller.guidedScene.pullDistance).toBeCloseTo(800);
   });
 
-  it("lifts the four-strand pulley load higher with repeated reachable pulls", () => {
+  it("stops a full pulley pull at the safe lifting height", () => {
     vi.stubGlobal("requestAnimationFrame", () => 0);
     const { canvas, dispatchPointer } = createInteractiveCanvas();
     const playground = new PhysicsPlayground(canvas, { width: 960, height: 600 });
@@ -547,11 +551,8 @@ describe("PhysicsPlayground extended mechanics", () => {
     const startY = load.state.position.y;
 
     dispatchPointer("pointerdown", 584, 86);
-    for (let pull = 0; pull < 4; pull += 1) {
-      dispatchPointer("pointerdown", 653, 323);
-      dispatchPointer("pointermove", 653, 523);
-      dispatchPointer("pointerup", 653, 523);
-    }
+    dispatchPointer("pointerdown", 653, 323);
+    dispatchPointer("pointermove", 653, 573);
 
     expect(startY - load.state.position.y).toBeCloseTo(200);
   });

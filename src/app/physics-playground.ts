@@ -2561,9 +2561,15 @@ export class PhysicsPlayground {
       ));
       const dy = Math.max(0, Math.min(reachableStroke, point.y - origin.y));
       const maximumPullDistance = scene.model.pullDistanceForLift(scene.maxLift);
-      scene.pullDistance = Math.min(maximumPullDistance, this.challengeDragStartPullDistance + dy);
-      const acceptedStroke = scene.pullDistance - this.challengeDragStartPullDistance;
-      this.challengeDragPoint = { x: origin.x, y: origin.y + acceptedStroke };
+      const requestedPullDistance = scene.model.pullDistanceForLift(dy);
+      scene.pullDistance = Math.min(
+        maximumPullDistance,
+        this.challengeDragStartPullDistance + requestedPullDistance,
+      );
+      const acceptedLift = scene.model.liftDistanceForPull(
+        scene.pullDistance - this.challengeDragStartPullDistance,
+      );
+      this.challengeDragPoint = { x: origin.x, y: origin.y + acceptedLift };
       this.applyGuidedScenePoses();
     }
     this.graphTime += GRAPH_SAMPLE_INTERVAL;
