@@ -487,12 +487,13 @@ describe("PhysicsPlayground extended mechanics", () => {
     const advance = playground as unknown as { advance(dt: number): void };
     playground.loadPreset("pulley");
     const [left, right] = playground.simulation.allBodies;
-    const rightObject = [...playground.objects.values()][1];
+    const [leftObject, rightObject] = [...playground.objects.values()];
     const rightStart = right.state.position.y;
 
-    expect(left.state.position.y - 125).toBeGreaterThan(220);
+    expect(left.state.position.y - 90).toBeGreaterThan(250);
     for (let frame = 0; frame < 240; frame += 1) advance.advance(1 / 120);
-    expect(right.state.position.y - rightStart).toBeGreaterThan(110);
+    expect(right.state.position.y - rightStart).toBeGreaterThan(145);
+    expect(left.state.position.y - leftObject.radius).toBeGreaterThan(90 + 58);
     expect(right.state.position.y + rightObject.radius).toBeLessThan(playground.floorY);
   });
 
@@ -506,7 +507,7 @@ describe("PhysicsPlayground extended mechanics", () => {
     renderer.drawGuidedScene();
 
     const pulleyLabel = fillText.mock.calls.find(([text]) => text === "도르래")!;
-    expect(pulleyLabel[2]).toBeLessThan(125 - 58);
+    expect(pulleyLabel[2]).toBeLessThan(90 - 58);
   });
 
   it("keeps rope and rod bobs at their fixed constraint lengths", () => {

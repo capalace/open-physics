@@ -125,11 +125,14 @@ const MAX_GRAPH_SAMPLES = 150;
 const TRAJECTORY_PREVIEW_STEP = 0.08;
 const TRAJECTORY_PREVIEW_STEPS = 45;
 const SPRING_MOUNT_CLEARANCE = 8;
-const PULLEY_ROPE_LENGTH_LIMIT = 235;
-const PULLEY_ROPE_HEIGHT_RATIO = 0.42;
-const PULLEY_TRAVEL_LIMIT = 128;
-const PULLEY_TRAVEL_HEIGHT_RATIO = 0.23;
-const PULLEY_FLOOR_CLEARANCE = 40;
+const PULLEY_CENTER_Y = 90;
+const PULLEY_ROPE_LENGTH_LIMIT = 262;
+const PULLEY_ROPE_HEIGHT_RATIO = 0.48;
+const PULLEY_TRAVEL_LIMIT = 200;
+const PULLEY_TRAVEL_HEIGHT_RATIO = 0.32;
+const PULLEY_FLOOR_CLEARANCE = 36;
+const PULLEY_TOP_CLEARANCE = 8;
+const PULLEY_MAX_WEIGHT_RADIUS = 31;
 const COLORS = ["#5b7cfa", "#f27a54", "#25a77a", "#a069dc", "#e2a62b"];
 
 type ResizeHandle = "width" | "height" | "both";
@@ -560,17 +563,27 @@ export class PhysicsPlayground {
       this.setBodyPose(rodObject.id, rodPose);
     } else {
       this.replaceGravity(9.81);
-      const center = { x: this.canvas.width * 0.5, y: 125 };
+      const center = { x: this.canvas.width * 0.5, y: PULLEY_CENTER_Y };
+      const pulleyRadius = Math.min(58, this.canvas.width * 0.07);
       const ropeLength = Math.min(PULLEY_ROPE_LENGTH_LIMIT, this.floorY * PULLEY_ROPE_HEIGHT_RATIO);
       const floorLimitedTravel = Math.max(
         0,
         this.floorY - center.y - ropeLength - PULLEY_FLOOR_CLEARANCE,
       );
+      const topLimitedTravel = Math.max(
+        0,
+        ropeLength - pulleyRadius - PULLEY_MAX_WEIGHT_RADIUS - PULLEY_TOP_CLEARANCE,
+      );
       const model = new PulleyModel(
         center,
-        Math.min(58, this.canvas.width * 0.07),
+        pulleyRadius,
         ropeLength,
-        Math.min(PULLEY_TRAVEL_LIMIT, this.floorY * PULLEY_TRAVEL_HEIGHT_RATIO, floorLimitedTravel),
+        Math.min(
+          PULLEY_TRAVEL_LIMIT,
+          this.floorY * PULLEY_TRAVEL_HEIGHT_RATIO,
+          floorLimitedTravel,
+          topLimitedTravel,
+        ),
       );
       const poses = model.poses();
       const left = this.addCircle(poses.left.position.x, poses.left.position.y, 25, {
