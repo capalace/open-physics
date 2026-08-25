@@ -33,55 +33,6 @@ export const canvasToModel = (point: Vector2, width: number, height: number): Ve
   return { x: (point.x - viewport.left) / (viewport.scale * ELECTROMAGNETISM_WORLD.width), y: (point.y - viewport.top) / (viewport.scale * ELECTROMAGNETISM_WORLD.height) };
 };
 
-export interface ElectricFieldLine {
-  readonly points: readonly Vector2[];
-  readonly direction: 1 | -1;
-}
-
-/** Traces a small, deterministic set of continuous field lines for the sandbox. */
-export function electricFieldLines(objects: readonly ElectromagnetismSandboxObject[]): ElectricFieldLine[] {
-  const charges = objects.filter((object) => object.kind === "charge" && object.value !== 0);
-  const fieldAt = (point: Vector2): Vector2 => {
-    const target = { x: point.x * ELECTROMAGNETISM_WORLD.width, y: point.y * ELECTROMAGNETISM_WORLD.height };
-    return charges.reduce((field, charge) => {
-      const source = { x: charge.position.x * ELECTROMAGNETISM_WORLD.width, y: charge.position.y * ELECTROMAGNETISM_WORLD.height };
-      const dx = target.x - source.x; const dy = target.y - source.y;
-      const distanceSquared = Math.max(0.0025, dx * dx + dy * dy);
-      const scale = charge.value / (distanceSquared * Math.sqrt(distanceSquared));
-      return { x: field.x + dx * scale, y: field.y + dy * scale };
-    }, { x: 0, y: 0 });
-  };
-
-  return charges.flatMap((source) => Array.from({ length: 8 }, (_, index): ElectricFieldLine => {
-    const angle = index / 8 * Math.PI * 2;
-    const seedRadius = 0.1;
-    const direction: 1 | -1 = source.value > 0 ? 1 : -1;
-    let point = {
-      x: source.position.x + Math.cos(angle) * seedRadius / ELECTROMAGNETISM_WORLD.width,
-      y: source.position.y + Math.sin(angle) * seedRadius / ELECTROMAGNETISM_WORLD.height,
-    };
-    const points: Vector2[] = [point];
-    for (let step = 0; step < 72; step += 1) {
-      const field = fieldAt(point); const magnitude = Math.hypot(field.x, field.y);
-      if (!Number.isFinite(magnitude) || magnitude < 1e-12) break;
-      const worldStep = 0.035;
-      point = {
-        x: point.x + direction * field.x / magnitude * worldStep / ELECTROMAGNETISM_WORLD.width,
-        y: point.y + direction * field.y / magnitude * worldStep / ELECTROMAGNETISM_WORLD.height,
-      };
-      if (point.x < 0.025 || point.x > 0.975 || point.y < 0.04 || point.y > 0.96) break;
-      points.push(point);
-      const reachedCharge = charges.some((charge) => charge.id !== source.id
-        && Math.hypot(
-          (point.x - charge.position.x) * ELECTROMAGNETISM_WORLD.width,
-          (point.y - charge.position.y) * ELECTROMAGNETISM_WORLD.height,
-        ) < 0.09);
-      if (reachedCharge) break;
-    }
-    return { points, direction };
-  }));
-}
-
 export class ElectromagnetismRenderer {
   constructor(private readonly canvas: HTMLCanvasElement) {}
 
@@ -287,7 +238,11 @@ export class ElectromagnetismRenderer {
       const from = byId.get(connection.from); const to = byId.get(connection.to);
       if (from && to) this.dashedConnection(ctx, this.pixel(from.position, w, h), this.pixel(to.position, w, h));
     }
-    this.sandboxFieldLines(ctx, s.sandboxObjects, w, h);
+    const maxField = Math.max(...s.fieldSamples.map((sample) => Math.hypot(sample.vector.x, sample.vector.y)), 1);
+    for (const sample of s.fieldSamples) {
+      const magnitude = Math.hypot(sample.vector.x, sample.vector.y);
+      if (magnitude > 0) this.fieldVector(ctx, this.pixel(sample.point, w, h), sample.vector, magnitude / maxField);
+    }
     for (const object of s.sandboxObjects) this.sandboxObject(ctx, object, w, h);
     const probe = s.sandboxObjects.find((object) => object.kind === "probe");
     if (probe) this.arrow(ctx, this.pixel(probe.position, w, h), s.sandboxMetrics.electricField, palette.field, `${this.compact(Math.hypot(s.sandboxMetrics.electricField.x, s.sandboxMetrics.electricField.y))} N/C`, Math.min(90, 20 + Math.log10(1 + Math.hypot(s.sandboxMetrics.electricField.x, s.sandboxMetrics.electricField.y)) * 8));
@@ -305,30 +260,24 @@ export class ElectromagnetismRenderer {
     else this.probe(ctx, point, palette.field, "탐침");
   }
 
-  private sandboxFieldLines(ctx: CanvasRenderingContext2D, objects: readonly ElectromagnetismSandboxObject[], w: number, h: number): void {
+  private fieldVector(ctx: CanvasRenderingContext2D, origin: Vector2, vector: Vector2, intensity: number): void {
+    const magnitude = Math.hypot(vector.x, vector.y);
+    if (magnitude < 1e-9) return;
+    const strength = Math.sqrt(Math.max(0, Math.min(1, intensity)));
+    const length = 12 + strength * 12;
+    const dx = vector.x / magnitude; const dy = vector.y / magnitude;
+    const start = { x: origin.x - dx * length * 0.35, y: origin.y - dy * length * 0.35 };
+    const end = { x: origin.x + dx * length * 0.65, y: origin.y + dy * length * 0.65 };
+    const angle = Math.atan2(dy, dx); const head = 4 + strength;
     ctx.save();
-    ctx.strokeStyle = "rgba(37,167,122,.27)";
-    ctx.lineWidth = 1.6;
-    ctx.shadowColor = "rgba(37,167,122,.16)";
-    ctx.shadowBlur = 5;
-    for (const line of electricFieldLines(objects)) {
-      if (line.points.length < 2) continue;
-      const pixels = line.points.map((point) => this.pixel(point, w, h));
-      ctx.beginPath(); ctx.moveTo(pixels[0].x, pixels[0].y);
-      pixels.slice(1).forEach((point) => ctx.lineTo(point.x, point.y));
-      ctx.stroke();
-
-      const markerIndex = Math.min(pixels.length - 2, Math.max(1, Math.floor(pixels.length * 0.55)));
-      const tip = pixels[markerIndex];
-      const previous = pixels[markerIndex - 1]; const next = pixels[markerIndex + 1];
-      const angle = Math.atan2((next.y - previous.y) * line.direction, (next.x - previous.x) * line.direction);
-      const size = 6;
-      ctx.beginPath();
-      ctx.moveTo(tip.x - Math.cos(angle - 0.65) * size, tip.y - Math.sin(angle - 0.65) * size);
-      ctx.lineTo(tip.x, tip.y);
-      ctx.lineTo(tip.x - Math.cos(angle + 0.65) * size, tip.y - Math.sin(angle + 0.65) * size);
-      ctx.stroke();
-    }
+    ctx.strokeStyle = `rgba(37,167,122,${0.24 + strength * 0.38})`;
+    ctx.lineWidth = 1.4 + strength * 0.5;
+    ctx.beginPath(); ctx.moveTo(start.x, start.y); ctx.lineTo(end.x, end.y); ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(end.x - Math.cos(angle - 0.58) * head, end.y - Math.sin(angle - 0.58) * head);
+    ctx.lineTo(end.x, end.y);
+    ctx.lineTo(end.x - Math.cos(angle + 0.58) * head, end.y - Math.sin(angle + 0.58) * head);
+    ctx.stroke();
     ctx.restore();
   }
 
