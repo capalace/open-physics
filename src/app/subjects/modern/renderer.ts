@@ -1,23 +1,11 @@
-import { MODERN_WORLD, type ModernDevice, type ModernModel, type ModernSnapshot } from "./models";
+import { modernPrimaryHandle, MODERN_WORLD, type ModernDevice, type ModernModel, type ModernSnapshot } from "./models";
 
 export interface Point { readonly x: number; readonly y: number }
-const TRACK_LEFT = 70; const TRACK_WIDTH = 860; const HANDLE_RADIUS = 18;
+const HANDLE_RADIUS = 18;
 const clamp = (value: number, min: number, max: number): number => Math.max(min, Math.min(max, value));
 
 export function primaryHandle(snapshot: ModernSnapshot): Point | null {
-  let ratio: number;
-  switch (snapshot.mode) {
-    case "relativity": ratio = snapshot.speedFraction / 0.95; break;
-    case "atoms": ratio = (snapshot.quantumNumber - 2) / 4; break;
-    case "photoelectric": ratio = snapshot.photonFrequency - 0.2; break;
-    case "matter-waves": ratio = (snapshot.momentum - 0.5) / 4.5; break;
-    case "quantum": ratio = (snapshot.spread - 0.3) / 1.7; break;
-    case "tunneling": ratio = (snapshot.barrierWidth - 0.05) / 0.55; break;
-    case "nuclei": ratio = snapshot.elapsedYears / 40; break;
-    case "semiconductors": ratio = (snapshot.voltage + 0.1) / 0.8; break;
-    case "sandbox": return null;
-  }
-  return { x: TRACK_LEFT + clamp(ratio, 0, 1) * TRACK_WIDTH, y: 530 };
+  return modernPrimaryHandle(snapshot);
 }
 
 export const hitTest = (point: Point, target: Point, radius = HANDLE_RADIUS): boolean =>
@@ -102,7 +90,7 @@ export class ModernRenderer {
       case "sandbox": this.sandbox(snapshot); break;
     }
     snapshot.devices.forEach((item) => this.device(item));
-    const handle = primaryHandle(snapshot); if (handle) { this.track(); this.handle(handle, this.color(snapshot.mode)); }
+    const handle = primaryHandle(snapshot); if (handle) this.handle(handle, this.color(snapshot.mode));
   }
   private grid(): void {
     const ctx = this.ctx; ctx.strokeStyle = "rgba(129,140,248,.08)"; ctx.lineWidth = 1;
@@ -111,7 +99,8 @@ export class ModernRenderer {
   }
   private relativity(s: ModernSnapshot): void {
     const ctx = this.ctx; const proper = 10 / s.gamma;
-    this.clock(210, 270, 10, "지구 10.0 s", "#e2e8f0"); this.clock(700, 270, proper, `우주선 ${proper.toFixed(1)} s`, "#2dd4bf");
+    const earth = s.devices.find((item) => item.id === "earth-clock")!; const ship = s.devices.find((item) => item.id === "ship-clock")!;
+    this.clock(earth.x, earth.y, 10, "지구 10.0 s", "#e2e8f0"); this.clock(ship.x, ship.y, proper, `우주선 ${proper.toFixed(1)} s`, "#2dd4bf");
     ctx.strokeStyle = "rgba(45,212,191,.55)"; ctx.lineWidth = 4;
     for (let i = -2; i <= 2; i += 1) { ctx.beginPath(); ctx.moveTo(500 + i * 55 / s.gamma, 80); ctx.lineTo(660 + i * 55 / s.gamma, 450); ctx.stroke(); }
     this.label(`공간과 시간의 눈금 변화 γ=${s.gamma.toFixed(2)}`, 330, 80);
@@ -177,8 +166,11 @@ export class ModernRenderer {
     this.label(`전류 ${s.currentMilliamp.toFixed(2)} mA`, 400, 485, "#fecdd3");
   }
   private sandbox(s: ModernSnapshot): void {
-    const ctx = this.ctx; const sources = s.devices.filter((d) => d.kind === "photon-source"); const targets = s.devices.filter((d) => d.kind === "metal" || d.kind === "atom" || d.kind === "detector");
-    sources.forEach((source) => targets.forEach((target) => { const phase = (s.animationTime * 0.4) % 1; ctx.strokeStyle = "rgba(250,204,21,.25)"; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(source.x, source.y); ctx.lineTo(target.x, target.y); ctx.stroke(); ctx.fillStyle = "#facc15"; ctx.beginPath(); ctx.arc(source.x + (target.x - source.x) * phase, source.y + (target.y - source.y) * phase, 6, 0, Math.PI * 2); ctx.fill(); }));
+    const ctx = this.ctx; const sources = s.devices.filter((d) => d.kind === "photon-source"); const interactions = s.devices.filter((d) => d.kind === "metal" || d.kind === "atom"); const detectors = s.devices.filter((d) => d.kind === "detector"); const nuclei = s.devices.filter((d) => d.kind === "nucleus");
+    const photonPath = (start: ModernDevice, end: ModernDevice): void => { const phase = (s.animationTime * 0.4) % 1; ctx.strokeStyle = "rgba(250,204,21,.25)"; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(start.x, start.y); ctx.lineTo(end.x, end.y); ctx.stroke(); ctx.fillStyle = "#facc15"; ctx.beginPath(); ctx.arc(start.x + (end.x - start.x) * phase, start.y + (end.y - start.y) * phase, 6, 0, Math.PI * 2); ctx.fill(); };
+    sources.forEach((source) => { detectors.forEach((detector) => photonPath(source, detector)); interactions.forEach((interaction) => { photonPath(source, interaction); detectors.forEach((detector) => photonPath(interaction, detector)); }); });
+    nuclei.forEach((nucleus) => detectors.forEach((detector) => { ctx.save(); ctx.setLineDash([8, 9]); ctx.strokeStyle = "rgba(74,222,128,.38)"; ctx.beginPath(); ctx.moveTo(nucleus.x, nucleus.y); ctx.lineTo(detector.x, detector.y); ctx.stroke(); ctx.restore(); }));
+    s.detections.forEach((event) => { ctx.fillStyle = `rgba(103,232,249,${clamp(0.35 + event.strength, 0.35, 1)})`; ctx.beginPath(); ctx.arc(event.x, event.y, 7, 0, Math.PI * 2); ctx.fill(); });
     if (s.devices.length === 1) this.label("팔레트에서 실험 장치를 추가해 보세요", 300, 90);
   }
   private device(item: ModernDevice): void {
@@ -188,7 +180,6 @@ export class ModernRenderer {
     else if (item.kind === "detector") { ctx.strokeRect(item.x - 25, item.y - 55, 50, 110); }
     else { ctx.beginPath(); ctx.arc(item.x, item.y, item.kind === "nucleus" ? 25 : 19, 0, Math.PI * 2); ctx.fill(); ctx.strokeStyle = "#070b1e"; ctx.stroke(); }
   }
-  private track(): void { const ctx = this.ctx; ctx.strokeStyle = "rgba(255,255,255,.25)"; ctx.lineWidth = 8; ctx.lineCap = "round"; ctx.beginPath(); ctx.moveTo(TRACK_LEFT, 530); ctx.lineTo(TRACK_LEFT + TRACK_WIDTH, 530); ctx.stroke(); ctx.lineCap = "butt"; }
   private handle(p: Point, color: string): void { const ctx = this.ctx; ctx.fillStyle = color; ctx.strokeStyle = "#fff"; ctx.lineWidth = 4; ctx.beginPath(); ctx.arc(p.x, p.y, HANDLE_RADIUS, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); }
   private label(text: string, x: number, y: number, color = "#e0e7ff"): void { this.ctx.fillStyle = color; this.ctx.font = "700 21px system-ui, sans-serif"; this.ctx.fillText(text, x, y); }
   private color(mode: ModernSnapshot["mode"]): string { return ({ relativity: "#2dd4bf", atoms: "#a78bfa", photoelectric: "#facc15", "matter-waves": "#60a5fa", quantum: "#f472b6", tunneling: "#fb923c", nuclei: "#4ade80", semiconductors: "#fb7185", sandbox: "#fff" })[mode]; }
