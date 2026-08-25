@@ -30,3 +30,12 @@ describe("mechanics lab content", () => {
     expect(styles).toMatch(/\.quick-start-list\s*\{[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\)/s);
   });
 });
+
+describe("sandbox object palette", () => {
+  it("offers distinct moving and fixed primitives", () => {
+    const objectKinds = [...markup.matchAll(/data-object-kind="([^"]+)"/g)]
+      .map((match) => match[1]);
+
+    expect(objectKinds).toEqual(["ball", "box", "platform", "wall"]);
+  });
+});

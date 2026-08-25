@@ -102,7 +102,7 @@ describe("PhysicsPlayground object creation", () => {
     expect(starterBody.state.velocity.x / 48).toBeCloseTo(5.6);
     expect(starterBody.state.velocity.y / 48).toBeCloseTo(-7.2);
     expect(added.shape).toBe("circle");
-    expect(added.label).toContain("물체");
+    expect(added.label).toContain("공");
     expect(addedBody.state.velocity).toEqual({ x: 0, y: 0 });
   });
 
@@ -121,6 +121,27 @@ describe("PhysicsPlayground object creation", () => {
       shape: "circle",
       material: "rubber",
     });
+  });
+
+  it("creates four distinct sandbox primitives with matching motion roles", () => {
+    vi.stubGlobal("requestAnimationFrame", () => 0);
+    const playground = new PhysicsPlayground(createCanvas(), { width: 960, height: 600 });
+    playground.startSandbox();
+
+    const ball = playground.addSandboxObject("ball");
+    const box = playground.addSandboxObject("box");
+    const platform = playground.addSandboxObject("platform");
+    const wall = playground.addSandboxObject("wall");
+
+    expect(ball.shape).toBe("circle");
+    expect(playground.simulation.getBody(ball.id)?.collider).toEqual({ kind: "circle", radius: 25 });
+    expect(box.shape).toBe("box");
+    expect(playground.simulation.getBody(box.id)?.collider).toEqual({ kind: "box", halfWidth: 28, halfHeight: 28 });
+    expect(playground.simulation.getBody(box.id)?.fixed).not.toBe(true);
+    expect(platform).toMatchObject({ shape: "box", width: 170, height: 26 });
+    expect(playground.simulation.getBody(platform.id)?.fixed).toBe(true);
+    expect(wall).toMatchObject({ shape: "box", width: 28, height: 190 });
+    expect(playground.simulation.getBody(wall.id)?.fixed).toBe(true);
   });
 });
 

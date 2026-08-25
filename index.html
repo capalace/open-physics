@@ -82,7 +82,7 @@
       <section id="sandbox-browser" class="sandbox-browser" hidden>
         <span class="sandbox-symbol" aria-hidden="true">✦</span>
         <h2>정답 없는 실험 공간</h2>
-        <p>원을 추가하고 위치·속도·재질·무게·중력을 마음대로 바꿔 보세요.</p>
+        <p>공과 상자를 놓고, 받침대와 벽으로 나만의 실험 장치를 만들어 보세요.</p>
         <button id="new-sandbox" type="button">새 자유 월드 시작</button>
       </section>
     </aside>
@@ -96,7 +96,11 @@
         </div>
         <div class="toolbar-divider"></div>
         <div class="creation-controls" data-sandbox-only>
-          <button id="add-object" type="button" title="원형 물체 추가"><i class="shape-circle"></i><span>물체 추가</span></button>
+          <span class="palette-label">추가</span>
+          <button type="button" data-object-kind="ball" title="움직이는 공 추가"><i class="shape-circle"></i><span>공</span></button>
+          <button type="button" data-object-kind="box" title="움직이는 상자 추가"><i class="shape-box"></i><span>상자</span></button>
+          <button type="button" data-object-kind="platform" title="움직이지 않는 받침대 추가"><i class="shape-platform"></i><span>받침대</span></button>
+          <button type="button" data-object-kind="wall" title="움직이지 않는 벽 추가"><i class="shape-wall"></i><span>벽</span></button>
           <button id="delete-object" class="danger-button" type="button" disabled>삭제</button>
         </div>
         <div class="run-indicator" id="run-status" data-running="false">멈춤</div>
@@ -148,7 +152,7 @@
         <form id="inspector-form" class="inspector-form" hidden>
           <div class="selection-summary" data-sandbox-only>
           <input id="object-color" type="color" aria-label="물체 색상" />
-          <span><strong id="selection-name">선택한 물체</strong><small id="selection-type">원형 물체</small></span>
+          <span><strong id="selection-name">선택한 물체</strong><small id="selection-type">움직이는 공</small></span>
           </div>
           <label class="field" data-sandbox-only><span>이름</span><input id="object-label" type="text" maxlength="24" /></label>
 
@@ -162,7 +166,7 @@
           </div>
           </section>
 
-          <section class="choice-section" aria-labelledby="mass-title" data-lab-control="mass">
+          <section class="choice-section" aria-labelledby="mass-title" data-lab-control="mass" data-movable-only>
           <h3 id="mass-title">무게</h3>
           <div class="mass-options" role="group" aria-label="무게 선택">
             <button type="button" data-mass="0.5">가벼움</button>
@@ -171,7 +175,7 @@
           </div>
           </section>
 
-          <details class="advanced-controls" data-sandbox-only>
+          <details class="advanced-controls" data-sandbox-only data-movable-only>
           <summary>정확한 무게 설정</summary>
           <div class="field-grid">
             <label class="field"><span>질량 <small>kg</small></span><input id="object-mass" type="number" min="0.1" max="20" step="0.1" /></label>

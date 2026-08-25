@@ -27,6 +27,51 @@ describe("MultiBodyWorld", () => {
     expect(world.getBody("b")?.state.velocity.x).toBeCloseTo(1);
   });
 
+  it("resolves a circle colliding with a fixed box", () => {
+    const world = new MultiBodyWorld();
+    world.addBody({
+      id: "ball",
+      radius: 1,
+      collider: { kind: "circle", radius: 1 },
+      restitution: 1,
+      state: { position: { x: -1.4, y: 0 }, velocity: { x: 1, y: 0 }, acceleration: { x: 0, y: 0 }, mass: 1 },
+    });
+    world.addBody({
+      id: "wall",
+      collider: { kind: "box", halfWidth: 0.5, halfHeight: 2 },
+      restitution: 1,
+      fixed: true,
+      state: { position: { x: 0, y: 0 }, velocity: { x: 0, y: 0 }, acceleration: { x: 0, y: 0 }, mass: 1 },
+    });
+
+    world.step(0.01);
+
+    expect(world.collisions).toHaveLength(1);
+    expect(world.getBody("ball")?.state.velocity.x).toBeCloseTo(-1);
+  });
+
+  it("resolves a moving box colliding with a fixed box", () => {
+    const world = new MultiBodyWorld();
+    world.addBody({
+      id: "box",
+      collider: { kind: "box", halfWidth: 0.5, halfHeight: 0.5 },
+      restitution: 1,
+      state: { position: { x: -0.8, y: 0 }, velocity: { x: 1, y: 0 }, acceleration: { x: 0, y: 0 }, mass: 1 },
+    });
+    world.addBody({
+      id: "wall",
+      collider: { kind: "box", halfWidth: 0.5, halfHeight: 2 },
+      restitution: 1,
+      fixed: true,
+      state: { position: { x: 0, y: 0 }, velocity: { x: 0, y: 0 }, acceleration: { x: 0, y: 0 }, mass: 1 },
+    });
+
+    world.step(0.01);
+
+    expect(world.collisions).toHaveLength(1);
+    expect(world.getBody("box")?.state.velocity.x).toBeCloseTo(-1);
+  });
+
   it("enforces a distance constraint", () => {
     const world = new MultiBodyWorld([], undefined, [{ id: "rod", bodyA: "a", bodyB: "b", distance: 2 }]);
     world.addBody({ id: "a", fixed: true, state: { position: { x: 0, y: 0 }, velocity: { x: 0, y: 0 }, acceleration: { x: 0, y: 0 }, mass: 1 } });

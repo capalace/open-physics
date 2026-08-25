@@ -6,9 +6,14 @@ export interface Body {
   readonly id: string;
   state: BodyState;
   readonly radius?: number;
+  readonly collider?: BodyCollider;
   restitution?: number;
   readonly fixed?: boolean;
 }
+
+export type BodyCollider =
+  | { readonly kind: "circle"; readonly radius: number }
+  | { readonly kind: "box"; readonly halfWidth: number; readonly halfHeight: number };
 
 export interface WorldForceLaw extends ForceLaw {
   forceOnBody(body: Body, bodies: readonly Body[], context: PhysicsContext): Force;
@@ -32,6 +37,87 @@ export interface CollisionEvent {
 const normalize = (v: Vector2): Vector2 => {
   const length = magnitude(v);
   return length === 0 ? { x: 1, y: 0 } : scale(v, 1 / length);
+};
+
+interface CollisionManifold {
+  readonly normal: Vector2;
+  readonly penetration: number;
+}
+
+const bodyCollider = (body: Body): BodyCollider | null =>
+  body.collider ?? (body.radius ? { kind: "circle", radius: body.radius } : null);
+
+const circleBoxManifold = (
+  circleBody: Body,
+  circle: Extract<BodyCollider, { kind: "circle" }>,
+  boxBody: Body,
+  box: Extract<BodyCollider, { kind: "box" }>,
+): CollisionManifold | null => {
+  const localX = circleBody.state.position.x - boxBody.state.position.x;
+  const localY = circleBody.state.position.y - boxBody.state.position.y;
+  const closestX = Math.max(-box.halfWidth, Math.min(box.halfWidth, localX));
+  const closestY = Math.max(-box.halfHeight, Math.min(box.halfHeight, localY));
+  const towardBox = { x: closestX - localX, y: closestY - localY };
+  const distance = magnitude(towardBox);
+
+  if (distance > 0) {
+    if (distance >= circle.radius) return null;
+    return { normal: scale(towardBox, 1 / distance), penetration: circle.radius - distance };
+  }
+
+  const distanceToVerticalEdge = box.halfWidth - Math.abs(localX);
+  const distanceToHorizontalEdge = box.halfHeight - Math.abs(localY);
+  if (distanceToVerticalEdge < distanceToHorizontalEdge) {
+    const outward = localX >= 0 ? 1 : -1;
+    return {
+      normal: { x: -outward, y: 0 },
+      penetration: circle.radius + distanceToVerticalEdge,
+    };
+  }
+  const outward = localY >= 0 ? 1 : -1;
+  return {
+    normal: { x: 0, y: -outward },
+    penetration: circle.radius + distanceToHorizontalEdge,
+  };
+};
+
+const collisionManifold = (a: Body, b: Body): CollisionManifold | null => {
+  const colliderA = bodyCollider(a);
+  const colliderB = bodyCollider(b);
+  if (!colliderA || !colliderB) return null;
+
+  if (colliderA.kind === "circle" && colliderB.kind === "circle") {
+    const delta = sub(b.state.position, a.state.position);
+    const distance = magnitude(delta);
+    const radius = colliderA.radius + colliderB.radius;
+    if (distance >= radius) return null;
+    return { normal: normalize(delta), penetration: radius - distance };
+  }
+
+  if (colliderA.kind === "box" && colliderB.kind === "box") {
+    const delta = sub(b.state.position, a.state.position);
+    const overlapX = colliderA.halfWidth + colliderB.halfWidth - Math.abs(delta.x);
+    const overlapY = colliderA.halfHeight + colliderB.halfHeight - Math.abs(delta.y);
+    if (overlapX <= 0 || overlapY <= 0) return null;
+    return overlapX < overlapY
+      ? { normal: { x: delta.x >= 0 ? 1 : -1, y: 0 }, penetration: overlapX }
+      : { normal: { x: 0, y: delta.y >= 0 ? 1 : -1 }, penetration: overlapY };
+  }
+
+  if (colliderA.kind === "circle" && colliderB.kind === "box") {
+    return circleBoxManifold(a, colliderA, b, colliderB);
+  }
+
+  const manifold = circleBoxManifold(
+    b,
+    colliderB as Extract<BodyCollider, { kind: "circle" }>,
+    a,
+    colliderA as Extract<BodyCollider, { kind: "box" }>,
+  );
+  return manifold && {
+    normal: scale(manifold.normal, -1),
+    penetration: manifold.penetration,
+  };
 };
 
 /** A 2D multi-body world for educational, equation-based simulation. */
@@ -130,12 +216,9 @@ export class MultiBodyWorld {
         const a = bodies[i];
         const b = bodies[j];
         if (a.fixed && b.fixed) continue;
-        const radius = (a.radius ?? 0) + (b.radius ?? 0);
-        if (radius <= 0) continue;
-        const delta = sub(b.state.position, a.state.position);
-        const distance = magnitude(delta);
-        if (distance >= radius) continue;
-        const normal = normalize(delta);
+        const manifold = collisionManifold(a, b);
+        if (!manifold) continue;
+        const { normal, penetration } = manifold;
         const relativeVelocity = sub(b.state.velocity, a.state.velocity);
         const normalVelocity = relativeVelocity.x * normal.x + relativeVelocity.y * normal.y;
         const restitution = Math.min(a.restitution ?? 1, b.restitution ?? 1);
@@ -145,7 +228,6 @@ export class MultiBodyWorld {
 
         // Keep resting or slowly moving contacts from remaining interpenetrated.
         if (totalInverseMass > 0) {
-          const penetration = radius - distance;
           const correction = scale(normal, penetration / totalInverseMass);
           if (!a.fixed) a.state.position = sub(a.state.position, scale(correction, inverseMassA));
           if (!b.fixed) b.state.position = add(b.state.position, scale(correction, inverseMassB));

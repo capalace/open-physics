@@ -26,6 +26,7 @@ export type PlaygroundPreset =
   | "constraints"
   | "pulley";
 export type PlaygroundMaterial = "rubber" | "wood" | "steel" | "clay";
+export type SandboxObjectKind = "ball" | "box" | "platform" | "wall";
 
 export const MATERIALS: Readonly<Record<PlaygroundMaterial, {
   restitution: number;
@@ -70,6 +71,7 @@ export interface PlaygroundSnapshot {
     color: string;
     mass: number;
     material: PlaygroundMaterial;
+    fixed: boolean;
   } | null;
 }
 
@@ -195,9 +197,39 @@ export class PhysicsPlayground {
   toggle(): void { this.paused = !this.paused; }
 
   addObject(): PlaygroundObject {
+    return this.addSandboxObject("ball");
+  }
+
+  addSandboxObject(kind: SandboxObjectKind): PlaygroundObject {
     this._paused = true;
     this.accumulator = 0;
-    return this.addCircle(420 + Math.random() * 120, 100, 25, { label: `물체 ${this.objects.size + 1}` });
+    const sequence = this.objects.size + 1;
+    if (kind === "ball") {
+      return this.addCircle(this.canvas.width * 0.3, 115, 25, {
+        label: `공 ${sequence}`,
+        material: "rubber",
+      });
+    }
+    if (kind === "box") {
+      return this.addBox(this.canvas.width * 0.62, 115, 56, 56, {
+        label: `상자 ${sequence}`,
+        material: "wood",
+      });
+    }
+    if (kind === "platform") {
+      return this.addBox(this.canvas.width * 0.58, this.floorY - 115, 170, 26, {
+        label: `받침대 ${sequence}`,
+        color: "#718099",
+        material: "steel",
+        fixed: true,
+      });
+    }
+    return this.addBox(this.canvas.width * 0.72, this.floorY - 150, 28, 190, {
+      label: `벽 ${sequence}`,
+      color: "#46536a",
+      material: "steel",
+      fixed: true,
+    });
   }
 
   startSandbox(): void {
@@ -574,6 +606,7 @@ export class PhysicsPlayground {
           color: object.color,
           mass: body.state.mass,
           material: object.material,
+          fixed: Boolean(body.fixed),
         };
       }
     }
@@ -595,6 +628,9 @@ export class PhysicsPlayground {
     this.simulation.addBody({
       id: object.id,
       radius: object.radius,
+      collider: object.shape === "circle"
+        ? { kind: "circle", radius: object.radius }
+        : { kind: "box", halfWidth: object.width / 2, halfHeight: object.height / 2 },
       restitution: MATERIALS[object.material].restitution,
       fixed: options.fixed,
       state: {
@@ -1509,7 +1545,7 @@ export class PhysicsPlayground {
       } else if (!body.fixed) {
         this.drawVelocityControl(object, body.state.velocity);
       }
-      if (this.visualization.vectors) {
+      if (this.visualization.vectors && (!body.fixed || this.isGuidedBody(object.id))) {
         this.drawArrow(object.x, object.y, body.state.acceleration, 0.14, "#e05c3f", "가속도");
       }
     }

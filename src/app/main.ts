@@ -3,6 +3,7 @@ import {
   type PlaygroundMaterial,
   type PlaygroundPreset,
   type PlaygroundSnapshot,
+  type SandboxObjectKind,
 } from "./physics-playground";
 import { mechanicsLab, type LabControl, type MechanicsLab } from "./mechanics-labs";
 
@@ -17,7 +18,6 @@ function required<T extends Element>(selector: string): T {
 const canvas = required<HTMLCanvasElement>("#physics-canvas");
 const playButton = required<HTMLButtonElement>("#play");
 const stepButton = required<HTMLButtonElement>("#step");
-const addObjectButton = required<HTMLButtonElement>("#add-object");
 const deleteButton = required<HTMLButtonElement>("#delete-object");
 const focusButton = required<HTMLButtonElement>("#focus-mode");
 const appLayout = required<HTMLElement>(".app-layout");
@@ -48,8 +48,10 @@ required<HTMLButtonElement>("#reset").addEventListener("click", () => {
   if (appMode === "lab") playground.loadPreset(activeLab.id, true);
   else playground.startSandbox();
 });
-addObjectButton.addEventListener("click", () => {
-  if (appMode === "sandbox") playground.addObject();
+document.querySelectorAll<HTMLButtonElement>("[data-object-kind]").forEach((button) => {
+  button.addEventListener("click", () => {
+    if (appMode === "sandbox") playground.addSandboxObject(button.dataset.objectKind as SandboxObjectKind);
+  });
 });
 deleteButton.addEventListener("click", () => {
   if (appMode === "sandbox") playground.removeSelected();
@@ -151,6 +153,11 @@ function renderSnapshot(snapshot: PlaygroundSnapshot): void {
   inspectorEmpty.hidden = !editorAvailable || Boolean(snapshot.selected);
   inspectorForm.hidden = !editorAvailable || !snapshot.selected;
   deleteButton.disabled = appMode === "lab" || !snapshot.selected;
+  document.querySelectorAll<HTMLElement>("[data-movable-only]").forEach((element) => {
+    element.hidden = appMode === "sandbox"
+      ? Boolean(snapshot.selected?.fixed)
+      : element.hasAttribute("data-sandbox-only") || !activeLab.controls.includes("mass");
+  });
 
   if (!snapshot.selected) {
     return;
@@ -159,7 +166,7 @@ function renderSnapshot(snapshot: PlaygroundSnapshot): void {
   const selected = snapshot.selected;
   required<HTMLElement>("#selection-name").textContent = selected.label;
   required<HTMLElement>("#selection-type").textContent =
-    selected.shape === "circle" ? "동그란 공" : "네모난 상자";
+    selected.fixed ? "움직이지 않는 블록" : selected.shape === "circle" ? "움직이는 공" : "움직이는 상자";
 
   syncInput(objectLabel, selected.label);
   syncInput(objectMass, selected.mass.toFixed(1));

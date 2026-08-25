@@ -170,6 +170,9 @@ button:focus-visible, input:focus-visible { outline: 3px solid #91a8ff; outline-
   background: white;
   box-shadow: 0 8px 24px #22304a0a;
 }
+body[data-app-mode="sandbox"] .world-toolbar { flex-wrap: wrap; }
+body[data-app-mode="sandbox"] .creation-controls { order: 2; flex: 0 0 100%; border-top: 1px solid #e5eaf1; padding: 7px 4px 1px; }
+body[data-app-mode="sandbox"] .creation-controls .danger-button { margin-left: auto; }
 .transport-controls, .creation-controls { display: flex; align-items: center; gap: 6px; }
 .primary-button, .icon-button, .creation-controls button {
   height: 40px;
@@ -190,8 +193,13 @@ button:focus-visible, input:focus-visible { outline: 3px solid #91a8ff; outline-
 .icon-button:hover, .creation-controls button:hover { border-color: #b8c5d8; background: #f5f7fb; }
 button:disabled { opacity: .45; cursor: not-allowed; }
 .toolbar-divider { align-self: stretch; width: 1px; margin: 3px 2px; background: #e4e9f0; }
-.creation-controls button { display: inline-flex; align-items: center; gap: 6px; padding: 0 10px; }
+.creation-controls button { display: inline-flex; flex: 0 0 auto; align-items: center; gap: 6px; padding: 0 10px; white-space: nowrap; }
+.palette-label { color: #8a96a8; font-size: 12px; font-weight: 800; }
 .shape-circle { display: inline-block; width: 11px; height: 11px; border: 2px solid #5575e8; border-radius: 50%; }
+.shape-box, .shape-platform, .shape-wall { display: inline-block; border: 2px solid #5575e8; border-radius: 2px; }
+.shape-box { width: 12px; height: 12px; }
+.shape-platform { width: 17px; height: 7px; }
+.shape-wall { width: 7px; height: 17px; }
 .creation-controls .danger-button { border-color: transparent; color: #c45038; }
 
 .run-indicator {
