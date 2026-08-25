@@ -82,7 +82,7 @@
       <section id="sandbox-browser" class="sandbox-browser" hidden>
         <span class="sandbox-symbol" aria-hidden="true">✦</span>
         <h2>정답 없는 실험 공간</h2>
-        <p>공과 상자, 고정점과 블록을 놓고 줄·용수철·지렛대·도르래를 더해 나만의 실험을 만들어 보세요.</p>
+        <p>공과 상자를 힘으로 밀고 줄·막대·용수철로 연결해 보세요. 중력원과 물, 지렛대와 도르래도 한 월드에 함께 놓을 수 있어요.</p>
         <button id="new-sandbox" type="button">새 자유 월드 시작</button>
       </section>
     </aside>
@@ -102,9 +102,15 @@
           <button type="button" data-object-kind="block" title="크기를 직접 바꾸는 고정 블록 추가"><i class="shape-block"></i><span>고정 블록</span></button>
           <button type="button" data-object-kind="anchor" title="줄을 연결할 수 있는 고정점 추가"><i class="shape-anchor"></i><span>고정점</span></button>
           <span class="palette-divider" aria-hidden="true"></span>
-          <span class="palette-label">장치</span>
+          <span class="palette-label">연결·힘</span>
           <button type="button" data-connection-kind="rope" title="선택한 물체에서 다른 물체로 줄 연결" aria-pressed="false"><i class="apparatus-symbol rope">╱</i><span>줄</span></button>
+          <button type="button" data-connection-kind="rod" title="선택한 물체에서 다른 물체로 단단한 막대 연결" aria-pressed="false"><i class="apparatus-symbol rod">━</i><span>막대</span></button>
+          <button type="button" data-force-tool="constant" title="선택한 물체에 직접 끌어 조절하는 힘 추가" aria-pressed="false"><i class="apparatus-symbol force">→</i><span>힘</span></button>
           <button type="button" data-apparatus-kind="spring" title="선택한 물체에 용수철 연결"><i class="apparatus-symbol spring">⌁</i><span>용수철</span></button>
+          <span class="palette-divider" aria-hidden="true"></span>
+          <span class="palette-label">환경·장치</span>
+          <button type="button" data-environment-kind="gravity-source" title="주변 물체를 끌어당기는 중력원 추가"><i class="apparatus-symbol gravity">◎</i><span>중력원</span></button>
+          <button type="button" data-environment-kind="water" title="모든 움직이는 물체에 부력이 작용하는 물 영역 켜기" aria-pressed="false"><i class="apparatus-symbol water">≈</i><span>물</span></button>
           <button type="button" data-apparatus-kind="lever" title="지렛대 장치 추가"><i class="apparatus-symbol lever">▰</i><span>지렛대</span></button>
           <button type="button" data-apparatus-kind="pulley" title="도르래 장치 추가"><i class="apparatus-symbol pulley">◎</i><span>도르래</span></button>
           <button id="delete-object" class="danger-button" type="button" disabled>삭제</button>
@@ -141,12 +147,13 @@
         </div>
         <div class="lab-observation"><strong>눈여겨볼 것</strong><p id="lab-observe">질량보다 중력 환경이 떨어지는 속도 변화에 어떤 영향을 주는지 보세요.</p></div>
         <div class="lab-law"><span>연결되는 법칙</span><strong id="law-title">중력과 가속도</strong><p id="law-description">중력은 물체를 아래로 끌어 속도를 계속 바꿉니다.</p><code id="law-equation">F = mg</code></div>
-        <section id="lab-graph" class="lab-graph" aria-labelledby="lab-graph-title">
+      </section>
+
+      <section id="lab-graph" class="lab-graph" aria-labelledby="lab-graph-title">
           <div class="lab-graph-heading"><span>실시간 그래프</span><strong id="lab-graph-title">바닥까지 남은 높이</strong></div>
           <canvas id="lab-graph-canvas" width="270" height="150" aria-label="실험 결과 그래프">실험이 실행되면 시간에 따른 변화가 선 그래프로 나타납니다.</canvas>
           <div id="lab-graph-legend" class="lab-graph-legend"></div>
           <p class="lab-graph-axes"><span>가로축 · 시간</span><span id="lab-graph-y-label">세로축 · 높이 (m)</span></p>
-        </section>
       </section>
 
       <section id="object-editor" class="object-editor">
@@ -166,6 +173,16 @@
           <input id="object-color" type="color" aria-label="물체 색상" />
           <span><strong id="selection-name">선택한 물체</strong><small id="selection-type">움직이는 공</small></span>
           </div>
+          <section id="sandbox-observation" class="sandbox-observation" data-sandbox-only>
+            <h3>지금 관찰값</h3>
+            <div><span>속력</span><output id="observe-speed">0 m/s</output></div>
+            <div><span>가속도</span><output id="observe-acceleration">0 m/s²</output></div>
+            <div><span>운동량</span><output id="observe-momentum">0 kg·m/s</output></div>
+            <div><span>운동 에너지</span><output id="observe-kinetic">0 J</output></div>
+            <div><span>위치 에너지</span><output id="observe-potential">0 J</output></div>
+            <div id="observe-spring-row"><span>용수철 에너지</span><output id="observe-spring">0 J</output></div>
+            <div id="observe-force-row"><span>주는 힘</span><output id="observe-force">0 N</output></div>
+          </section>
           <label class="field" data-sandbox-only><span>이름</span><input id="object-label" type="text" maxlength="24" /></label>
 
           <div id="block-resize-help" class="block-resize-help" hidden>

@@ -185,6 +185,126 @@ describe("PhysicsPlayground object creation", () => {
     )).toBeCloseTo(rope.distance);
   });
 
+  it("connects two sandbox objects with a visibly rigid rod", () => {
+    vi.stubGlobal("requestAnimationFrame", () => 0);
+    const { canvas, dispatchPointer } = createInteractiveCanvas();
+    const playground = new PhysicsPlayground(canvas, { width: 960, height: 600 });
+    playground.startSandbox();
+    const first = [...playground.objects.values()][0];
+    const second = playground.addSandboxObject("ball");
+    playground.select(first.id);
+
+    expect(playground.startConnection("rod")).toBe(true);
+    dispatchPointer("pointerdown", second.x, second.y);
+
+    expect(playground.simulation.constraints).toEqual([
+      expect.objectContaining({ id: expect.stringContaining("sandbox-rod-"), bodyA: first.id, bodyB: second.id }),
+    ]);
+  });
+
+  it("adds a direct force that can cross the static-friction threshold", () => {
+    vi.stubGlobal("requestAnimationFrame", () => 0);
+    const playground = new PhysicsPlayground(createCanvas(), { width: 960, height: 600 });
+    playground.startSandbox();
+    const object = [...playground.objects.values()][0];
+    const body = playground.simulation.getBody(object.id)!;
+    body.state.position.y = playground.floorY - object.radius;
+    playground.updateSelected({ material: "clay" });
+
+    expect(playground.toggleForceForSelected()).toBe(true);
+    expect(body.state.acceleration.x).toBe(0);
+
+    const controller = playground as unknown as {
+      forceLaws: Map<string, { setVector(vector: { x: number; y: number }): void }>;
+    };
+    controller.forceLaws.get(object.id)!.setVector({ x: 12 * 48, y: 0 });
+    playground.simulation.refreshAccelerations();
+
+    expect(body.state.acceleration.x).toBeGreaterThan(0);
+    expect(playground.snapshot().appliedForceIds).toContain(object.id);
+  });
+
+  it("changes a direct force by dragging its arrow handle", () => {
+    vi.stubGlobal("requestAnimationFrame", () => 0);
+    const { canvas, dispatchPointer } = createInteractiveCanvas();
+    const playground = new PhysicsPlayground(canvas, { width: 960, height: 600 });
+    playground.startSandbox();
+    const object = [...playground.objects.values()][0];
+
+    playground.toggleForceForSelected();
+    dispatchPointer("pointerdown", object.x + 40, object.y);
+    dispatchPointer("pointermove", object.x + 100, object.y);
+    dispatchPointer("pointerup", object.x + 100, object.y);
+
+    expect(playground.snapshot().observation?.appliedForce).toBeCloseTo(9.6);
+    expect(playground.paused).toBe(false);
+  });
+
+  it("adds a movable point-gravity source to the sandbox", () => {
+    vi.stubGlobal("requestAnimationFrame", () => 0);
+    const playground = new PhysicsPlayground(createCanvas(), { width: 960, height: 600 });
+    playground.startSandbox();
+    const moving = [...playground.objects.values()][0];
+
+    expect(playground.toggleSandboxEnvironment("gravity-source")).toBe(true);
+    const source = [...playground.objects.values()].find((object) => object.gravitySource)!;
+    const movingBody = playground.simulation.getBody(moving.id)!;
+    movingBody.state.position = { x: source.x + 180, y: source.y };
+    playground.simulation.refreshAccelerations();
+
+    expect(playground.gravity).toBe(0);
+    expect(movingBody.state.acceleration.x).toBeLessThan(0);
+    expect(playground.snapshot().environment.gravitySourceCount).toBe(1);
+  });
+
+  it("removes a point-gravity field with its source object", () => {
+    vi.stubGlobal("requestAnimationFrame", () => 0);
+    const playground = new PhysicsPlayground(createCanvas(), { width: 960, height: 600 });
+    playground.startSandbox();
+    playground.toggleSandboxEnvironment("gravity-source");
+    const source = [...playground.objects.values()].find((object) => object.gravitySource)!;
+
+    playground.select(source.id);
+    playground.removeSelected();
+
+    expect(playground.snapshot().environment.gravitySourceCount).toBe(0);
+    expect(playground.simulation.fields.some((field) => field.id.endsWith(source.id))).toBe(false);
+  });
+
+  it("applies one sandbox water area to light and heavy objects", () => {
+    vi.stubGlobal("requestAnimationFrame", () => 0);
+    const playground = new PhysicsPlayground(createCanvas(), { width: 960, height: 600 });
+    playground.startSandbox();
+    const object = [...playground.objects.values()][0];
+    const body = playground.simulation.getBody(object.id)!;
+
+    expect(playground.toggleSandboxEnvironment("water")).toBe(true);
+    const controller = playground as unknown as { sandboxWater: { waterline: number } };
+    body.state.position.y = controller.sandboxWater.waterline + object.radius;
+    playground.updateSelected({ mass: 0.5 });
+    const lightAcceleration = body.state.acceleration.y;
+    playground.updateSelected({ mass: 5 });
+    const heavyAcceleration = body.state.acceleration.y;
+
+    expect(lightAcceleration).toBeLessThan(0);
+    expect(heavyAcceleration).toBeGreaterThan(0);
+    expect(playground.snapshot().environment.water).toBe(true);
+  });
+
+  it("turns the shared sandbox water area off without changing objects", () => {
+    vi.stubGlobal("requestAnimationFrame", () => 0);
+    const playground = new PhysicsPlayground(createCanvas(), { width: 960, height: 600 });
+    playground.startSandbox();
+    const objectCount = playground.objects.size;
+
+    expect(playground.toggleSandboxEnvironment("water")).toBe(true);
+    expect(playground.toggleSandboxEnvironment("water")).toBe(false);
+
+    expect(playground.snapshot().environment.water).toBe(false);
+    expect(playground.objects.size).toBe(objectCount);
+    expect(playground.simulation.laws.some((law) => law.id === "fluid.buoyancy.sandbox")).toBe(false);
+  });
+
   it("removes a rope when either connected endpoint is deleted", () => {
     vi.stubGlobal("requestAnimationFrame", () => 0);
     const { canvas, dispatchPointer } = createInteractiveCanvas();
@@ -210,15 +330,34 @@ describe("PhysicsPlayground object creation", () => {
 
     const connected = playground.addSandboxApparatus("spring");
     const controller = playground as unknown as {
-      springLaw: { bodyId: string } | null;
+      sandboxSpringLaws: Map<string, { bodyId: string }>;
     };
 
     expect(connected.id).toBe(selected.id);
-    expect(controller.springLaw?.bodyId).toBe(selected.id);
+    expect(controller.sandboxSpringLaws.get(selected.id)?.bodyId).toBe(selected.id);
     expect(playground.objects.size).toBe(1);
   });
 
-  it("replaces only the guided sandbox apparatus while keeping ordinary objects", () => {
+  it("keeps multiple sandbox springs while adding a guided apparatus", () => {
+    vi.stubGlobal("requestAnimationFrame", () => 0);
+    const playground = new PhysicsPlayground(createCanvas(), { width: 960, height: 600 });
+    playground.startSandbox();
+    const first = [...playground.objects.values()][0];
+    playground.addSandboxApparatus("spring");
+    const second = playground.addSandboxObject("ball");
+    playground.addSandboxApparatus("spring");
+    playground.addSandboxApparatus("lever");
+    const controller = playground as unknown as {
+      sandboxSpringLaws: Map<string, unknown>;
+      guidedScene: { kind: string } | null;
+    };
+
+    expect(controller.sandboxSpringLaws.has(first.id)).toBe(true);
+    expect(controller.sandboxSpringLaws.has(second.id)).toBe(true);
+    expect(controller.guidedScene?.kind).toBe("lever");
+  });
+
+  it("keeps lever and pulley apparatus together with ordinary objects", () => {
     vi.stubGlobal("requestAnimationFrame", () => 0);
     const playground = new PhysicsPlayground(createCanvas(), { width: 960, height: 600 });
     playground.startSandbox();
@@ -231,12 +370,14 @@ describe("PhysicsPlayground object creation", () => {
     const pulleyLoad = playground.addSandboxApparatus("pulley");
     const controller = playground as unknown as {
       guidedScene: { kind: string } | null;
+      sandboxGuidedScenes: Array<{ kind: string }>;
     };
 
     expect(playground.objects.has(ordinary.id)).toBe(true);
-    expect(playground.objects.has(leverLoad.id)).toBe(false);
+    expect(playground.objects.has(leverLoad.id)).toBe(true);
     expect(playground.objects.has(pulleyLoad.id)).toBe(true);
-    expect(playground.objects.size).toBe(2);
+    expect(playground.objects.size).toBe(3);
+    expect(controller.sandboxGuidedScenes.map((scene) => scene.kind)).toContain("lever");
     expect(controller.guidedScene?.kind).toBe("pulley-advantage");
     expect(playground.snapshot().selected).toMatchObject({ id: pulleyLoad.id, guided: true });
   });
@@ -485,12 +626,24 @@ describe("PhysicsPlayground lab graphs", () => {
     expect(playground.snapshot().graph?.samples).toHaveLength(1);
   });
 
-  it("does not show a guided lab graph in the free playground", () => {
+  it("shows a selected-object speed graph and observation values in the free playground", () => {
     vi.stubGlobal("requestAnimationFrame", () => 0);
     const playground = new PhysicsPlayground(createCanvas(), { width: 960, height: 600 });
     playground.startSandbox();
+    const selected = playground.snapshot().selected!;
+    const body = playground.simulation.getBody(selected.id)!;
+    body.state.velocity = { x: 3 * 48, y: 4 * 48 };
+    playground.simulation.refreshAccelerations();
 
-    expect(playground.snapshot().graph).toBeNull();
+    expect(playground.snapshot().graph).toMatchObject({
+      title: `${selected.label}의 속력`,
+      yLabel: "속력 (m/s)",
+    });
+    expect(playground.snapshot().observation).toMatchObject({
+      speed: 5,
+      momentum: 5,
+      kineticEnergy: 12.5,
+    });
   });
 });
 
@@ -584,9 +737,12 @@ describe("PhysicsPlayground extended mechanics", () => {
     const { canvas, lineTo } = createRenderingCanvas();
     const playground = new PhysicsPlayground(canvas, { width: 960, height: 600 });
     playground.loadPreset("spring");
-    const renderer = playground as unknown as { drawSpringConnection(): void };
+    const renderer = playground as unknown as {
+      springLaw: { bodyId: string };
+      drawSpringConnection(law: { bodyId: string }): void;
+    };
 
-    renderer.drawSpringConnection();
+    renderer.drawSpringConnection(renderer.springLaw);
 
     expect(lineTo.mock.calls.length).toBeGreaterThan(300);
   });

@@ -19,9 +19,28 @@ export class UniformGravityField implements SpatialField {
 
 /** Point-source gravity field: F = GMm/r². */
 export class PointGravityField implements SpatialField {
-  readonly id = "field.gravity.point";
-  constructor(public readonly sourcePosition: Vector2, public readonly sourceMass: number, public readonly G = 6.67430e-11) {
+  readonly id: string;
+  sourcePosition: Vector2;
+
+  constructor(
+    sourcePosition: Vector2,
+    public readonly sourceMass: number,
+    public readonly G = 6.67430e-11,
+    id = "field.gravity.point",
+  ) {
     if (sourceMass <= 0 || G <= 0) throw new RangeError("Source mass and G must be greater than zero.");
+    if (!Number.isFinite(sourcePosition.x) || !Number.isFinite(sourcePosition.y)) {
+      throw new RangeError("Source position must be finite.");
+    }
+    this.sourcePosition = { ...sourcePosition };
+    this.id = id;
+  }
+
+  setSourcePosition(sourcePosition: Vector2): void {
+    if (!Number.isFinite(sourcePosition.x) || !Number.isFinite(sourcePosition.y)) {
+      throw new RangeError("Source position must be finite.");
+    }
+    this.sourcePosition = { ...sourcePosition };
   }
 
   forceAt(state: BodyState): Force {

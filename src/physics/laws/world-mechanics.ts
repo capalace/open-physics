@@ -66,6 +66,44 @@ export class AnchoredSpringLaw implements WorldForceLaw {
   }
 }
 
+export interface ConstantBodyForceOptions {
+  bodyId: string;
+  vector?: Vector2;
+}
+
+/** A learner-controlled force vector attached to one movable body. */
+export class ConstantBodyForceLaw implements WorldForceLaw {
+  readonly id: string;
+  readonly bodyId: string;
+  vector: Vector2;
+
+  constructor(options: ConstantBodyForceOptions) {
+    this.bodyId = options.bodyId;
+    this.id = `force.constant.${options.bodyId}`;
+    this.vector = { ...(options.vector ?? { x: 0, y: 0 }) };
+    this.validate();
+  }
+
+  setVector(vector: Vector2): void {
+    this.vector = { ...vector };
+    this.validate();
+  }
+
+  force(_state: BodyState, _context: PhysicsContext): Force {
+    return { vector: { ...this.vector }, source: this.id };
+  }
+
+  forceOnBody(body: Body, _bodies: readonly Body[], context: PhysicsContext): Force {
+    return body.id === this.bodyId ? this.force(body.state, context) : zeroForce(this.id);
+  }
+
+  private validate(): void {
+    if (!Number.isFinite(this.vector.x) || !Number.isFinite(this.vector.y)) {
+      throw new RangeError("Constant force vector must be finite.");
+    }
+  }
+}
+
 export interface SurfaceContactFrictionOptions {
   floorY: number;
   normalAcceleration: number;
@@ -479,6 +517,92 @@ export class BuoyancyRegionLaw implements WorldForceLaw {
 
   private validate(): void {
     if (this.displacedMass <= 0) throw new RangeError("Displaced mass must be greater than zero.");
+    if (this.gravityAcceleration < 0) throw new RangeError("Gravity acceleration must be non-negative.");
+    if (this.drag < 0) throw new RangeError("Fluid drag must be non-negative.");
+  }
+}
+
+export interface BuoyancyAreaOptions {
+  id: string;
+  waterline: number;
+  referenceDisplacedMass: number;
+  referenceRadius: number;
+  gravityAcceleration: number;
+  drag?: number;
+}
+
+/** Archimedes buoyancy for every movable body entering one horizontal water area. */
+export class BuoyancyAreaLaw implements WorldForceLaw {
+  readonly id: string;
+  waterline: number;
+  referenceDisplacedMass: number;
+  referenceRadius: number;
+  gravityAcceleration: number;
+  drag: number;
+
+  constructor(options: BuoyancyAreaOptions) {
+    this.id = options.id;
+    this.waterline = options.waterline;
+    this.referenceDisplacedMass = options.referenceDisplacedMass;
+    this.referenceRadius = options.referenceRadius;
+    this.gravityAcceleration = options.gravityAcceleration;
+    this.drag = options.drag ?? 1.8;
+    this.validate();
+  }
+
+  setWaterline(waterline: number): void {
+    this.waterline = waterline;
+    this.validate();
+  }
+
+  setGravityAcceleration(gravityAcceleration: number): void {
+    this.gravityAcceleration = gravityAcceleration;
+    this.validate();
+  }
+
+  force(_state: BodyState, _context: PhysicsContext): Force { return zeroForce(this.id); }
+
+  forceOnBody(body: Body, _bodies: readonly Body[], _context: PhysicsContext): Force {
+    if (body.fixed) return zeroForce(this.id);
+    const dimensions = this.dimensions(body);
+    if (!dimensions) return zeroForce(this.id);
+    const submergedFraction = Math.max(0, Math.min(
+      1,
+      (body.state.position.y + dimensions.halfHeight - this.waterline) / (dimensions.halfHeight * 2),
+    ));
+    if (submergedFraction === 0) return zeroForce(this.id);
+
+    const referenceArea = Math.PI * this.referenceRadius ** 2;
+    const displacedMass = this.referenceDisplacedMass * dimensions.area / referenceArea;
+    const dragFactor = this.drag * submergedFraction * body.state.mass;
+    const buoyantForce = displacedMass * this.gravityAcceleration * submergedFraction;
+    return {
+      vector: {
+        x: -body.state.velocity.x * dragFactor,
+        y: -buoyantForce - body.state.velocity.y * dragFactor,
+      },
+      source: this.id,
+    };
+  }
+
+  private dimensions(body: Body): { halfHeight: number; area: number } | null {
+    if (body.collider?.kind === "circle") {
+      return { halfHeight: body.collider.radius, area: Math.PI * body.collider.radius ** 2 };
+    }
+    if (body.collider?.kind === "box") {
+      return {
+        halfHeight: body.collider.halfHeight,
+        area: body.collider.halfWidth * body.collider.halfHeight * 4,
+      };
+    }
+    if (body.radius) return { halfHeight: body.radius, area: Math.PI * body.radius ** 2 };
+    return null;
+  }
+
+  private validate(): void {
+    if (!Number.isFinite(this.waterline)) throw new RangeError("Waterline must be finite.");
+    if (this.referenceDisplacedMass <= 0) throw new RangeError("Reference displaced mass must be greater than zero.");
+    if (this.referenceRadius <= 0) throw new RangeError("Reference radius must be greater than zero.");
     if (this.gravityAcceleration < 0) throw new RangeError("Gravity acceleration must be non-negative.");
     if (this.drag < 0) throw new RangeError("Fluid drag must be non-negative.");
   }

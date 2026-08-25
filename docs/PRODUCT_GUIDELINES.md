@@ -22,7 +22,8 @@ The intended audience is broad: children, students, and anyone who wants to expl
 - **Model-based physics:** Objects interact according to the equations and assumptions of the active physical model rather than attempting to reproduce every detail of the real world.
 - **Progressive complexity:** The same world can expose simple or more advanced physical models depending on the current section, preset, or user configuration.
 - **Purposeful guidance:** A lab gives users a question, a small set of useful actions, and a clear observation target without grading or forcing a single answer.
-- **Separate lab and sandbox affordances:** Guided labs protect essential apparatus and expose only relevant controls. The free sandbox exposes general creation and editing tools, including fixed points, user-created ropes, and reusable spring, lever, and pulley apparatus.
+- **Separate lab and sandbox affordances:** Guided labs protect essential apparatus and expose only relevant controls. The free sandbox exposes general creation and editing tools, including fixed points, rope and rod connections, direct forces, gravity and water environments, and reusable spring, lever, and pulley apparatus.
+- **Labs lead into composition:** Every core mechanics phenomenon offered as a guided lab should also be reproducible from sandbox parts. A lab supplies the question and prepared starting state; the sandbox keeps the underlying objects, forces, connections, environments, and observations available for new combinations.
 - **Presets are implementation details:** A preset configures a useful physical situation; a user-facing lab adds purpose, instructions, observation, and allowed controls around it.
 - **Visual understanding:** Important physical quantities and relationships should be observable through motion, vectors, fields, graphs, energy displays, waves, particles, and other appropriate visualizations.
 - **Physics first, curriculum second:** The product structure should represent physics naturally. Educational curricula are references for coverage and progression, not hard architectural boundaries.
@@ -36,6 +37,7 @@ The intended audience is broad: children, students, and anyone who wants to expl
 - 지렛대: 받침점에서 서로 다른 거리의 힘점을 고르고 필요한 힘을 비교한다.
 - 도르래: 짐을 받치는 1·2·4줄을 바꾸고 같은 손동작에서 필요한 힘이 클수록 손잡이가 덜 따라오는 저항감을 제공하며, 힘이 줄어드는 만큼 같은 높이에 필요한 실제 줄의 당김 거리가 늘어나는 관계를 수치로 비교한다.
 - 궤도: 속도 손잡이의 길이와 방향을 조금씩 바꾸며 충돌·공전·이탈 예상 경로를 비교한다.
+- 자유 놀이터: 힘 화살표를 끌어 마찰 임계점을 넘기고, 줄·막대·여러 용수철을 연결하며, 지렛대와 도르래를 함께 놓고, 이동 가능한 중력원과 물 영역에서 궤도·부력을 구성한다. 선택한 물체의 핵심 관찰값과 속력 그래프로 결과를 확인한다.
 
 이 실험들은 메뉴 카드를 더 늘리지 않고 기존 역학 주제 안에서 깊이를 만든다. 고정 도르래가 힘을 줄인다고 표현하지 않으며, 힘을 줄이는 비교에는 움직도르래 또는 여러 지지 줄을 사용한다.
 

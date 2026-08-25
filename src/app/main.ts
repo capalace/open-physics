@@ -4,6 +4,8 @@ import {
   type PlaygroundPreset,
   type PlaygroundSnapshot,
   type SandboxApparatusKind,
+  type SandboxConnectionKind,
+  type SandboxEnvironmentKind,
   type SandboxObjectKind,
 } from "./physics-playground";
 import { formatGraphValue, renderLabGraph } from "./lab-graph";
@@ -34,6 +36,7 @@ const inspectorForm = required<HTMLFormElement>("#inspector-form");
 const blockResizeHelp = required<HTMLElement>("#block-resize-help");
 const materialSettings = required<HTMLElement>("#material-settings");
 const materialTitle = required<HTMLElement>("#material-title");
+const sandboxObservation = required<HTMLElement>("#sandbox-observation");
 const objectLabel = required<HTMLInputElement>("#object-label");
 const objectMass = required<HTMLInputElement>("#object-mass");
 const objectColor = required<HTMLInputElement>("#object-color");
@@ -78,7 +81,21 @@ document.querySelectorAll<HTMLButtonElement>("[data-apparatus-kind]").forEach((b
 document.querySelectorAll<HTMLButtonElement>("[data-connection-kind]").forEach((button) => {
   button.addEventListener("click", () => {
     if (appMode === "sandbox") {
-      playground.startRopeConnection();
+      playground.startConnection(button.dataset.connectionKind as SandboxConnectionKind);
+      pulseWorld();
+    }
+  });
+});
+document.querySelector<HTMLButtonElement>("[data-force-tool]")?.addEventListener("click", () => {
+  if (appMode === "sandbox") {
+    playground.toggleForceForSelected();
+    pulseWorld();
+  }
+});
+document.querySelectorAll<HTMLButtonElement>("[data-environment-kind]").forEach((button) => {
+  button.addEventListener("click", () => {
+    if (appMode === "sandbox") {
+      playground.toggleSandboxEnvironment(button.dataset.environmentKind as SandboxEnvironmentKind);
       pulseWorld();
     }
   });
@@ -174,7 +191,7 @@ function renderSnapshot(snapshot: PlaygroundSnapshot): void {
   status.textContent = snapshot.paused ? "대기" : "실행 중";
   status.dataset.running = String(!snapshot.paused);
 
-  labGraph.hidden = appMode !== "lab" || !snapshot.graph;
+  labGraph.hidden = !snapshot.graph;
   if (snapshot.graph) {
     required<HTMLElement>("#lab-graph-title").textContent = snapshot.graph.title;
     required<HTMLElement>("#lab-graph-y-label").textContent = `세로축 · ${snapshot.graph.yLabel}`;
@@ -196,17 +213,40 @@ function renderSnapshot(snapshot: PlaygroundSnapshot): void {
     || snapshot.selected.guided
     || snapshot.selected.shape !== "box";
   deleteButton.disabled = appMode === "lab" || !snapshot.selected;
-  const ropeButton = required<HTMLButtonElement>("[data-connection-kind=\"rope\"]");
-  const ropeActive = Boolean(snapshot.ropeConnection);
-  setActive(ropeButton, ropeActive);
-  ropeButton.disabled = appMode === "lab"
-    || (!ropeActive && (!snapshot.selected || snapshot.selected.guided));
-  ropeButton.querySelector("span")!.textContent = ropeActive ? "두 번째 물체 선택" : "줄";
+  document.querySelectorAll<HTMLButtonElement>("[data-connection-kind]").forEach((button) => {
+    const kind = button.dataset.connectionKind as SandboxConnectionKind;
+    const active = snapshot.ropeConnection?.kind === kind;
+    setActive(button, active);
+    button.disabled = appMode === "lab"
+      || (!snapshot.ropeConnection && (!snapshot.selected || snapshot.selected.guided));
+    button.querySelector("span")!.textContent = active
+      ? "두 번째 물체 선택"
+      : kind === "rod" ? "막대" : "줄";
+  });
+  const forceButton = required<HTMLButtonElement>("[data-force-tool]");
+  const forceActive = Boolean(snapshot.selected && snapshot.appliedForceIds.includes(snapshot.selected.id));
+  setActive(forceButton, forceActive);
+  forceButton.disabled = appMode === "lab" || !snapshot.selected || snapshot.selected.fixed || snapshot.selected.guided;
+  document.querySelectorAll<HTMLButtonElement>("[data-environment-kind]").forEach((button) => {
+    const active = button.dataset.environmentKind === "water" && snapshot.environment.water;
+    setActive(button, active);
+    button.setAttribute("aria-pressed", String(active));
+  });
   document.querySelectorAll<HTMLElement>("[data-movable-only]").forEach((element) => {
     element.hidden = appMode === "sandbox"
       ? Boolean(snapshot.selected?.fixed && !snapshot.selected.guided)
       : element.hasAttribute("data-sandbox-only") || !activeLab.controls.includes("mass");
   });
+  sandboxObservation.hidden = appMode !== "sandbox" || !snapshot.observation;
+  if (snapshot.observation) {
+    required<HTMLOutputElement>("#observe-speed").value = `${snapshot.observation.speed.toFixed(2)} m/s`;
+    required<HTMLOutputElement>("#observe-acceleration").value = `${snapshot.observation.acceleration.toFixed(2)} m/s²`;
+    required<HTMLOutputElement>("#observe-momentum").value = `${snapshot.observation.momentum.toFixed(2)} kg·m/s`;
+    required<HTMLOutputElement>("#observe-kinetic").value = `${snapshot.observation.kineticEnergy.toFixed(2)} J`;
+    required<HTMLOutputElement>("#observe-potential").value = `${snapshot.observation.potentialEnergy.toFixed(2)} J`;
+    required<HTMLOutputElement>("#observe-spring").value = `${snapshot.observation.springEnergy.toFixed(2)} J`;
+    required<HTMLOutputElement>("#observe-force").value = `${snapshot.observation.appliedForce.toFixed(2)} N`;
+  }
 
   if (!snapshot.selected) {
     return;
@@ -215,12 +255,13 @@ function renderSnapshot(snapshot: PlaygroundSnapshot): void {
   const selected = snapshot.selected;
   materialSettings.hidden = appMode === "lab"
     ? !activeLab.controls.includes("material")
-    : Boolean(selected.anchor);
+    : Boolean(selected.anchor || selected.gravitySource);
   materialTitle.textContent = appMode === "sandbox" && selected.fixed ? "표면 재질" : "재질";
   required<HTMLElement>("#selection-name").textContent = selected.label;
   required<HTMLElement>("#selection-type").textContent = selected.guided
     ? "장치에 연결된 짐"
-    : selected.anchor ? "줄을 묶는 고정점"
+    : selected.gravitySource ? "주변을 끌어당기는 중력원"
+      : selected.anchor ? "줄을 묶는 고정점"
       : selected.fixed ? "움직이지 않는 블록" : selected.shape === "circle" ? "움직이는 공" : "움직이는 상자";
 
   syncInput(objectLabel, selected.label);

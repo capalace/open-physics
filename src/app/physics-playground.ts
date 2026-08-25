@@ -2,7 +2,9 @@ import type { Vector2 } from "../physics/core";
 import { PointGravityField, UniformGravityField } from "../physics/fields";
 import {
   AnchoredSpringLaw,
+  BuoyancyAreaLaw,
   BuoyancyRegionLaw,
+  ConstantBodyForceLaw,
   PushFrictionLaw,
   SurfaceContactFrictionModifier,
 } from "../physics/laws/world-mechanics";
@@ -35,6 +37,8 @@ export type PlaygroundPreset =
 export type PlaygroundMaterial = "rubber" | "wood" | "steel" | "clay";
 export type SandboxObjectKind = "ball" | "box" | "block" | "anchor";
 export type SandboxApparatusKind = "spring" | "lever" | "pulley";
+export type SandboxConnectionKind = "rope" | "rod";
+export type SandboxEnvironmentKind = "gravity-source" | "water";
 
 export const MATERIALS: Readonly<Record<PlaygroundMaterial, {
   restitution: number;
@@ -58,6 +62,7 @@ export interface PlaygroundObject {
   color: string;
   material: PlaygroundMaterial;
   anchor?: boolean;
+  gravitySource?: boolean;
 }
 
 export interface PlaygroundObjectOptions {
@@ -68,6 +73,7 @@ export interface PlaygroundObjectOptions {
   velocity?: Vector2;
   fixed?: boolean;
   anchor?: boolean;
+  gravitySource?: boolean;
 }
 
 export interface PlaygroundSnapshot {
@@ -84,8 +90,20 @@ export interface PlaygroundSnapshot {
     fixed: boolean;
     guided: boolean;
     anchor: boolean;
+    gravitySource: boolean;
   } | null;
-  ropeConnection: { startId: string; startLabel: string } | null;
+  ropeConnection: { startId: string; startLabel: string; kind: SandboxConnectionKind } | null;
+  appliedForceIds: string[];
+  environment: { water: boolean; gravitySourceCount: number };
+  observation: {
+    speed: number;
+    acceleration: number;
+    momentum: number;
+    kineticEnergy: number;
+    potentialEnergy: number;
+    springEnergy: number;
+    appliedForce: number;
+  } | null;
   graph: PlaygroundGraph | null;
 }
 
@@ -130,6 +148,10 @@ const DEFAULT_VELOCITY_HANDLE_OFFSET = 64;
 const VELOCITY_HANDLE_RADIUS = 12;
 const VELOCITY_IDLE_EPSILON = 0.01;
 const VELOCITY_ANGLE_SNAP_RADIANS = 15 * Math.PI / 180;
+const FORCE_VECTOR_SCALE = 10 / PIXELS_PER_METER;
+const DEFAULT_APPLIED_FORCE = 4 * PIXELS_PER_METER;
+const POINT_GRAVITY_GUIDE_RADIUS = 180;
+const POINT_GRAVITY_ORBITAL_SPEED = 155;
 const RESIZE_HANDLE_RADIUS = 13;
 const MIN_BLOCK_WIDTH = 28;
 const MIN_BLOCK_HEIGHT = 24;
@@ -280,6 +302,7 @@ export class PhysicsPlayground {
   private pointerId: number | null = null;
   private draggedId: string | null = null;
   private velocityDraggedId: string | null = null;
+  private forceDraggedId: string | null = null;
   private resizingId: string | null = null;
   private resizeHandle: ResizeHandle | null = null;
   private resizeAnchor: Vector2 | null = null;
@@ -301,11 +324,18 @@ export class PhysicsPlayground {
   private readonly trails = new Map<string, Vector2[]>();
   private ropeStartId: string | null = null;
   private ropePointer: Vector2 | null = null;
+  private connectionKind: SandboxConnectionKind | null = null;
+  private readonly forceLaws = new Map<string, ConstantBodyForceLaw>();
+  private readonly gravitySources = new Map<string, { field: PointGravityField; guideRadius: number }>();
+  private sandboxWater: BuoyancyAreaLaw | null = null;
   private readonly surfaceFriction: SurfaceContactFrictionModifier;
   private springLaw: AnchoredSpringLaw | null = null;
+  private readonly sandboxSpringLaws = new Map<string, AnchoredSpringLaw>();
   private frictionLaw: PushFrictionLaw | null = null;
   private buoyancyLaw: BuoyancyRegionLaw | null = null;
   private guidedScene: GuidedMechanicsScene | null = null;
+  private readonly sandboxGuidedScenes: GuidedMechanicsScene[] = [];
+  private challengeScene: GuidedMechanicsScene | null = null;
   private orbitExperiment: OrbitExperiment | null = null;
   private impulseFlash = 0;
 
@@ -383,7 +413,6 @@ export class PhysicsPlayground {
     this._paused = true;
     this.labMode = false;
     this.accumulator = 0;
-    this.clearSandboxApparatus();
     if (kind === "spring") {
       const selected = this.selectedId ? this.objects.get(this.selectedId) : undefined;
       const selectedBody = selected ? this.simulation.getBody(selected.id) : undefined;
@@ -399,6 +428,13 @@ export class PhysicsPlayground {
       return object;
     }
 
+    const sceneKind = kind === "lever" ? "lever" : "pulley-advantage";
+    const existing = this.allGuidedScenes().find((scene) => scene.kind === sceneKind);
+    if (existing) this.removeGuidedApparatus(existing);
+    if (this.guidedScene) {
+      this.sandboxGuidedScenes.push(this.guidedScene);
+      this.guidedScene = null;
+    }
     this.moveOrdinaryObjectsBelowApparatusHeader();
     const object = kind === "lever"
       ? this.createLeverChallenge()
@@ -407,7 +443,7 @@ export class PhysicsPlayground {
     return object;
   }
 
-  startRopeConnection(): boolean {
+  startConnection(kind: SandboxConnectionKind): boolean {
     if (this.ropeStartId) {
       this.resetRopeConnectionState();
       this.notify();
@@ -419,7 +455,81 @@ export class PhysicsPlayground {
     this.accumulator = 0;
     this.ropeStartId = object.id;
     this.ropePointer = { x: object.x, y: object.y };
+    this.connectionKind = kind;
     this.canvas.style.cursor = "crosshair";
+    this.notify();
+    return true;
+  }
+
+  startRopeConnection(): boolean { return this.startConnection("rope"); }
+
+  toggleForceForSelected(): boolean {
+    if (!this.selectedId) return false;
+    const body = this.simulation.getBody(this.selectedId);
+    if (!body || body.fixed || this.isGuidedBody(this.selectedId)) return false;
+    const active = this.forceLaws.get(this.selectedId);
+    if (active) {
+      this.simulation.removeLaw(active.id);
+      this.forceLaws.delete(this.selectedId);
+      this.simulation.refreshAccelerations();
+      this.notify();
+      return false;
+    }
+    const law = new ConstantBodyForceLaw({
+      bodyId: this.selectedId,
+      vector: { x: DEFAULT_APPLIED_FORCE, y: 0 },
+    });
+    this.forceLaws.set(this.selectedId, law);
+    this.simulation.addLaw(law);
+    this._paused = true;
+    this.simulation.refreshAccelerations();
+    this.notify();
+    return true;
+  }
+
+  toggleSandboxEnvironment(kind: SandboxEnvironmentKind): boolean {
+    if (this.labMode) return false;
+    this._paused = true;
+    this.accumulator = 0;
+    if (kind === "water") {
+      if (this.sandboxWater) {
+        this.simulation.removeLaw(this.sandboxWater.id);
+        this.sandboxWater = null;
+        this.simulation.refreshAccelerations();
+        this.notify();
+        return false;
+      }
+      this.sandboxWater = new BuoyancyAreaLaw({
+        id: "fluid.buoyancy.sandbox",
+        waterline: this.floorY * 0.58,
+        referenceDisplacedMass: 1.45,
+        referenceRadius: 28,
+        gravityAcceleration: this.gravity * PIXELS_PER_METER,
+      });
+      this.simulation.addLaw(this.sandboxWater);
+      this.simulation.refreshAccelerations();
+      this.notify();
+      return true;
+    }
+
+    this.replaceGravity(0);
+    const source = this.addCircle(this.canvas.width * 0.34, this.floorY * 0.52, 38, {
+      label: `중력원 ${this.gravitySources.size + 1}`,
+      color: "#e2a62b",
+      mass: 20,
+      material: "steel",
+      fixed: true,
+      gravitySource: true,
+    });
+    const field = new PointGravityField(
+      { x: source.x, y: source.y },
+      1,
+      POINT_GRAVITY_ORBITAL_SPEED ** 2 * POINT_GRAVITY_GUIDE_RADIUS,
+      `field.gravity.point.${source.id}`,
+    );
+    this.gravitySources.set(source.id, { field, guideRadius: POINT_GRAVITY_GUIDE_RADIUS });
+    this.simulation.addField(field);
+    this.simulation.refreshAccelerations();
     this.notify();
     return true;
   }
@@ -468,6 +578,7 @@ export class PhysicsPlayground {
       color: options.color ?? this.nextColor(),
       material: options.material ?? "rubber",
       anchor: options.anchor,
+      gravitySource: options.gravitySource,
     };
     this.registerObject(object, options);
     return object;
@@ -487,6 +598,7 @@ export class PhysicsPlayground {
       color: options.color ?? this.nextColor(),
       material: options.material ?? "wood",
       anchor: options.anchor,
+      gravitySource: options.gravitySource,
     };
     this.registerObject(object, options);
     return object;
@@ -675,7 +787,7 @@ export class PhysicsPlayground {
     if (this.ropeStartId === this.selectedId) this.resetRopeConnectionState();
     const guidedIds = this.guidedBodyIds();
     if (guidedIds.includes(this.selectedId)) {
-      this.removeGuidedApparatus();
+      this.removeGuidedApparatus(this.guidedSceneForBody(this.selectedId));
       this.notify();
       return;
     }
@@ -697,6 +809,11 @@ export class PhysicsPlayground {
       this.simulation.removeLaw(this.springLaw.id);
       this.springLaw = null;
     }
+    const sandboxSpring = this.sandboxSpringLaws.get(this.selectedId);
+    if (sandboxSpring) {
+      this.simulation.removeLaw(sandboxSpring.id);
+      this.sandboxSpringLaws.delete(this.selectedId);
+    }
     if (this.frictionLaw?.bodyId === this.selectedId) {
       this.simulation.removeLaw(this.frictionLaw.id);
       this.frictionLaw = null;
@@ -704,6 +821,16 @@ export class PhysicsPlayground {
     if (this.buoyancyLaw?.bodyId === this.selectedId) {
       this.simulation.removeLaw(this.buoyancyLaw.id);
       this.buoyancyLaw = null;
+    }
+    const forceLaw = this.forceLaws.get(this.selectedId);
+    if (forceLaw) {
+      this.simulation.removeLaw(forceLaw.id);
+      this.forceLaws.delete(this.selectedId);
+    }
+    const gravitySource = this.gravitySources.get(this.selectedId);
+    if (gravitySource) {
+      this.simulation.removeField(gravitySource.field.id);
+      this.gravitySources.delete(this.selectedId);
     }
     this.simulation.removeBody(this.selectedId);
     this.objects.delete(this.selectedId);
@@ -713,7 +840,14 @@ export class PhysicsPlayground {
   }
 
   select(id: string | null): void {
-    this.selectedId = id && this.objects.has(id) ? id : null;
+    const nextId = id && this.objects.has(id) ? id : null;
+    if (!this.labMode && nextId !== this.selectedId) {
+      this.selectedId = nextId;
+      this.resetGraph();
+      this.recordGraphSample();
+    } else {
+      this.selectedId = nextId;
+    }
     this.notify();
   }
 
@@ -739,11 +873,12 @@ export class PhysicsPlayground {
     if (update.color !== undefined) object.color = update.color;
     if (update.mass !== undefined && Number.isFinite(update.mass)) {
       body.state.mass = Math.max(0.1, Math.min(20, update.mass));
-      if (this.guidedScene?.kind === "lever" && this.guidedScene.loadId === object.id) {
-        this.guidedScene.model.setLoadMass(body.state.mass);
+      const objectScene = this.guidedSceneForBody(object.id);
+      if (objectScene?.kind === "lever" && objectScene.loadId === object.id) {
+        objectScene.model.setLoadMass(body.state.mass);
       }
-      if (this.guidedScene?.kind === "pulley-advantage" && this.guidedScene.loadId === object.id) {
-        this.guidedScene.model.setLoadMass(body.state.mass);
+      if (objectScene?.kind === "pulley-advantage" && objectScene.loadId === object.id) {
+        objectScene.model.setLoadMass(body.state.mass);
       }
     }
     if (update.material !== undefined) {
@@ -781,21 +916,37 @@ export class PhysicsPlayground {
           fixed: Boolean(body.fixed),
           guided: this.isGuidedBody(object.id),
           anchor: Boolean(object.anchor),
+          gravitySource: Boolean(object.gravitySource),
         };
       }
     }
     const ropeStart = this.ropeStartId ? this.objects.get(this.ropeStartId) : undefined;
+    const observation = selected ? this.selectedObservation(selected.id) : null;
+    const graph = this.labMode
+      ? {
+        ...GRAPH_SPECS[this.currentPreset],
+        xLabel: "시간",
+        samples: this.graphSamples.map((sample) => ({ time: sample.time, values: [...sample.values] })),
+      }
+      : selected && !selected.fixed ? {
+        title: `${selected.label}의 속력`,
+        xLabel: "시간",
+        yLabel: "속력 (m/s)",
+        series: [{ label: selected.label, color: selected.color }],
+        samples: this.graphSamples.map((sample) => ({ time: sample.time, values: [...sample.values] })),
+      } : null;
     return {
       paused: this.paused,
       gravity: this.gravity,
       preset: this.currentPreset,
       selected,
-      ropeConnection: ropeStart ? { startId: ropeStart.id, startLabel: ropeStart.label } : null,
-      graph: this.labMode ? {
-        ...GRAPH_SPECS[this.currentPreset],
-        xLabel: "시간",
-        samples: this.graphSamples.map((sample) => ({ time: sample.time, values: [...sample.values] })),
-      } : null,
+      ropeConnection: ropeStart && this.connectionKind
+        ? { startId: ropeStart.id, startLabel: ropeStart.label, kind: this.connectionKind }
+        : null,
+      appliedForceIds: [...this.forceLaws.keys()],
+      environment: { water: Boolean(this.sandboxWater), gravitySourceCount: this.gravitySources.size },
+      observation,
+      graph,
     };
   }
 
@@ -810,7 +961,6 @@ export class PhysicsPlayground {
   }
 
   private recordGraphProgress(dt: number): void {
-    if (!this.labMode) return;
     this.graphTime += dt;
     if (this.graphTime - this.lastGraphSampleTime >= GRAPH_SAMPLE_INTERVAL) {
       this.recordGraphSample();
@@ -818,7 +968,6 @@ export class PhysicsPlayground {
   }
 
   private recordGraphSample(replaceAtCurrentTime = false): void {
-    if (!this.labMode) return;
     const sample = { time: this.graphTime, values: this.currentGraphValues() };
     const last = this.graphSamples.at(-1);
     if (replaceAtCurrentTime && last && Math.abs(last.time - this.graphTime) < 0.0001) {
@@ -831,6 +980,10 @@ export class PhysicsPlayground {
   }
 
   private currentGraphValues(): number[] {
+    if (!this.labMode) {
+      const body = this.selectedId ? this.simulation.getBody(this.selectedId) : undefined;
+      return body ? [Math.hypot(body.state.velocity.x, body.state.velocity.y) / PIXELS_PER_METER] : [0];
+    }
     const objects = [...this.objects.values()];
     if (this.currentPreset === "free-fall") {
       return objects.map((object) => this.heightAboveFloor(object));
@@ -908,6 +1061,44 @@ export class PhysicsPlayground {
     return Math.max(0, (this.floorY - body.state.position.y - halfHeight) / PIXELS_PER_METER);
   }
 
+  private selectedObservation(id: string): NonNullable<PlaygroundSnapshot["observation"]> | null {
+    const object = this.objects.get(id);
+    const body = this.simulation.getBody(id);
+    if (!object || !body || body.fixed) return null;
+    const speed = Math.hypot(body.state.velocity.x, body.state.velocity.y) / PIXELS_PER_METER;
+    const acceleration = Math.hypot(body.state.acceleration.x, body.state.acceleration.y) / PIXELS_PER_METER;
+    const height = this.heightAboveFloor(object);
+    const spring = this.springForBody(id);
+    const extension = spring
+      ? (Math.hypot(
+        body.state.position.x - spring.anchor.x,
+        body.state.position.y - spring.anchor.y,
+      ) - spring.restLength) / PIXELS_PER_METER
+      : 0;
+    const appliedForce = this.forceLaws.get(id)?.vector;
+    return {
+      speed,
+      acceleration,
+      momentum: body.state.mass * speed,
+      kineticEnergy: 0.5 * body.state.mass * speed ** 2,
+      potentialEnergy: body.state.mass * this.gravity * height,
+      springEnergy: spring ? 0.5 * spring.stiffness * extension ** 2 : 0,
+      appliedForce: appliedForce ? Math.hypot(appliedForce.x, appliedForce.y) / PIXELS_PER_METER : 0,
+    };
+  }
+
+  private springForBody(id: string): AnchoredSpringLaw | null {
+    if (this.springLaw?.bodyId === id) return this.springLaw;
+    return this.sandboxSpringLaws.get(id) ?? null;
+  }
+
+  private activeSpringLaws(): AnchoredSpringLaw[] {
+    return [
+      ...(this.springLaw ? [this.springLaw] : []),
+      ...this.sandboxSpringLaws.values(),
+    ];
+  }
+
   private toDegrees(radians: number): number { return radians * 180 / Math.PI; }
 
   private presetX(referenceX: number): number {
@@ -922,22 +1113,33 @@ export class PhysicsPlayground {
     },
     restLength = Math.hypot(object.x - anchor.x, object.y - anchor.y),
   ): void {
-    if (this.springLaw) this.simulation.removeLaw(this.springLaw.id);
-    this.springLaw = new AnchoredSpringLaw({
+    const law = new AnchoredSpringLaw({
       bodyId: object.id,
       anchor,
       restLength,
       stiffness: 5,
       damping: 0.45,
     });
-    this.simulation.addLaw(this.springLaw);
+    if (this.labMode) {
+      if (this.springLaw) this.simulation.removeLaw(this.springLaw.id);
+      this.springLaw = law;
+    } else {
+      const previous = this.sandboxSpringLaws.get(object.id);
+      if (previous) this.simulation.removeLaw(previous.id);
+      this.sandboxSpringLaws.set(object.id, law);
+    }
+    this.simulation.addLaw(law);
     this.simulation.refreshAccelerations();
     this.select(object.id);
   }
 
   private createLeverChallenge(): PlaygroundObject {
-    const center = { x: this.canvas.width * 0.46, y: this.floorY * 0.58 };
-    const beamLength = Math.min(this.canvas.width * 0.58, 560);
+    const center = this.labMode
+      ? { x: this.canvas.width * 0.46, y: this.floorY * 0.58 }
+      : { x: this.canvas.width * 0.29, y: this.floorY * 0.7 };
+    const beamLength = this.labMode
+      ? Math.min(this.canvas.width * 0.58, 560)
+      : Math.min(this.canvas.width * 0.42, 410);
     const loadArm = beamLength * 0.22;
     const effortArm = beamLength * 0.45;
     const load = this.addBox(center.x - loadArm, center.y - 45, 74, 74, {
@@ -966,10 +1168,12 @@ export class PhysicsPlayground {
   }
 
   private createPulleyChallenge(): PlaygroundObject {
-    const fixedY = Math.min(210, Math.round(this.floorY * 0.38));
-    const loadX = this.canvas.width * 0.38;
+    const fixedY = this.labMode
+      ? Math.min(210, Math.round(this.floorY * 0.38))
+      : Math.min(190, Math.round(this.floorY * 0.32));
+    const loadX = this.canvas.width * (this.labMode ? 0.38 : 0.7);
     const loadStartY = this.floorY - 52;
-    const pullX = this.canvas.width * 0.68;
+    const pullX = this.canvas.width * (this.labMode ? 0.68 : 0.88);
     const load = this.addBox(loadX, loadStartY, 82, 82, {
       label: "들어 올릴 짐",
       color: "#f27a54",
@@ -997,25 +1201,23 @@ export class PhysicsPlayground {
     return load;
   }
 
-  private removeGuidedApparatus(): void {
-    const guidedIds = this.guidedBodyIds();
+  private removeGuidedApparatus(scene: GuidedMechanicsScene | null = this.guidedScene): void {
+    if (!scene) return;
+    const guidedIds = this.bodyIdsForScene(scene);
     for (const id of guidedIds) {
       this.simulation.removeBody(id);
       this.objects.delete(id);
       this.trails.delete(id);
     }
     if (this.selectedId && guidedIds.includes(this.selectedId)) this.selectedId = null;
-    this.guidedScene = null;
+    const archivedIndex = this.sandboxGuidedScenes.indexOf(scene);
+    if (archivedIndex >= 0) this.sandboxGuidedScenes.splice(archivedIndex, 1);
+    if (this.guidedScene === scene) this.guidedScene = this.sandboxGuidedScenes.pop() ?? null;
     this.challengeDrag = null;
     this.challengeDragOrigin = null;
     this.challengeDragPoint = null;
     this.challengeDragStartPullDistance = 0;
-  }
-
-  private clearSandboxApparatus(): void {
-    if (this.springLaw) this.simulation.removeLaw(this.springLaw.id);
-    this.springLaw = null;
-    this.removeGuidedApparatus();
+    this.challengeScene = null;
   }
 
   private moveOrdinaryObjectsBelowApparatusHeader(): void {
@@ -1069,9 +1271,13 @@ export class PhysicsPlayground {
     this.simulation.addField(new UniformGravityField({ x: 0, y: value * PIXELS_PER_METER }));
     this.frictionLaw?.setNormalAcceleration(value * PIXELS_PER_METER);
     this.buoyancyLaw?.setGravityAcceleration(value * PIXELS_PER_METER);
+    this.sandboxWater?.setGravityAcceleration(value * PIXELS_PER_METER);
     this.surfaceFriction.setNormalAcceleration(value * PIXELS_PER_METER);
-    if (this.guidedScene?.kind === "lever") this.guidedScene.model.setGravity(Math.max(value, 0.01));
-    if (this.guidedScene?.kind === "pulley-advantage") this.guidedScene.model.setGravity(Math.max(value, 0.01));
+    for (const scene of this.allGuidedScenes()) {
+      if (scene.kind === "lever" || scene.kind === "pulley-advantage") {
+        scene.model.setGravity(Math.max(value, 0.01));
+      }
+    }
     this.simulation.refreshAccelerations();
     this.advanceGuidedScene(0);
   }
@@ -1081,16 +1287,27 @@ export class PhysicsPlayground {
     if (this.frictionLaw) this.simulation.removeLaw(this.frictionLaw.id);
     if (this.buoyancyLaw) this.simulation.removeLaw(this.buoyancyLaw.id);
     if (this.orbitExperiment) this.simulation.removeField(this.orbitExperiment.field.id);
+    for (const law of this.sandboxSpringLaws.values()) this.simulation.removeLaw(law.id);
+    for (const law of this.forceLaws.values()) this.simulation.removeLaw(law.id);
+    for (const source of this.gravitySources.values()) this.simulation.removeField(source.field.id);
+    if (this.sandboxWater) this.simulation.removeLaw(this.sandboxWater.id);
     this.surfaceFriction.clearExcludedBodies();
     this.springLaw = null;
+    this.sandboxSpringLaws.clear();
     this.frictionLaw = null;
     this.buoyancyLaw = null;
     this.guidedScene = null;
+    this.sandboxGuidedScenes.length = 0;
     this.orbitExperiment = null;
+    this.forceLaws.clear();
+    this.gravitySources.clear();
+    this.sandboxWater = null;
+    this.forceDraggedId = null;
     this.challengeDrag = null;
     this.challengeDragOrigin = null;
     this.challengeDragPoint = null;
     this.challengeDragStartPullDistance = 0;
+    this.challengeScene = null;
     this.resetRopeConnectionState();
     this.impulseFlash = 0;
   }
@@ -1098,6 +1315,7 @@ export class PhysicsPlayground {
   private resetRopeConnectionState(): void {
     this.ropeStartId = null;
     this.ropePointer = null;
+    this.connectionKind = null;
     this.canvas.style.cursor = "grab";
   }
 
@@ -1105,11 +1323,21 @@ export class PhysicsPlayground {
     return { x: 0, y: this.gravity * PIXELS_PER_METER };
   }
 
-  private guidedBodyIds(): string[] {
-    const scene = this.guidedScene;
-    if (!scene) return [];
+  private allGuidedScenes(): GuidedMechanicsScene[] {
+    return [...this.sandboxGuidedScenes, ...(this.guidedScene ? [this.guidedScene] : [])];
+  }
+
+  private bodyIdsForScene(scene: GuidedMechanicsScene): string[] {
     if (scene.kind === "lever" || scene.kind === "pulley-advantage") return [scene.loadId];
     return [scene.ropeId, scene.rodId];
+  }
+
+  private guidedBodyIds(): string[] {
+    return this.allGuidedScenes().flatMap((scene) => this.bodyIdsForScene(scene));
+  }
+
+  private guidedSceneForBody(id: string): GuidedMechanicsScene | null {
+    return this.allGuidedScenes().find((scene) => this.bodyIdsForScene(scene).includes(id)) ?? null;
   }
 
   private isGuidedBody(id: string): boolean { return this.guidedBodyIds().includes(id); }
@@ -1123,8 +1351,10 @@ export class PhysicsPlayground {
   }
 
   private applyGuidedScenePoses(): void {
-    const scene = this.guidedScene;
-    if (!scene) return;
+    for (const scene of this.allGuidedScenes()) this.applyGuidedScenePose(scene);
+  }
+
+  private applyGuidedScenePose(scene: GuidedMechanicsScene): void {
     if (scene.kind === "lever") {
       const loadPosition = {
         x: scene.center.x - Math.cos(scene.angle) * scene.model.loadArm,
@@ -1145,19 +1375,19 @@ export class PhysicsPlayground {
   }
 
   private advanceGuidedScene(dt: number): void {
-    const scene = this.guidedScene;
-    if (!scene) return;
     const gravity = this.gravity * PIXELS_PER_METER;
-    if (scene.kind === "constraints") {
-      scene.rope.step(dt, gravity);
-      scene.rod.step(dt, gravity);
+    for (const scene of this.allGuidedScenes()) {
+      if (scene.kind === "constraints") {
+        scene.rope.step(dt, gravity);
+        scene.rod.step(dt, gravity);
+      }
+      this.applyGuidedScenePose(scene);
     }
-    this.applyGuidedScenePoses();
   }
 
   private dragGuidedBody(id: string, point: Vector2): boolean {
-    const scene = this.guidedScene;
-    if (!scene || !this.isGuidedBody(id)) return false;
+    const scene = this.guidedSceneForBody(id);
+    if (!scene) return false;
     if (scene.kind === "constraints") {
       (id === scene.ropeId ? scene.rope : scene.rod).moveTo(point);
     } else {
@@ -1169,8 +1399,11 @@ export class PhysicsPlayground {
   }
 
   private resizeGuidedScene(scaleX: number, scaleY: number): void {
-    const scene = this.guidedScene;
-    if (!scene) return;
+    for (const scene of this.allGuidedScenes()) this.resizeOneGuidedScene(scene, scaleX, scaleY);
+    this.applyGuidedScenePoses();
+  }
+
+  private resizeOneGuidedScene(scene: GuidedMechanicsScene, scaleX: number, scaleY: number): void {
     if (scene.kind === "constraints") {
       scene.rope.resize(scaleX, scaleY);
       scene.rod.resize(scaleX, scaleY);
@@ -1188,7 +1421,6 @@ export class PhysicsPlayground {
       scene.pullDistance *= scaleY;
       scene.maxLift *= scaleY;
     }
-    this.applyGuidedScenePoses();
   }
 
   private frame(time: number): void {
@@ -1231,16 +1463,17 @@ export class PhysicsPlayground {
     const scaleX = width / previousWidth;
     const scaleY = nextFloorY / previousFloorY;
 
-    if (this.springLaw) {
+    for (const springLaw of this.activeSpringLaws()) {
       const anchor = {
-        x: this.springLaw.anchor.x * width / previousWidth,
-        y: this.scaleBetweenBounds(this.springLaw.anchor.y, 14, previousFloorY, 14, nextFloorY),
+        x: springLaw.anchor.x * width / previousWidth,
+        y: this.scaleBetweenBounds(springLaw.anchor.y, 14, previousFloorY, 14, nextFloorY),
       };
-      this.springLaw.setGeometry(anchor, this.springLaw.restLength * width / previousWidth);
+      springLaw.setGeometry(anchor, springLaw.restLength * width / previousWidth);
     }
     this.frictionLaw?.setSurfaceY(nextFloorY);
     this.surfaceFriction.setFloorY(nextFloorY);
     this.buoyancyLaw?.setWaterline(this.buoyancyLaw.waterline * scaleY);
+    this.sandboxWater?.setWaterline(this.sandboxWater.waterline * scaleY);
     if (this.orbitExperiment) {
       const orbitScale = Math.min(scaleX, scaleY);
       const previousField = this.orbitExperiment.field;
@@ -1285,6 +1518,7 @@ export class PhysicsPlayground {
           nextFloorY - halfHeight,
         ),
       };
+      this.gravitySources.get(id)?.field.setSourcePosition(body.state.position);
     }
     for (let index = 0; index < this.simulation.constraints.length; index += 1) {
       const constraint = this.simulation.constraints[index];
@@ -1318,12 +1552,17 @@ export class PhysicsPlayground {
   }
 
   private advance(dt: number): void {
-    const springBody = this.springLaw ? this.simulation.getBody(this.springLaw.bodyId) : undefined;
-    const springPreviousPosition = springBody ? { ...springBody.state.position } : null;
+    const springPreviousPositions = new Map<string, Vector2>();
+    for (const law of this.activeSpringLaws()) {
+      const body = this.simulation.getBody(law.bodyId);
+      if (body) springPreviousPositions.set(law.bodyId, { ...body.state.position });
+    }
     this.simulation.step(dt);
     this.advanceGuidedScene(dt);
-    this.resolveSpringMount(springPreviousPosition);
-    if (this.currentPreset === "collision" && this.simulation.collisionEvents.length > 0) {
+    for (const law of this.activeSpringLaws()) {
+      this.resolveSpringMount(law, springPreviousPositions.get(law.bodyId) ?? null);
+    }
+    if ((this.currentPreset === "collision" || !this.labMode) && this.simulation.collisionEvents.length > 0) {
       this.impulseFlash = 1;
     } else {
       this.impulseFlash = Math.max(0, this.impulseFlash - dt * 2.5);
@@ -1348,9 +1587,8 @@ export class PhysicsPlayground {
     }
   }
 
-  private resolveSpringMount(previousPosition: Vector2 | null): void {
-    const law = this.springLaw;
-    if (!law || !previousPosition) return;
+  private resolveSpringMount(law: AnchoredSpringLaw, previousPosition: Vector2 | null): void {
+    if (!previousPosition) return;
     const body = this.simulation.getBody(law.bodyId);
     const object = this.objects.get(law.bodyId);
     if (!body || !object) return;
@@ -1479,7 +1717,7 @@ export class PhysicsPlayground {
     ctx.fillStyle = background;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     if (this.visualization.grid) this.drawGrid();
-    if (this.buoyancyLaw) this.drawWaterRegion();
+    if (this.buoyancyLaw || this.sandboxWater) this.drawWaterRegion();
     if (this.visualization.trails) this.drawTrails();
     this.drawGround();
     if (this.frictionLaw) {
@@ -1487,17 +1725,34 @@ export class PhysicsPlayground {
       this.drawFrictionChallenge();
     }
     this.drawOrbitGuide();
+    this.drawSandboxOrbitGuide();
     this.drawGuidedScene();
     this.drawSandboxRopes();
-    if (this.springLaw) this.drawSpringConnection();
+    for (const law of this.activeSpringLaws()) this.drawSpringConnection(law);
     this.drawTrajectoryPreview();
     for (const object of this.objects.values()) this.drawObject(object);
+    this.drawAppliedForces();
     if (this.currentPreset === "collision") this.drawMomentumVisualization();
     if (this.currentPreset === "spring") this.drawEnergyVisualization();
+    if (!this.labMode && this.impulseFlash > 0) this.drawSandboxImpulseFeedback();
+  }
+
+  private drawSandboxImpulseFeedback(): void {
+    const { ctx } = this;
+    ctx.save();
+    ctx.globalAlpha = this.impulseFlash;
+    ctx.fillStyle = "#fff4c7";
+    this.roundRect(this.canvas.width / 2 - 88, 24, 176, 40, 12);
+    ctx.fill();
+    ctx.fillStyle = "#8b6712";
+    ctx.font = "800 15px Inter, system-ui, sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText("충격량이 전달됐어요", this.canvas.width / 2, 49);
+    ctx.restore();
   }
 
   private drawWaterRegion(): void {
-    const law = this.buoyancyLaw;
+    const law = this.buoyancyLaw ?? this.sandboxWater;
     if (!law) return;
     const { ctx, canvas } = this;
     const water = ctx.createLinearGradient(0, law.waterline, 0, this.floorY);
@@ -1518,6 +1773,83 @@ export class PhysicsPlayground {
     ctx.font = "700 16px Inter, system-ui, sans-serif";
     ctx.fillText("물", 20, law.waterline + 28);
     ctx.restore();
+  }
+
+  private drawSandboxOrbitGuide(): void {
+    if (this.labMode || this.gravitySources.size === 0 || !this.selectedId) return;
+    const body = this.simulation.getBody(this.selectedId);
+    const object = this.objects.get(this.selectedId);
+    if (!body || !object || body.fixed) return;
+    const source = [...this.gravitySources.entries()]
+      .map(([id, entry]) => ({ id, ...entry }))
+      .sort((a, b) => {
+        const distanceA = Math.hypot(
+          body.state.position.x - a.field.sourcePosition.x,
+          body.state.position.y - a.field.sourcePosition.y,
+        );
+        const distanceB = Math.hypot(
+          body.state.position.x - b.field.sourcePosition.x,
+          body.state.position.y - b.field.sourcePosition.y,
+        );
+        return distanceA - distanceB;
+      })[0];
+    if (!source) return;
+    const sourceObject = this.objects.get(source.id);
+    const challenge = new OrbitChallenge({
+      center: source.field.sourcePosition,
+      gravitationalParameter: source.field.G * source.field.sourceMass,
+      collisionRadius: (sourceObject?.radius ?? 38) + object.radius,
+    });
+    const analysis = challenge.analyze(body.state.position, body.state.velocity);
+    const color = analysis.outcome === "crash"
+      ? "#e05c3f"
+      : analysis.outcome === "escape" ? "#a069dc" : "#25a77a";
+    const { ctx } = this;
+    ctx.save();
+    ctx.strokeStyle = "#6681d755";
+    ctx.lineWidth = 2;
+    ctx.setLineDash([7, 7]);
+    ctx.beginPath();
+    ctx.arc(source.field.sourcePosition.x, source.field.sourcePosition.y, source.guideRadius, 0, Math.PI * 2);
+    ctx.stroke();
+    if (this.paused) {
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 4;
+      ctx.setLineDash([10, 6]);
+      ctx.beginPath();
+      analysis.path.forEach((point, index) => {
+        if (index === 0) ctx.moveTo(point.x, point.y); else ctx.lineTo(point.x, point.y);
+      });
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  private drawAppliedForces(): void {
+    const { ctx } = this;
+    for (const [id, law] of this.forceLaws) {
+      const body = this.simulation.getBody(id);
+      if (!body) continue;
+      const handle = this.forceHandlePoint(law, body.state.position);
+      const magnitude = Math.hypot(law.vector.x, law.vector.y) / PIXELS_PER_METER;
+      ctx.save();
+      ctx.strokeStyle = "#e05c3f";
+      ctx.fillStyle = "#e05c3f";
+      ctx.lineWidth = 5;
+      ctx.beginPath();
+      ctx.moveTo(body.state.position.x, body.state.position.y);
+      ctx.lineTo(handle.x, handle.y);
+      ctx.stroke();
+      this.drawArrowHead(handle, law.vector, "#e05c3f", 12);
+      ctx.beginPath();
+      ctx.arc(handle.x, handle.y, 11, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "#9f3d2b";
+      ctx.font = "800 14px Inter, system-ui, sans-serif";
+      ctx.textAlign = "center";
+      ctx.fillText(`힘 ${magnitude.toFixed(1)} N`, handle.x, handle.y - 18);
+      ctx.restore();
+    }
   }
 
   private drawOrbitGuide(): void {
@@ -1557,22 +1889,24 @@ export class PhysicsPlayground {
   }
 
   private drawGuidedScene(): void {
-    const scene = this.guidedScene;
-    if (!scene) return;
+    const scenes = this.allGuidedScenes();
+    if (scenes.length === 0) return;
     const { ctx } = this;
     ctx.save();
     ctx.lineCap = "round";
     ctx.lineJoin = "round";
 
-    if (scene.kind === "lever") {
-      this.drawLeverChallenge(scene);
-    } else if (scene.kind === "constraints") {
-      this.drawConstraintLink(scene.rope.anchor, scene.rope.pose().position, false, "줄");
-      this.drawConstraintLink(scene.rod.anchor, scene.rod.pose().position, true, "단단한 막대");
-      this.drawPivot(scene.rope.anchor, "고정점");
-      this.drawPivot(scene.rod.anchor, "고정점");
-    } else {
-      this.drawPulleyChallenge(scene);
+    for (const scene of scenes) {
+      if (scene.kind === "lever") {
+        this.drawLeverChallenge(scene);
+      } else if (scene.kind === "constraints") {
+        this.drawConstraintLink(scene.rope.anchor, scene.rope.pose().position, false, "줄");
+        this.drawConstraintLink(scene.rod.anchor, scene.rod.pose().position, true, "단단한 막대");
+        this.drawPivot(scene.rope.anchor, "고정점");
+        this.drawPivot(scene.rod.anchor, "고정점");
+      } else {
+        this.drawPulleyChallenge(scene);
+      }
     }
     ctx.restore();
   }
@@ -1991,26 +2325,30 @@ export class PhysicsPlayground {
     ctx.save();
     ctx.lineCap = "round";
     for (const constraint of this.simulation.constraints) {
-      if (!constraint.id.startsWith("sandbox-rope-")) continue;
+      const kind = constraint.id.startsWith("sandbox-rod-")
+        ? "rod"
+        : constraint.id.startsWith("sandbox-rope-") ? "rope" : null;
+      if (!kind) continue;
       const a = this.simulation.getBody(constraint.bodyA);
       const b = this.simulation.getBody(constraint.bodyB);
       if (!a || !b) continue;
-      ctx.strokeStyle = "#33435d";
-      ctx.lineWidth = 7;
+      ctx.strokeStyle = kind === "rod" ? "#456c61" : "#33435d";
+      ctx.lineWidth = kind === "rod" ? 11 : 7;
       ctx.beginPath();
       ctx.moveTo(a.state.position.x, a.state.position.y);
       ctx.lineTo(b.state.position.x, b.state.position.y);
       ctx.stroke();
-      ctx.strokeStyle = "#79a7d8";
-      ctx.lineWidth = 3;
+      ctx.strokeStyle = kind === "rod" ? "#a8cbbb" : "#79a7d8";
+      ctx.lineWidth = kind === "rod" ? 4 : 3;
       ctx.stroke();
     }
 
     const start = this.ropeStartId ? this.simulation.getBody(this.ropeStartId) : undefined;
     if (start && this.ropePointer) {
-      ctx.strokeStyle = "#5575e8aa";
-      ctx.lineWidth = 4;
-      ctx.setLineDash([9, 8]);
+      const rigid = this.connectionKind === "rod";
+      ctx.strokeStyle = rigid ? "#4e7b6daa" : "#5575e8aa";
+      ctx.lineWidth = rigid ? 8 : 4;
+      ctx.setLineDash(rigid ? [] : [9, 8]);
       ctx.beginPath();
       ctx.moveTo(start.state.position.x, start.state.position.y);
       ctx.lineTo(this.ropePointer.x, this.ropePointer.y);
@@ -2215,9 +2553,7 @@ export class PhysicsPlayground {
     ctx.restore();
   }
 
-  private drawSpringConnection(): void {
-    const law = this.springLaw;
-    if (!law) return;
+  private drawSpringConnection(law: AnchoredSpringLaw): void {
     const body = this.simulation.getBody(law.bodyId);
     const object = this.objects.get(law.bodyId);
     if (!body || !object) return;
@@ -2351,7 +2687,7 @@ export class PhysicsPlayground {
 
   private drawTrajectoryPreview(): void {
     if (!this.paused || !this.selectedId) return;
-    if (this.springLaw?.bodyId === this.selectedId || this.isGuidedBody(this.selectedId)) return;
+    if (this.springForBody(this.selectedId) || this.isGuidedBody(this.selectedId)) return;
     const object = this.objects.get(this.selectedId);
     const body = this.simulation.getBody(this.selectedId);
     if (!object || !body || body.fixed || Math.hypot(body.state.velocity.x, body.state.velocity.y) < VELOCITY_IDLE_EPSILON) return;
@@ -2550,7 +2886,8 @@ export class PhysicsPlayground {
 
   private drawLabel(object: PlaygroundObject): void {
     const { ctx } = this;
-    if (this.guidedScene?.kind === "pulley-advantage" && this.guidedScene.loadId === object.id) {
+    const objectScene = this.guidedSceneForBody(object.id);
+    if (objectScene?.kind === "pulley-advantage" && objectScene.loadId === object.id) {
       ctx.save();
       ctx.font = "800 16px Inter, system-ui, sans-serif";
       ctx.textAlign = "center";
@@ -2708,6 +3045,26 @@ export class PhysicsPlayground {
     ctx.restore();
   }
 
+  private drawArrowHead(point: Vector2, vector: Vector2, color: string, size: number): void {
+    const angle = Math.atan2(vector.y, vector.x);
+    const { ctx } = this;
+    ctx.save();
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.moveTo(point.x, point.y);
+    ctx.lineTo(
+      point.x - size * Math.cos(angle - Math.PI / 6),
+      point.y - size * Math.sin(angle - Math.PI / 6),
+    );
+    ctx.lineTo(
+      point.x - size * Math.cos(angle + Math.PI / 6),
+      point.y - size * Math.sin(angle + Math.PI / 6),
+    );
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+  }
+
   private frictionHandlePoint(): Vector2 {
     const law = this.frictionLaw;
     const object = law ? this.objects.get(law.bodyId) : undefined;
@@ -2716,7 +3073,9 @@ export class PhysicsPlayground {
   }
 
   private leverHandlePoint(scene: Extract<GuidedMechanicsScene, { kind: "lever" }>): Vector2 {
-    if (this.challengeDrag === "lever" && this.challengeDragPoint) return this.challengeDragPoint;
+    if (this.challengeDrag === "lever" && this.challengeScene === scene && this.challengeDragPoint) {
+      return this.challengeDragPoint;
+    }
     return {
       x: scene.center.x + Math.cos(scene.angle) * scene.model.effortArm,
       y: scene.center.y + Math.sin(scene.angle) * scene.model.effortArm + 70,
@@ -2726,7 +3085,7 @@ export class PhysicsPlayground {
   private pulleyHandlePoint(scene: Extract<GuidedMechanicsScene, { kind: "pulley-advantage" }>): Vector2 {
     return {
       x: scene.pullX,
-      y: this.challengeDrag === "pulley" && this.challengeDragPoint
+      y: this.challengeDrag === "pulley" && this.challengeScene === scene && this.challengeDragPoint
         ? this.challengeDragPoint.y
         : scene.pullStartY + scene.model.liftDistanceForPull(scene.pullDistance),
     };
@@ -2738,12 +3097,18 @@ export class PhysicsPlayground {
   }
 
   private beginChallengeInteraction(point: Vector2, pointerId: number): boolean {
-    if (this.guidedScene?.kind === "pulley-advantage") {
+    const pulleyScene = this.allGuidedScenes().find(
+      (scene): scene is Extract<GuidedMechanicsScene, { kind: "pulley-advantage" }> => scene.kind === "pulley-advantage",
+    );
+    const leverScene = this.allGuidedScenes().find(
+      (scene): scene is Extract<GuidedMechanicsScene, { kind: "lever" }> => scene.kind === "lever",
+    );
+    if (pulleyScene) {
       for (const [index, strands] of ([1, 2, 4] as SupportStrands[]).entries()) {
         const x = this.canvas.width * 0.5 + (index - 1) * 104;
         if (Math.abs(point.x - x) <= 48 && point.y >= 62 && point.y <= 108) {
-          this.guidedScene.model.setSupportStrands(strands);
-          this.guidedScene.pullDistance = 0;
+          pulleyScene.model.setSupportStrands(strands);
+          pulleyScene.pullDistance = 0;
           this.applyGuidedScenePoses();
           this.clearTrails();
           this.recordGraphSample(true);
@@ -2753,8 +3118,8 @@ export class PhysicsPlayground {
       }
     }
 
-    if (this.guidedScene?.kind === "lever") {
-      const scene = this.guidedScene;
+    if (leverScene) {
+      const scene = leverScene;
       for (const fraction of [0.35, 0.6, 0.9]) {
         const arm = scene.beamLength * 0.52 * fraction;
         const target = {
@@ -2773,22 +3138,19 @@ export class PhysicsPlayground {
       }
     }
 
-    const candidates: Array<{ kind: ChallengeDrag; handle: Vector2 }> = [];
-    if (this.frictionLaw) candidates.push({ kind: "friction", handle: this.frictionHandlePoint() });
-    if (this.guidedScene?.kind === "lever") {
-      candidates.push({ kind: "lever", handle: this.leverHandlePoint(this.guidedScene) });
-    }
-    if (this.guidedScene?.kind === "pulley-advantage") {
-      candidates.push({ kind: "pulley", handle: this.pulleyHandlePoint(this.guidedScene) });
-    }
+    const candidates: Array<{ kind: ChallengeDrag; handle: Vector2; scene: GuidedMechanicsScene | null }> = [];
+    if (this.frictionLaw) candidates.push({ kind: "friction", handle: this.frictionHandlePoint(), scene: null });
+    if (leverScene) candidates.push({ kind: "lever", handle: this.leverHandlePoint(leverScene), scene: leverScene });
+    if (pulleyScene) candidates.push({ kind: "pulley", handle: this.pulleyHandlePoint(pulleyScene), scene: pulleyScene });
     const hit = candidates.find(({ handle }) => Math.hypot(point.x - handle.x, point.y - handle.y) <= 28);
     if (!hit) return false;
     this.pointerId = pointerId;
     this.challengeDrag = hit.kind;
+    this.challengeScene = hit.scene;
     this.challengeDragOrigin = { ...hit.handle };
     this.challengeDragPoint = { ...hit.handle };
-    this.challengeDragStartPullDistance = hit.kind === "pulley" && this.guidedScene?.kind === "pulley-advantage"
-      ? this.guidedScene.pullDistance
+    this.challengeDragStartPullDistance = hit.kind === "pulley" && hit.scene?.kind === "pulley-advantage"
+      ? hit.scene.pullDistance
       : 0;
     this._paused = false;
     this.canvas.setPointerCapture(pointerId);
@@ -2804,9 +3166,9 @@ export class PhysicsPlayground {
       this.challengeDragPoint = { x: origin.x + dx, y: origin.y };
       this.frictionLaw.setAppliedForce(dx * 0.9 * PIXELS_PER_METER);
       this.simulation.refreshAccelerations();
-    } else if (this.challengeDrag === "lever" && this.guidedScene?.kind === "lever") {
+    } else if (this.challengeDrag === "lever" && this.challengeScene?.kind === "lever") {
       const dy = Math.max(0, Math.min(190, point.y - origin.y));
-      const scene = this.guidedScene;
+      const scene = this.challengeScene;
       scene.appliedForce = Math.min(scene.model.requiredForce, dy * LEVER_FORCE_PER_PIXEL);
       scene.angle = scene.model.applyForce(scene.appliedForce).lifting ? LEVER_LIFT_ANGLE : 0;
       this.challengeDragPoint = {
@@ -2814,8 +3176,8 @@ export class PhysicsPlayground {
         y: origin.y + scene.appliedForce / LEVER_FORCE_PER_PIXEL,
       };
       this.applyGuidedScenePoses();
-    } else if (this.challengeDrag === "pulley" && this.guidedScene?.kind === "pulley-advantage") {
-      const scene = this.guidedScene;
+    } else if (this.challengeDrag === "pulley" && this.challengeScene?.kind === "pulley-advantage") {
+      const scene = this.challengeScene;
       const currentLift = scene.model.liftDistanceForPull(this.challengeDragStartPullDistance);
       const remainingLift = Math.max(0, scene.maxLift - currentLift);
       const dragResponse = this.pulleyDragResponse(scene);
@@ -2844,8 +3206,9 @@ export class PhysicsPlayground {
 
   private completeRopeConnection(point: Vector2): boolean {
     const startId = this.ropeStartId;
+    const kind = this.connectionKind;
     const target = this.hitTest(point);
-    if (!startId || !target || target.id === startId || this.isGuidedBody(target.id)) {
+    if (!startId || !kind || !target || target.id === startId || this.isGuidedBody(target.id)) {
       this.ropePointer = point;
       return false;
     }
@@ -2853,7 +3216,7 @@ export class PhysicsPlayground {
     const end = this.simulation.getBody(target.id);
     if (!start || !end) return false;
     const duplicate = this.simulation.constraints.some((constraint) =>
-      constraint.id.startsWith("sandbox-rope-")
+      constraint.id.startsWith("sandbox-")
       && (
         (constraint.bodyA === startId && constraint.bodyB === target.id)
         || (constraint.bodyA === target.id && constraint.bodyB === startId)
@@ -2865,7 +3228,7 @@ export class PhysicsPlayground {
     if (!duplicate && distance > 0) {
       this.ropeSequence += 1;
       this.simulation.addConstraint({
-        id: `sandbox-rope-${this.ropeSequence}`,
+        id: `sandbox-${kind}-${this.ropeSequence}`,
         bodyA: startId,
         bodyB: target.id,
         distance,
@@ -2900,6 +3263,15 @@ export class PhysicsPlayground {
         };
         this.canvas.setPointerCapture(event.pointerId);
         this.canvas.style.cursor = this.resizeCursor(resizeHit);
+        return;
+      }
+      const forceHit = this.hitForceHandle(point);
+      if (forceHit) {
+        this.paused = true;
+        this.pointerId = event.pointerId;
+        this.forceDraggedId = forceHit.id;
+        this.canvas.setPointerCapture(event.pointerId);
+        this.canvas.style.cursor = "grabbing";
         return;
       }
       const velocityHit = this.hitVelocityHandle(point);
@@ -2939,11 +3311,16 @@ export class PhysicsPlayground {
         this.updateVelocityFromPoint(this.velocityDraggedId, point);
         return;
       }
+      if (event.pointerId === this.pointerId && this.forceDraggedId) {
+        this.updateForceFromPoint(this.forceDraggedId, point);
+        return;
+      }
       if (event.pointerId !== this.pointerId || !this.draggedId) {
         const resizeHandle = this.hitResizeHandle(point);
         this.canvas.style.cursor = resizeHandle
           ? this.resizeCursor(resizeHandle)
-          : this.hitVelocityHandle(point) ? "pointer" : this.hitTest(point) ? "grab" : "crosshair";
+          : this.hitVelocityHandle(point) || this.hitForceHandle(point)
+            ? "pointer" : this.hitTest(point) ? "grab" : "crosshair";
         return;
       }
       const object = this.objects.get(this.draggedId);
@@ -2963,7 +3340,9 @@ export class PhysicsPlayground {
         y: Math.max(14 + halfHeight, Math.min(this.floorY - halfHeight, point.y)),
       };
       body.state.velocity = { x: 0, y: 0 };
-      this.resolveSpringMount(previousPosition);
+      this.gravitySources.get(object.id)?.field.setSourcePosition(body.state.position);
+      const draggedSpring = this.springForBody(this.draggedId);
+      if (draggedSpring) this.resolveSpringMount(draggedSpring, previousPosition);
       this.simulation.satisfyConstraints();
       this.syncObjects();
       this.trails.set(object.id, [{ ...body.state.position }]);
@@ -2983,9 +3362,10 @@ export class PhysicsPlayground {
       );
       const releasesSpring = Boolean(
         this.draggedId
-        && this.springLaw?.bodyId === this.draggedId,
+        && this.springForBody(this.draggedId),
       );
       const releasesGuided = Boolean(this.draggedId && this.isGuidedBody(this.draggedId));
+      const releasesForce = Boolean(this.forceDraggedId);
       if (this.challengeDrag === "friction") {
         this.frictionLaw?.setAppliedForce(0);
         this.simulation.refreshAccelerations();
@@ -2993,6 +3373,7 @@ export class PhysicsPlayground {
       this.pointerId = null;
       this.draggedId = null;
       this.velocityDraggedId = null;
+      this.forceDraggedId = null;
       this.resizingId = null;
       this.resizeHandle = null;
       this.resizeAnchor = null;
@@ -3000,8 +3381,9 @@ export class PhysicsPlayground {
       this.challengeDragOrigin = null;
       this.challengeDragPoint = null;
       this.challengeDragStartPullDistance = 0;
+      this.challengeScene = null;
       this.canvas.style.cursor = "grab";
-      if (autoPlay && (launchesVelocity || releasesSpring || releasesGuided)) this.paused = false;
+      if (autoPlay && (launchesVelocity || releasesSpring || releasesGuided || releasesForce)) this.paused = false;
     };
     this.canvas.addEventListener("pointerup", (event) => release(event, true));
     this.canvas.addEventListener("pointercancel", (event) => release(event, false));
@@ -3028,6 +3410,39 @@ export class PhysicsPlayground {
     const dx = point.x - object.x - vector.x;
     const dy = point.y - object.y - vector.y;
     return dx * dx + dy * dy <= VELOCITY_HANDLE_RADIUS ** 2 ? object : null;
+  }
+
+  private forceHandlePoint(law: ConstantBodyForceLaw, origin: Vector2): Vector2 {
+    return {
+      x: origin.x + law.vector.x * FORCE_VECTOR_SCALE,
+      y: origin.y + law.vector.y * FORCE_VECTOR_SCALE,
+    };
+  }
+
+  private hitForceHandle(point: Vector2): PlaygroundObject | null {
+    if (!this.selectedId) return null;
+    const object = this.objects.get(this.selectedId);
+    const body = this.simulation.getBody(this.selectedId);
+    const law = this.forceLaws.get(this.selectedId);
+    if (!object || !body || !law || body.fixed) return null;
+    const handle = this.forceHandlePoint(law, body.state.position);
+    return Math.hypot(point.x - handle.x, point.y - handle.y) <= 14 ? object : null;
+  }
+
+  private updateForceFromPoint(id: string, point: Vector2): void {
+    const body = this.simulation.getBody(id);
+    const law = this.forceLaws.get(id);
+    if (!body || !law) return;
+    let dx = point.x - body.state.position.x;
+    let dy = point.y - body.state.position.y;
+    const length = Math.hypot(dx, dy);
+    if (length > MAX_VELOCITY_VECTOR_LENGTH) {
+      dx *= MAX_VELOCITY_VECTOR_LENGTH / length;
+      dy *= MAX_VELOCITY_VECTOR_LENGTH / length;
+    }
+    law.setVector({ x: dx / FORCE_VECTOR_SCALE, y: dy / FORCE_VECTOR_SCALE });
+    this.simulation.refreshAccelerations();
+    this.notify();
   }
 
   private isResizableBlock(object: PlaygroundObject, body: Body): boolean {

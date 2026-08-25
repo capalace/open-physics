@@ -4,7 +4,9 @@ import type { Body } from "../world";
 import type { WorldForceLaw } from "../world";
 import {
   AnchoredSpringLaw,
+  BuoyancyAreaLaw,
   BuoyancyRegionLaw,
+  ConstantBodyForceLaw,
   HorizontalSurfaceFrictionLaw,
   PushFrictionLaw,
   SurfaceContactFrictionModifier,
@@ -59,6 +61,18 @@ describe("AnchoredSpringLaw", () => {
     moving.state.velocity.x = 4;
 
     expect(law.forceOnBody(moving, [], context).vector).toEqual({ x: -12, y: 0 });
+  });
+});
+
+describe("ConstantBodyForceLaw", () => {
+  it("applies an editable force only to its target body", () => {
+    const law = new ConstantBodyForceLaw({ bodyId: "target", vector: { x: 12, y: -4 } });
+
+    expect(law.forceOnBody(body(), [], context).vector).toEqual({ x: 12, y: -4 });
+    expect(law.forceOnBody(body({ id: "other" }), [], context).vector).toEqual({ x: 0, y: 0 });
+
+    law.setVector({ x: -6, y: 8 });
+    expect(law.forceOnBody(body(), [], context).vector).toEqual({ x: -6, y: 8 });
   });
 });
 
@@ -258,5 +272,39 @@ describe("BuoyancyRegionLaw", () => {
     });
 
     expect(law.forceOnBody(body(), [], context).vector).toEqual({ x: 0, y: 0 });
+  });
+});
+
+describe("BuoyancyAreaLaw", () => {
+  it("applies buoyancy to every movable body inside the water area", () => {
+    const law = new BuoyancyAreaLaw({
+      id: "sandbox-water",
+      waterline: 80,
+      referenceDisplacedMass: 3,
+      referenceRadius: 10,
+      gravityAcceleration: 10,
+      drag: 0,
+    });
+    const light = body();
+    light.state.position.y = 90;
+    const heavy = body({ id: "heavy" });
+    heavy.state.position.y = 90;
+    heavy.state.mass = 8;
+
+    expect(law.forceOnBody(light, [light, heavy], context).vector.y).toBe(-30);
+    expect(law.forceOnBody(heavy, [light, heavy], context).vector.y).toBe(-30);
+  });
+
+  it("ignores fixed bodies and bodies above the water", () => {
+    const law = new BuoyancyAreaLaw({
+      id: "sandbox-water",
+      waterline: 120,
+      referenceDisplacedMass: 3,
+      referenceRadius: 10,
+      gravityAcceleration: 10,
+    });
+
+    expect(law.forceOnBody(body(), [], context).vector).toEqual({ x: 0, y: 0 });
+    expect(law.forceOnBody(body({ fixed: true }), [], context).vector).toEqual({ x: 0, y: 0 });
   });
 });

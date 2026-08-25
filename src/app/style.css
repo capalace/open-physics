@@ -255,7 +255,7 @@ canvas { display: block; width: 100%; height: auto; aspect-ratio: 8 / 5; touch-a
 .lab-law strong { color: #354259; font-size: 13px; }
 .lab-law p { margin: 0; color: #6f7c90; font-size: 12px; line-height: 1.5; }
 .lab-law code { justify-self: start; border-radius: 6px; padding: 4px 7px; background: #eef2fa; color: #405fc5; font-size: 12px; font-weight: 800; overflow-wrap: anywhere; white-space: normal; }
-.lab-graph { display: grid; gap: 8px; border: 1px solid #dce3ef; border-radius: 12px; padding: 11px; background: #fbfcff; }
+.lab-graph { display: grid; gap: 8px; margin-top: 18px; border: 1px solid #dce3ef; border-radius: 12px; padding: 11px; background: #fbfcff; }
 .lab-graph-heading { display: grid; gap: 3px; }
 .lab-graph-heading span { color: #8793a5; font-size: 12px; font-weight: 800; }
 .lab-graph-heading strong { color: #354259; font-size: 14px; }
@@ -281,6 +281,12 @@ body[data-app-mode="sandbox"] .object-editor { margin-top: 0; padding-top: 0; bo
 .empty-orbit i { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 5px #365eea16; }
 
 .inspector-form { display: grid; gap: 13px; margin-bottom: 24px; }
+.sandbox-observation { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; border: 1px solid #dce3ef; border-radius: 11px; padding: 10px; background: #f8faff; }
+.sandbox-observation[hidden] { display: none; }
+.sandbox-observation h3 { grid-column: 1 / -1; margin: 0 0 2px; color: #536078; font-size: 13px; }
+.sandbox-observation div { display: grid; gap: 2px; border-radius: 7px; padding: 7px; background: white; }
+.sandbox-observation span { color: #8793a5; font-size: 12px; font-weight: 700; }
+.sandbox-observation output { color: #354259; font-size: 13px; font-weight: 800; font-variant-numeric: tabular-nums; }
 .selection-summary { display: flex; align-items: center; gap: 10px; border-radius: 12px; padding: 10px; background: #f5f7fb; }
 .selection-summary input[type="color"] { flex: 0 0 32px; width: 32px; height: 32px; overflow: hidden; border: 0; border-radius: 9px; padding: 0; background: transparent; cursor: pointer; }
 .selection-summary strong, .selection-summary small { display: block; }

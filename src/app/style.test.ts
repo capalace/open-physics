@@ -45,6 +45,10 @@ describe("sandbox object palette", () => {
 
     expect(apparatusKinds).toEqual(["spring", "lever", "pulley"]);
     expect(markup).toContain('data-connection-kind="rope"');
+    expect(markup).toContain('data-connection-kind="rod"');
+    expect(markup).toContain('data-force-tool="constant"');
+    expect(markup).toContain('data-environment-kind="gravity-source"');
+    expect(markup).toContain('data-environment-kind="water"');
   });
 
   it("uses direct manipulation instead of size presets", () => {
