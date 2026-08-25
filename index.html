@@ -92,7 +92,7 @@
           <span class="palette-label">추가</span>
           <button type="button" data-object-kind="ball" title="움직이는 공 추가"><i class="shape-circle"></i><span>공</span></button>
           <button type="button" data-object-kind="box" title="움직이는 상자 추가"><i class="shape-box"></i><span>상자</span></button>
-          <button type="button" data-object-kind="block" title="크기를 직접 바꾸는 고정 블록 추가"><i class="shape-block"></i><span>고정 블록</span></button>
+          <button type="button" data-object-kind="block" title="크기와 각도를 직접 바꾸는 고정 블록 추가"><i class="shape-block"></i><span>고정 블록</span></button>
           <button type="button" data-object-kind="anchor" title="줄을 연결할 수 있는 고정점 추가"><i class="shape-anchor"></i><span>고정점</span></button>
           <span class="palette-divider" aria-hidden="true"></span>
           <span class="palette-label">연결·힘</span>
@@ -179,8 +179,9 @@
           <label class="field" data-sandbox-only><span>이름</span><input id="object-label" type="text" maxlength="24" /></label>
 
           <div id="block-resize-help" class="block-resize-help" hidden>
-            <strong>블록 크기 바꾸기</strong>
-            <p>캔버스의 파란 손잡이를 끌어 가로·세로 크기를 바꿔요.</p>
+            <strong>블록 모양 바꾸기</strong>
+            <p>파란 손잡이는 크기를, 위쪽 ↻ 손잡이는 각도를 15°씩 바꿔요.</p>
+            <output id="block-angle">각도 0°</output>
           </div>
 
           <section id="material-settings" class="choice-section" aria-labelledby="material-title" data-lab-control="material">

@@ -15,7 +15,7 @@ export interface Body {
 
 export type BodyCollider =
   | { readonly kind: "circle"; readonly radius: number }
-  | { readonly kind: "box"; readonly halfWidth: number; readonly halfHeight: number };
+  | { readonly kind: "box"; readonly halfWidth: number; readonly halfHeight: number; readonly angle?: number };
 
 export interface WorldForceLaw extends ForceLaw {
   forceOnBody(body: Body, bodies: readonly Body[], context: PhysicsContext): Force;
@@ -41,7 +41,7 @@ const normalize = (v: Vector2): Vector2 => {
   return length === 0 ? { x: 1, y: 0 } : scale(v, 1 / length);
 };
 
-interface CollisionManifold {
+export interface CollisionContact {
   readonly normal: Vector2;
   readonly penetration: number;
 }
@@ -49,22 +49,41 @@ interface CollisionManifold {
 const bodyCollider = (body: Body): BodyCollider | null =>
   body.collider ?? (body.radius ? { kind: "circle", radius: body.radius } : null);
 
+const rotate = (vector: Vector2, angle: number): Vector2 => ({
+  x: vector.x * Math.cos(angle) - vector.y * Math.sin(angle),
+  y: vector.x * Math.sin(angle) + vector.y * Math.cos(angle),
+});
+
+const boxAxes = (box: Extract<BodyCollider, { kind: "box" }>): [Vector2, Vector2] => {
+  const angle = box.angle ?? 0;
+  return [
+    { x: Math.cos(angle), y: Math.sin(angle) },
+    { x: -Math.sin(angle), y: Math.cos(angle) },
+  ];
+};
+
 const circleBoxManifold = (
   circleBody: Body,
   circle: Extract<BodyCollider, { kind: "circle" }>,
   boxBody: Body,
   box: Extract<BodyCollider, { kind: "box" }>,
-): CollisionManifold | null => {
-  const localX = circleBody.state.position.x - boxBody.state.position.x;
-  const localY = circleBody.state.position.y - boxBody.state.position.y;
+  tolerance: number,
+): CollisionContact | null => {
+  const angle = box.angle ?? 0;
+  const local = rotate(sub(circleBody.state.position, boxBody.state.position), -angle);
+  const localX = local.x;
+  const localY = local.y;
   const closestX = Math.max(-box.halfWidth, Math.min(box.halfWidth, localX));
   const closestY = Math.max(-box.halfHeight, Math.min(box.halfHeight, localY));
   const towardBox = { x: closestX - localX, y: closestY - localY };
   const distance = magnitude(towardBox);
 
   if (distance > 0) {
-    if (distance >= circle.radius) return null;
-    return { normal: scale(towardBox, 1 / distance), penetration: circle.radius - distance };
+    if (distance >= circle.radius + tolerance) return null;
+    return {
+      normal: rotate(scale(towardBox, 1 / distance), angle),
+      penetration: Math.max(0, circle.radius - distance),
+    };
   }
 
   const distanceToVerticalEdge = box.halfWidth - Math.abs(localX);
@@ -72,18 +91,50 @@ const circleBoxManifold = (
   if (distanceToVerticalEdge < distanceToHorizontalEdge) {
     const outward = localX >= 0 ? 1 : -1;
     return {
-      normal: { x: -outward, y: 0 },
+      normal: rotate({ x: -outward, y: 0 }, angle),
       penetration: circle.radius + distanceToVerticalEdge,
     };
   }
   const outward = localY >= 0 ? 1 : -1;
   return {
-    normal: { x: 0, y: -outward },
+    normal: rotate({ x: 0, y: -outward }, angle),
     penetration: circle.radius + distanceToHorizontalEdge,
   };
 };
 
-const collisionManifold = (a: Body, b: Body): CollisionManifold | null => {
+const boxProjectionRadius = (
+  box: Extract<BodyCollider, { kind: "box" }>,
+  axis: Vector2,
+): number => {
+  const [horizontal, vertical] = boxAxes(box);
+  return box.halfWidth * Math.abs(horizontal.x * axis.x + horizontal.y * axis.y)
+    + box.halfHeight * Math.abs(vertical.x * axis.x + vertical.y * axis.y);
+};
+
+const boxBoxManifold = (
+  a: Body,
+  colliderA: Extract<BodyCollider, { kind: "box" }>,
+  b: Body,
+  colliderB: Extract<BodyCollider, { kind: "box" }>,
+  tolerance: number,
+): CollisionContact | null => {
+  const delta = sub(b.state.position, a.state.position);
+  let minimumOverlap = Number.POSITIVE_INFINITY;
+  let minimumAxis: Vector2 = { x: 1, y: 0 };
+  for (const axis of [...boxAxes(colliderA), ...boxAxes(colliderB)]) {
+    const distance = Math.abs(delta.x * axis.x + delta.y * axis.y);
+    const overlap = boxProjectionRadius(colliderA, axis) + boxProjectionRadius(colliderB, axis) - distance;
+    if (tolerance === 0 ? overlap <= 0 : overlap < -tolerance) return null;
+    if (overlap < minimumOverlap) {
+      minimumOverlap = overlap;
+      minimumAxis = delta.x * axis.x + delta.y * axis.y >= 0 ? axis : scale(axis, -1);
+    }
+  }
+  return { normal: minimumAxis, penetration: Math.max(0, minimumOverlap) };
+};
+
+/** Returns the contact normal from body A toward body B for circles and oriented boxes. */
+export const collisionContact = (a: Body, b: Body, tolerance = 0): CollisionContact | null => {
   const colliderA = bodyCollider(a);
   const colliderB = bodyCollider(b);
   if (!colliderA || !colliderB) return null;
@@ -92,22 +143,16 @@ const collisionManifold = (a: Body, b: Body): CollisionManifold | null => {
     const delta = sub(b.state.position, a.state.position);
     const distance = magnitude(delta);
     const radius = colliderA.radius + colliderB.radius;
-    if (distance >= radius) return null;
-    return { normal: normalize(delta), penetration: radius - distance };
+    if (distance >= radius + tolerance) return null;
+    return { normal: normalize(delta), penetration: Math.max(0, radius - distance) };
   }
 
   if (colliderA.kind === "box" && colliderB.kind === "box") {
-    const delta = sub(b.state.position, a.state.position);
-    const overlapX = colliderA.halfWidth + colliderB.halfWidth - Math.abs(delta.x);
-    const overlapY = colliderA.halfHeight + colliderB.halfHeight - Math.abs(delta.y);
-    if (overlapX <= 0 || overlapY <= 0) return null;
-    return overlapX < overlapY
-      ? { normal: { x: delta.x >= 0 ? 1 : -1, y: 0 }, penetration: overlapX }
-      : { normal: { x: 0, y: delta.y >= 0 ? 1 : -1 }, penetration: overlapY };
+    return boxBoxManifold(a, colliderA, b, colliderB, tolerance);
   }
 
   if (colliderA.kind === "circle" && colliderB.kind === "box") {
-    return circleBoxManifold(a, colliderA, b, colliderB);
+    return circleBoxManifold(a, colliderA, b, colliderB, tolerance);
   }
 
   const manifold = circleBoxManifold(
@@ -115,6 +160,7 @@ const collisionManifold = (a: Body, b: Body): CollisionManifold | null => {
     colliderB as Extract<BodyCollider, { kind: "circle" }>,
     a,
     colliderA as Extract<BodyCollider, { kind: "box" }>,
+    tolerance,
   );
   return manifold && {
     normal: scale(manifold.normal, -1),
@@ -267,7 +313,7 @@ export class MultiBodyWorld {
         const a = bodies[i];
         const b = bodies[j];
         if (a.fixed && b.fixed) continue;
-        const manifold = collisionManifold(a, b);
+        const manifold = collisionContact(a, b);
         if (!manifold) continue;
         const { normal, penetration } = manifold;
         const relativeVelocity = sub(b.state.velocity, a.state.velocity);

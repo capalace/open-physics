@@ -9,7 +9,7 @@ import {
   SurfaceContactFrictionModifier,
 } from "../physics/laws/world-mechanics";
 import { PhysicsSimulation } from "../physics/simulation";
-import type { Body } from "../physics/world";
+import type { Body, BodyCollider } from "../physics/world";
 import {
   PendulumModel,
   type KinematicPose,
@@ -61,6 +61,7 @@ export interface PlaygroundObject {
   radius: number;
   color: string;
   material: PlaygroundMaterial;
+  angle: number;
   anchor?: boolean;
   gravitySource?: boolean;
 }
@@ -74,6 +75,7 @@ export interface PlaygroundObjectOptions {
   fixed?: boolean;
   anchor?: boolean;
   gravitySource?: boolean;
+  angle?: number;
 }
 
 export interface PlaygroundSnapshot {
@@ -91,6 +93,7 @@ export interface PlaygroundSnapshot {
     guided: boolean;
     anchor: boolean;
     gravitySource: boolean;
+    angleDegrees: number;
   } | null;
   ropeConnection: { startId: string; startLabel: string; kind: SandboxConnectionKind } | null;
   appliedForceIds: string[];
@@ -153,6 +156,9 @@ const DEFAULT_APPLIED_FORCE = 4 * PIXELS_PER_METER;
 const POINT_GRAVITY_GUIDE_RADIUS = 180;
 const POINT_GRAVITY_ORBITAL_SPEED = 155;
 const RESIZE_HANDLE_RADIUS = 13;
+const ROTATION_HANDLE_RADIUS = 13;
+const ROTATION_HANDLE_OFFSET = 38;
+const BLOCK_ANGLE_SNAP_RADIANS = 15 * Math.PI / 180;
 const MIN_BLOCK_WIDTH = 28;
 const MIN_BLOCK_HEIGHT = 24;
 const LEVER_FORCE_PER_PIXEL = 1.25;
@@ -303,6 +309,7 @@ export class PhysicsPlayground {
   private draggedId: string | null = null;
   private velocityDraggedId: string | null = null;
   private forceDraggedId: string | null = null;
+  private rotatingId: string | null = null;
   private resizingId: string | null = null;
   private resizeHandle: ResizeHandle | null = null;
   private resizeAnchor: Vector2 | null = null;
@@ -577,6 +584,7 @@ export class PhysicsPlayground {
       radius,
       color: options.color ?? this.nextColor(),
       material: options.material ?? "rubber",
+      angle: options.angle ?? 0,
       anchor: options.anchor,
       gravitySource: options.gravitySource,
     };
@@ -597,6 +605,7 @@ export class PhysicsPlayground {
       radius: Math.min(width, height) / 2,
       color: options.color ?? this.nextColor(),
       material: options.material ?? "wood",
+      angle: options.angle ?? 0,
       anchor: options.anchor,
       gravitySource: options.gravitySource,
     };
@@ -917,6 +926,7 @@ export class PhysicsPlayground {
           guided: this.isGuidedBody(object.id),
           anchor: Boolean(object.anchor),
           gravitySource: Boolean(object.gravitySource),
+          angleDegrees: this.toDegrees(object.angle),
         };
       }
     }
@@ -1224,7 +1234,7 @@ export class PhysicsPlayground {
     for (const object of this.objects.values()) {
       const body = this.simulation.getBody(object.id);
       if (!body) continue;
-      const halfHeight = object.shape === "circle" ? object.radius : object.height / 2;
+      const halfHeight = this.objectHalfExtents(object).y;
       if (body.state.position.y - halfHeight >= 170) continue;
       body.state.position.y = this.floorY - halfHeight - 12;
       body.state.velocity = { x: 0, y: 0 };
@@ -1250,7 +1260,7 @@ export class PhysicsPlayground {
       radius: object.radius,
       collider: object.shape === "circle"
         ? { kind: "circle", radius: object.radius }
-        : { kind: "box", halfWidth: object.width / 2, halfHeight: object.height / 2 },
+        : this.boxCollider(object),
       restitution: MATERIALS[object.material].restitution,
       staticFriction: MATERIALS[object.material].friction + 0.18,
       kineticFriction: MATERIALS[object.material].friction,
@@ -1303,6 +1313,7 @@ export class PhysicsPlayground {
     this.gravitySources.clear();
     this.sandboxWater = null;
     this.forceDraggedId = null;
+    this.rotatingId = null;
     this.challengeDrag = null;
     this.challengeDragOrigin = null;
     this.challengeDragPoint = null;
@@ -1500,8 +1511,7 @@ export class PhysicsPlayground {
     for (const [id, object] of this.objects) {
       const body = this.simulation.getBody(id);
       if (!body || this.isGuidedBody(id)) continue;
-      const halfWidth = object.shape === "circle" ? object.radius : object.width / 2;
-      const halfHeight = object.shape === "circle" ? object.radius : object.height / 2;
+      const { x: halfWidth, y: halfHeight } = this.objectHalfExtents(object);
       body.state.position = {
         x: this.scaleBetweenBounds(
           body.state.position.x,
@@ -1651,8 +1661,7 @@ export class PhysicsPlayground {
     for (const object of this.objects.values()) {
       const body = this.simulation.getBody(object.id);
       if (!body || this.isGuidedBody(object.id)) continue;
-      const halfWidth = object.shape === "circle" ? object.radius : object.width / 2;
-      const halfHeight = object.shape === "circle" ? object.radius : object.height / 2;
+      const { x: halfWidth, y: halfHeight } = this.objectHalfExtents(object);
       const left = margin + halfWidth;
       const right = this.canvas.width - margin - halfWidth;
       const top = margin + halfHeight;
@@ -2789,6 +2798,11 @@ export class PhysicsPlayground {
     ctx.shadowColor = selected ? `${object.color}77` : "#22304a22";
     ctx.shadowBlur = selected ? 18 : 9;
     ctx.shadowOffsetY = selected ? 0 : 5;
+    if (object.shape === "box" && object.angle !== 0) {
+      ctx.translate(object.x, object.y);
+      ctx.rotate(object.angle);
+      ctx.translate(-object.x, -object.y);
+    }
     if (selected) {
       ctx.strokeStyle = "#ffffff";
       ctx.lineWidth = 7;
@@ -2881,6 +2895,21 @@ export class PhysicsPlayground {
       }
       ctx.stroke();
     }
+    const top = this.localToWorld(object, { x: 0, y: -object.height / 2 });
+    const rotation = this.rotationHandlePoint(object);
+    ctx.beginPath();
+    ctx.moveTo(top.x, top.y);
+    ctx.lineTo(rotation.x, rotation.y);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(rotation.x, rotation.y, 9, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = "#365eea";
+    ctx.font = "800 13px Inter, system-ui, sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText("↻", rotation.x, rotation.y + 0.5);
     ctx.restore();
   }
 
@@ -2901,7 +2930,7 @@ export class PhysicsPlayground {
     ctx.save();
     ctx.font = "600 14px Inter, system-ui, sans-serif";
     ctx.textAlign = "center";
-    const labelY = object.y - object.height / 2 - 14;
+    const labelY = object.y - this.objectHalfExtents(object).y - 14;
     const width = ctx.measureText(object.label).width + 14;
     ctx.fillStyle = "#ffffffdd";
     this.roundRect(object.x - width / 2, labelY - 13, width, 20, 8);
@@ -3249,6 +3278,15 @@ export class PhysicsPlayground {
         return;
       }
       if (this.beginChallengeInteraction(point, event.pointerId)) return;
+      const rotationHit = this.hitRotationHandle(point);
+      if (rotationHit) {
+        this.paused = true;
+        this.pointerId = event.pointerId;
+        this.rotatingId = rotationHit.id;
+        this.canvas.setPointerCapture(event.pointerId);
+        this.canvas.style.cursor = "grabbing";
+        return;
+      }
       const resizeHit = this.hitResizeHandle(point);
       if (resizeHit && this.selectedId) {
         const object = this.objects.get(this.selectedId);
@@ -3257,10 +3295,10 @@ export class PhysicsPlayground {
         this.pointerId = event.pointerId;
         this.resizingId = object.id;
         this.resizeHandle = resizeHit;
-        this.resizeAnchor = {
-          x: object.x - object.width / 2,
-          y: object.y - object.height / 2,
-        };
+        this.resizeAnchor = this.localToWorld(object, {
+          x: -object.width / 2,
+          y: -object.height / 2,
+        });
         this.canvas.setPointerCapture(event.pointerId);
         this.canvas.style.cursor = this.resizeCursor(resizeHit);
         return;
@@ -3303,6 +3341,10 @@ export class PhysicsPlayground {
         this.updateChallengeInteraction(point);
         return;
       }
+      if (event.pointerId === this.pointerId && this.rotatingId) {
+        this.rotateBlockFromPoint(this.rotatingId, point);
+        return;
+      }
       if (event.pointerId === this.pointerId && this.resizingId) {
         this.resizeBlockFromPoint(this.resizingId, point);
         return;
@@ -3317,7 +3359,9 @@ export class PhysicsPlayground {
       }
       if (event.pointerId !== this.pointerId || !this.draggedId) {
         const resizeHandle = this.hitResizeHandle(point);
-        this.canvas.style.cursor = resizeHandle
+        this.canvas.style.cursor = this.hitRotationHandle(point)
+          ? "grab"
+          : resizeHandle
           ? this.resizeCursor(resizeHandle)
           : this.hitVelocityHandle(point) || this.hitForceHandle(point)
             ? "pointer" : this.hitTest(point) ? "grab" : "crosshair";
@@ -3333,8 +3377,7 @@ export class PhysicsPlayground {
         return;
       }
       const previousPosition = { ...body.state.position };
-      const halfWidth = object.shape === "circle" ? object.radius : object.width / 2;
-      const halfHeight = object.shape === "circle" ? object.radius : object.height / 2;
+      const { x: halfWidth, y: halfHeight } = this.objectHalfExtents(object);
       body.state.position = {
         x: Math.max(14 + halfWidth, Math.min(this.canvas.width - 14 - halfWidth, point.x)),
         y: Math.max(14 + halfHeight, Math.min(this.floorY - halfHeight, point.y)),
@@ -3374,6 +3417,7 @@ export class PhysicsPlayground {
       this.draggedId = null;
       this.velocityDraggedId = null;
       this.forceDraggedId = null;
+      this.rotatingId = null;
       this.resizingId = null;
       this.resizeHandle = null;
       this.resizeAnchor = null;
@@ -3391,11 +3435,10 @@ export class PhysicsPlayground {
 
   private hitTest(point: Vector2): PlaygroundObject | null {
     for (const object of [...this.objects.values()].reverse()) {
-      const dx = point.x - object.x;
-      const dy = point.y - object.y;
+      const local = this.worldToLocal(object, point);
       const hit = object.shape === "circle"
-        ? dx * dx + dy * dy <= object.radius ** 2
-        : Math.abs(dx) <= object.width / 2 && Math.abs(dy) <= object.height / 2;
+        ? local.x * local.x + local.y * local.y <= object.radius ** 2
+        : Math.abs(local.x) <= object.width / 2 && Math.abs(local.y) <= object.height / 2;
       if (hit) return object;
     }
     return null;
@@ -3451,10 +3494,23 @@ export class PhysicsPlayground {
 
   private resizeHandles(object: PlaygroundObject): Array<Vector2 & { kind: ResizeHandle }> {
     return [
-      { kind: "both", x: object.x + object.width / 2, y: object.y + object.height / 2 },
-      { kind: "width", x: object.x + object.width / 2, y: object.y },
-      { kind: "height", x: object.x, y: object.y + object.height / 2 },
+      { kind: "both", ...this.localToWorld(object, { x: object.width / 2, y: object.height / 2 }) },
+      { kind: "width", ...this.localToWorld(object, { x: object.width / 2, y: 0 }) },
+      { kind: "height", ...this.localToWorld(object, { x: 0, y: object.height / 2 }) },
     ];
+  }
+
+  private rotationHandlePoint(object: PlaygroundObject): Vector2 {
+    return this.localToWorld(object, { x: 0, y: -object.height / 2 - ROTATION_HANDLE_OFFSET });
+  }
+
+  private hitRotationHandle(point: Vector2): PlaygroundObject | null {
+    if (!this.selectedId) return null;
+    const object = this.objects.get(this.selectedId);
+    const body = this.simulation.getBody(this.selectedId);
+    if (!object || !body || !this.isResizableBlock(object, body)) return null;
+    const handle = this.rotationHandlePoint(object);
+    return Math.hypot(point.x - handle.x, point.y - handle.y) <= ROTATION_HANDLE_RADIUS ? object : null;
   }
 
   private hitResizeHandle(point: Vector2): ResizeHandle | null {
@@ -3490,24 +3546,76 @@ export class PhysicsPlayground {
     const anchor = this.resizeAnchor;
     if (!object || !body || !handle || !anchor || !this.isResizableBlock(object, body)) return;
 
+    const angle = object.angle;
+    const relative = { x: point.x - anchor.x, y: point.y - anchor.y };
+    const local = {
+      x: relative.x * Math.cos(angle) + relative.y * Math.sin(angle),
+      y: -relative.x * Math.sin(angle) + relative.y * Math.cos(angle),
+    };
     const width = handle === "height"
       ? object.width
-      : Math.max(MIN_BLOCK_WIDTH, Math.min(this.canvas.width - 14 - anchor.x, point.x - anchor.x));
+      : Math.max(MIN_BLOCK_WIDTH, Math.min(this.canvas.width - 28, local.x));
     const height = handle === "width"
       ? object.height
-      : Math.max(MIN_BLOCK_HEIGHT, Math.min(this.floorY - anchor.y, point.y - anchor.y));
+      : Math.max(MIN_BLOCK_HEIGHT, Math.min(this.floorY - 28, local.y));
     object.width = width;
     object.height = height;
     object.radius = Math.min(width, height) / 2;
-    object.x = anchor.x + width / 2;
-    object.y = anchor.y + height / 2;
+    object.x = anchor.x + Math.cos(angle) * width / 2 - Math.sin(angle) * height / 2;
+    object.y = anchor.y + Math.sin(angle) * width / 2 + Math.cos(angle) * height / 2;
     body.radius = object.radius;
-    body.collider = { kind: "box", halfWidth: width / 2, halfHeight: height / 2 };
+    body.collider = this.boxCollider(object);
     body.state.position = { x: object.x, y: object.y };
     body.state.velocity = { x: 0, y: 0 };
     this.trails.set(id, [{ x: object.x, y: object.y }]);
     this.simulation.refreshAccelerations();
     this.notify();
+  }
+
+  private rotateBlockFromPoint(id: string, point: Vector2): void {
+    const object = this.objects.get(id);
+    const body = this.simulation.getBody(id);
+    if (!object || !body || !this.isResizableBlock(object, body)) return;
+    let angle = Math.atan2(point.y - object.y, point.x - object.x) + Math.PI / 2;
+    while (angle > Math.PI / 2) angle -= Math.PI;
+    while (angle < -Math.PI / 2) angle += Math.PI;
+    object.angle = Math.round(angle / BLOCK_ANGLE_SNAP_RADIANS) * BLOCK_ANGLE_SNAP_RADIANS;
+    body.collider = this.boxCollider(object);
+    body.state.velocity = { x: 0, y: 0 };
+    this.simulation.refreshAccelerations();
+    this.notify();
+  }
+
+  private localToWorld(object: PlaygroundObject, point: Vector2): Vector2 {
+    return {
+      x: object.x + point.x * Math.cos(object.angle) - point.y * Math.sin(object.angle),
+      y: object.y + point.x * Math.sin(object.angle) + point.y * Math.cos(object.angle),
+    };
+  }
+
+  private worldToLocal(object: PlaygroundObject, point: Vector2): Vector2 {
+    const dx = point.x - object.x;
+    const dy = point.y - object.y;
+    return {
+      x: dx * Math.cos(object.angle) + dy * Math.sin(object.angle),
+      y: -dx * Math.sin(object.angle) + dy * Math.cos(object.angle),
+    };
+  }
+
+  private objectHalfExtents(object: PlaygroundObject): Vector2 {
+    if (object.shape === "circle") return { x: object.radius, y: object.radius };
+    return {
+      x: Math.abs(Math.cos(object.angle)) * object.width / 2
+        + Math.abs(Math.sin(object.angle)) * object.height / 2,
+      y: Math.abs(Math.sin(object.angle)) * object.width / 2
+        + Math.abs(Math.cos(object.angle)) * object.height / 2,
+    };
+  }
+
+  private boxCollider(object: PlaygroundObject): Extract<BodyCollider, { kind: "box" }> {
+    return object.angle === 0
+      ? { kind: "box", halfWidth: object.width / 2, halfHeight: object.height / 2 }
+      : { kind: "box", halfWidth: object.width / 2, halfHeight: object.height / 2, angle: object.angle };
   }
 
   private updateVelocityFromPoint(id: string, point: Vector2): void {

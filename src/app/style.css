@@ -286,6 +286,7 @@ body[data-app-mode="sandbox"] .object-editor { margin-top: 0; padding-top: 0; bo
 .block-resize-help[hidden] { display: none; }
 .block-resize-help strong { color: #365eea; font-size: 13px; }
 .block-resize-help p { margin: 5px 0 0; color: #526788; font-size: 13px; line-height: 1.55; }
+.block-resize-help output { display: inline-block; margin-top: 7px; border-radius: 7px; padding: 4px 7px; background: white; color: #365eea; font-size: 13px; font-weight: 800; }
 .field { display: grid; gap: 6px; }
 .field > span { color: #68758a; font-size: 12px; font-weight: 750; }
 .field small { color: #a2abba; font-weight: 500; }

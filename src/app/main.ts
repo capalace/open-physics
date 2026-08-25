@@ -34,6 +34,7 @@ const appLayout = required<HTMLElement>(".app-layout");
 const inspectorEmpty = required<HTMLElement>("#inspector-empty");
 const inspectorForm = required<HTMLFormElement>("#inspector-form");
 const blockResizeHelp = required<HTMLElement>("#block-resize-help");
+const blockAngle = required<HTMLOutputElement>("#block-angle");
 const materialSettings = required<HTMLElement>("#material-settings");
 const materialTitle = required<HTMLElement>("#material-title");
 const sandboxObservation = required<HTMLElement>("#sandbox-observation");
@@ -241,6 +242,7 @@ function renderSnapshot(snapshot: PlaygroundSnapshot): void {
   }
 
   const selected = snapshot.selected;
+  blockAngle.value = `각도 ${Math.round(selected.angleDegrees)}°`;
   materialSettings.hidden = appMode === "lab"
     ? !activeLab.controls.includes("material")
     : Boolean(selected.anchor || selected.gravitySource);
@@ -250,7 +252,11 @@ function renderSnapshot(snapshot: PlaygroundSnapshot): void {
     ? "장치에 연결된 짐"
     : selected.gravitySource ? "주변을 끌어당기는 중력원"
       : selected.anchor ? "줄을 묶는 고정점"
-      : selected.fixed ? "움직이지 않는 블록" : selected.shape === "circle" ? "움직이는 공" : "움직이는 상자";
+      : selected.fixed
+        ? selected.shape === "box" && Math.abs(selected.angleDegrees) > 0.1
+          ? "빗면으로 쓰는 고정 블록"
+          : "움직이지 않는 블록"
+        : selected.shape === "circle" ? "움직이는 공" : "움직이는 상자";
 
   syncInput(objectLabel, selected.label);
   syncInput(objectMass, selected.mass.toFixed(1));

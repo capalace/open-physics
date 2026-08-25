@@ -60,6 +60,8 @@ describe("sandbox object palette", () => {
 
     expect(sizes).toEqual([]);
     expect(markup).toContain('id="block-resize-help"');
+    expect(markup).toContain('id="block-angle"');
+    expect(markup).toContain("위쪽 ↻ 손잡이");
   });
 });
 

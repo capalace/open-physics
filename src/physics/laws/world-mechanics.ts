@@ -1,6 +1,6 @@
 import type { BodyState, PhysicsContext, Vector2 } from "../core";
 import type { Force } from "../quantities";
-import type { Body, WorldForceLaw } from "../world";
+import { collisionContact, type Body, type WorldForceLaw } from "../world";
 import type { NetForceModifier, SimulatedBody } from "../simulation";
 
 const zeroForce = (source: string): Force => ({ vector: { x: 0, y: 0 }, source });
@@ -117,13 +117,6 @@ interface SurfaceContact {
   floor: boolean;
 }
 
-interface BodyBounds {
-  left: number;
-  right: number;
-  top: number;
-  bottom: number;
-}
-
 /** Applies static or kinetic friction along the floor and fixed-block contact surfaces. */
 export class SurfaceContactFrictionModifier implements NetForceModifier {
   readonly id = "friction.surface.contact";
@@ -212,12 +205,12 @@ export class SurfaceContactFrictionModifier implements NetForceModifier {
     const contacts: SurfaceContact[] = [];
     const bodyStatic = body.staticFriction ?? body.kineticFriction ?? 0;
     const bodyKinetic = body.kineticFriction ?? 0;
-    const bounds = this.bounds(body);
+    const bodyBottom = body.state.position.y + this.verticalExtent(body);
 
     if (
       this.normalAcceleration > 0
       && (bodyStatic > 0 || bodyKinetic > 0)
-      && Math.abs(bounds.bottom - this.floorY) <= this.contactTolerance
+      && Math.abs(bodyBottom - this.floorY) <= this.contactTolerance
     ) {
       contacts.push({
         normal: { x: 0, y: -1 },
@@ -229,8 +222,9 @@ export class SurfaceContactFrictionModifier implements NetForceModifier {
 
     for (const surface of bodies) {
       if (surface.id === body.id || !surface.fixed || surface.collider?.kind !== "box") continue;
-      const contactNormal = this.fixedBoxContactNormal(bounds, this.bounds(surface));
-      if (!contactNormal) continue;
+      const contact = collisionContact(body, surface, this.contactTolerance);
+      if (!contact) continue;
+      const contactNormal = { x: -contact.normal.x, y: -contact.normal.y };
       const surfaceStatic = surface.staticFriction ?? surface.kineticFriction ?? 0;
       const surfaceKinetic = surface.kineticFriction ?? 0;
       contacts.push({
@@ -243,39 +237,14 @@ export class SurfaceContactFrictionModifier implements NetForceModifier {
     return contacts;
   }
 
-  private fixedBoxContactNormal(body: BodyBounds, surface: BodyBounds): Vector2 | null {
-    const overlapX = Math.min(body.right, surface.right) - Math.max(body.left, surface.left);
-    const overlapY = Math.min(body.bottom, surface.bottom) - Math.max(body.top, surface.top);
-    const candidates: Array<{ gap: number; normal: Vector2 }> = [];
-    if (overlapX > 0) {
-      candidates.push(
-        { gap: Math.abs(body.bottom - surface.top), normal: { x: 0, y: -1 } },
-        { gap: Math.abs(body.top - surface.bottom), normal: { x: 0, y: 1 } },
-      );
+  private verticalExtent(body: Body): number {
+    if (body.collider?.kind === "circle") return body.collider.radius;
+    if (body.collider?.kind === "box") {
+      const angle = body.collider.angle ?? 0;
+      return Math.abs(Math.sin(angle)) * body.collider.halfWidth
+        + Math.abs(Math.cos(angle)) * body.collider.halfHeight;
     }
-    if (overlapY > 0) {
-      candidates.push(
-        { gap: Math.abs(body.right - surface.left), normal: { x: -1, y: 0 } },
-        { gap: Math.abs(body.left - surface.right), normal: { x: 1, y: 0 } },
-      );
-    }
-    const contact = candidates.sort((a, b) => a.gap - b.gap)[0];
-    return contact && contact.gap <= this.contactTolerance ? contact.normal : null;
-  }
-
-  private bounds(body: Body): BodyBounds {
-    const halfWidth = body.collider?.kind === "box"
-      ? body.collider.halfWidth
-      : body.collider?.kind === "circle" ? body.collider.radius : body.radius ?? 0;
-    const halfHeight = body.collider?.kind === "box"
-      ? body.collider.halfHeight
-      : body.collider?.kind === "circle" ? body.collider.radius : body.radius ?? 0;
-    return {
-      left: body.state.position.x - halfWidth,
-      right: body.state.position.x + halfWidth,
-      top: body.state.position.y - halfHeight,
-      bottom: body.state.position.y + halfHeight,
-    };
+    return body.radius ?? 0;
   }
 
   private combineCoefficients(a: number, b: number): number {

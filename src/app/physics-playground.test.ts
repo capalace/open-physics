@@ -432,6 +432,101 @@ describe("PhysicsPlayground object creation", () => {
       halfHeight: 55,
     });
   });
+
+  it("rotates a fixed block in 15 degree steps by dragging its top handle", () => {
+    vi.stubGlobal("requestAnimationFrame", () => 0);
+    const { canvas, dispatchPointer } = createInteractiveCanvas();
+    const playground = new PhysicsPlayground(canvas, { width: 960, height: 600 });
+    playground.startSandbox();
+    const block = playground.addSandboxObject("block");
+    const handleDistance = block.height / 2 + 38;
+
+    dispatchPointer("pointerdown", block.x, block.y - handleDistance);
+    dispatchPointer(
+      "pointermove",
+      block.x + Math.sin(Math.PI / 6) * handleDistance,
+      block.y - Math.cos(Math.PI / 6) * handleDistance,
+    );
+    dispatchPointer("pointerup", block.x, block.y - handleDistance);
+
+    expect(block.angle).toBeCloseTo(Math.PI / 6);
+    expect(playground.snapshot().selected?.angleDegrees).toBeCloseTo(30);
+    expect(playground.simulation.getBody(block.id)?.collider).toMatchObject({
+      kind: "box",
+      angle: Math.PI / 6,
+    });
+  });
+
+  it("keeps block resizing aligned with the rotated block", () => {
+    vi.stubGlobal("requestAnimationFrame", () => 0);
+    const { canvas, dispatchPointer } = createInteractiveCanvas();
+    const playground = new PhysicsPlayground(canvas, { width: 960, height: 600 });
+    playground.startSandbox();
+    const block = playground.addSandboxObject("block");
+    const angle = Math.PI / 6;
+    const handleDistance = block.height / 2 + 38;
+    dispatchPointer("pointerdown", block.x, block.y - handleDistance);
+    dispatchPointer(
+      "pointermove",
+      block.x + Math.sin(angle) * handleDistance,
+      block.y - Math.cos(angle) * handleDistance,
+    );
+    dispatchPointer("pointerup", block.x, block.y - handleDistance);
+
+    const rotate = (x: number, y: number) => ({
+      x: x * Math.cos(angle) - y * Math.sin(angle),
+      y: x * Math.sin(angle) + y * Math.cos(angle),
+    });
+    const topLeft = rotate(-block.width / 2, -block.height / 2);
+    const bottomRight = rotate(block.width / 2, block.height / 2);
+    const target = rotate(240, 70);
+    const anchor = { x: block.x + topLeft.x, y: block.y + topLeft.y };
+    dispatchPointer("pointerdown", block.x + bottomRight.x, block.y + bottomRight.y);
+    dispatchPointer("pointermove", anchor.x + target.x, anchor.y + target.y);
+    dispatchPointer("pointerup", anchor.x + target.x, anchor.y + target.y);
+
+    expect(block.width).toBeCloseTo(240);
+    expect(block.height).toBeCloseTo(70);
+    expect(block.angle).toBeCloseTo(angle);
+    const collider = playground.simulation.getBody(block.id)?.collider;
+    expect(collider).toMatchObject({ kind: "box", angle });
+    expect(collider?.kind === "box" ? collider.halfWidth : 0).toBeCloseTo(120);
+    expect(collider?.kind === "box" ? collider.halfHeight : 0).toBeCloseTo(35);
+  });
+
+  it("slides a low-friction ball down a rotated sandbox block", () => {
+    vi.stubGlobal("requestAnimationFrame", () => 0);
+    const { canvas, dispatchPointer } = createInteractiveCanvas();
+    const playground = new PhysicsPlayground(canvas, { width: 960, height: 600 });
+    playground.startSandbox();
+    const ball = [...playground.objects.values()][0];
+    const block = playground.addSandboxObject("block");
+    const angle = -Math.PI / 6;
+    const handleDistance = block.height / 2 + 38;
+    dispatchPointer("pointerdown", block.x, block.y - handleDistance);
+    dispatchPointer(
+      "pointermove",
+      block.x + Math.sin(angle) * handleDistance,
+      block.y - Math.cos(angle) * handleDistance,
+    );
+    dispatchPointer("pointerup", block.x, block.y - handleDistance);
+
+    playground.select(ball.id);
+    playground.updateSelected({ material: "steel" });
+    const ballBody = playground.simulation.getBody(ball.id)!;
+    const alongRamp = { x: Math.cos(angle), y: Math.sin(angle) };
+    const outward = { x: Math.sin(angle), y: -Math.cos(angle) };
+    ballBody.state.position = {
+      x: block.x + alongRamp.x * 24 + outward.x * (block.height / 2 + ball.radius),
+      y: block.y + alongRamp.y * 24 + outward.y * (block.height / 2 + ball.radius),
+    };
+    ballBody.state.velocity = { x: 0, y: 0 };
+    const startX = ballBody.state.position.x;
+
+    for (let step = 0; step < 90; step += 1) playground.simulation.step(1 / 120);
+
+    expect(ballBody.state.position.x).toBeLessThan(startX - 4);
+  });
 });
 
 describe("PhysicsPlayground contacts", () => {

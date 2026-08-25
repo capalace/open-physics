@@ -150,6 +150,64 @@ describe("SurfaceContactFrictionModifier", () => {
     expect(result.vector.y).toBeLessThan(0);
   });
 
+  it("cancels the downhill gravity component on a high-friction incline", () => {
+    const friction = new SurfaceContactFrictionModifier({ floorY: 500, normalAcceleration: 10 });
+    const angle = -Math.PI / 6;
+    const resting = body({ staticFriction: 1, kineticFriction: 0.8 });
+    resting.state.position = {
+      x: 50 + Math.sin(angle) * 15,
+      y: 100 - Math.cos(angle) * 15,
+    };
+    const ramp = body({
+      id: "ramp",
+      radius: undefined,
+      collider: { kind: "box", halfWidth: 50, halfHeight: 5, angle },
+      staticFriction: 1,
+      kineticFriction: 0.8,
+      fixed: true,
+    });
+    ramp.state.position = { x: 50, y: 100 };
+
+    const result = friction.modifyForce(
+      resting,
+      [resting, ramp],
+      { vector: { x: 0, y: 20 }, source: "gravity" },
+      context,
+    );
+    const downhill = { x: -Math.cos(angle), y: -Math.sin(angle) };
+
+    expect(result.vector.x * downhill.x + result.vector.y * downhill.y).toBeCloseTo(0);
+  });
+
+  it("leaves a downhill force on a low-friction incline", () => {
+    const friction = new SurfaceContactFrictionModifier({ floorY: 500, normalAcceleration: 10 });
+    const angle = -Math.PI / 6;
+    const sliding = body({ staticFriction: 0.1, kineticFriction: 0.05 });
+    sliding.state.position = {
+      x: 50 + Math.sin(angle) * 15,
+      y: 100 - Math.cos(angle) * 15,
+    };
+    const ramp = body({
+      id: "ramp",
+      radius: undefined,
+      collider: { kind: "box", halfWidth: 50, halfHeight: 5, angle },
+      staticFriction: 0.1,
+      kineticFriction: 0.05,
+      fixed: true,
+    });
+    ramp.state.position = { x: 50, y: 100 };
+
+    const result = friction.modifyForce(
+      sliding,
+      [sliding, ramp],
+      { vector: { x: 0, y: 20 }, source: "gravity" },
+      context,
+    );
+    const downhill = { x: -Math.cos(angle), y: -Math.sin(angle) };
+
+    expect(result.vector.x * downhill.x + result.vector.y * downhill.y).toBeGreaterThan(0);
+  });
+
   it("modifies the combined force before the simulation integrates it", () => {
     const push: WorldForceLaw = {
       id: "push",
