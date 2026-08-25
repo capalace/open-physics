@@ -1,6 +1,11 @@
 import type { PlaygroundPreset } from "./physics-playground";
 
 export type LabControl = "mass" | "material" | "gravity" | "velocity";
+export type LabActivationSource = "initial" | "selection";
+
+export function shouldAutoPlayLab(source: LabActivationSource): boolean {
+  return source === "selection";
+}
 
 export interface MechanicsLab {
   readonly id: PlaygroundPreset;

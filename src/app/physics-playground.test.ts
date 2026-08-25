@@ -494,6 +494,19 @@ describe("PhysicsPlayground extended mechanics", () => {
     expect(load.state.position.y).toBeLessThan(startY);
   });
 
+  it("draws the lever with named effort positions, a fulcrum, and a direct handle", () => {
+    vi.stubGlobal("requestAnimationFrame", () => 0);
+    const { canvas, fillText } = createRenderingCanvas();
+    const playground = new PhysicsPlayground(canvas, { width: 960, height: 600 });
+    playground.loadPreset("rotation");
+    const renderer = playground as unknown as { drawGuidedScene(): void };
+
+    renderer.drawGuidedScene();
+
+    const labels = fillText.mock.calls.map(([label]) => label);
+    expect(labels).toEqual(expect.arrayContaining(["가까이", "중간", "멀리", "받침점", "아래로 눌러요"]));
+  });
+
   it("trades more pulling distance for lower force with four pulley strands", () => {
     vi.stubGlobal("requestAnimationFrame", () => 0);
     const { canvas, dispatchPointer } = createInteractiveCanvas();
@@ -505,11 +518,28 @@ describe("PhysicsPlayground extended mechanics", () => {
 
     dispatchPointer("pointerdown", 584, 86);
     const fourStrandForce = playground.snapshot().graph!.samples.at(-1)!.values[1];
-    dispatchPointer("pointerdown", 653, 256);
-    dispatchPointer("pointermove", 653, 456);
+    dispatchPointer("pointerdown", 653, 323);
+    dispatchPointer("pointermove", 653, 523);
 
     expect(fourStrandForce).toBeCloseTo(oneStrandForce / 4);
     expect(startY - load.state.position.y).toBeCloseTo(50);
+  });
+
+  it("draws a four-strand block and tackle with detailed wheels and a pull handle", () => {
+    vi.stubGlobal("requestAnimationFrame", () => 0);
+    const rendering = createRenderingCanvas();
+    const playground = new PhysicsPlayground(rendering.canvas, { width: 960, height: 600 });
+    playground.loadPreset("pulley");
+    const controller = playground as unknown as {
+      beginChallengeInteraction(point: { x: number; y: number }, pointerId: number): boolean;
+      drawGuidedScene(): void;
+    };
+    controller.beginChallengeInteraction({ x: 584, y: 86 }, 1);
+
+    controller.drawGuidedScene();
+
+    expect(rendering.arc.mock.calls.length).toBeGreaterThan(20);
+    expect(rendering.fillText.mock.calls.some(([label]) => label === "당기는 손잡이")).toBe(true);
   });
 
   it("keeps rope and rod bobs at their fixed constraint lengths", () => {

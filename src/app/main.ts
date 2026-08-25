@@ -6,7 +6,13 @@ import {
   type SandboxObjectKind,
 } from "./physics-playground";
 import { formatGraphValue, renderLabGraph } from "./lab-graph";
-import { mechanicsLab, type LabControl, type MechanicsLab } from "./mechanics-labs";
+import {
+  mechanicsLab,
+  shouldAutoPlayLab,
+  type LabActivationSource,
+  type LabControl,
+  type MechanicsLab,
+} from "./mechanics-labs";
 
 type AppMode = "lab" | "sandbox";
 
@@ -45,7 +51,7 @@ let appMode: AppMode = "lab";
 let activeLab = mechanicsLab("free-fall");
 
 const playground = new PhysicsPlayground(canvas, { onUpdate: renderSnapshot });
-activateLab("free-fall");
+activateLab("free-fall", "initial");
 
 playButton.addEventListener("click", () => playground.toggle());
 stepButton.addEventListener("click", () => playground.stepOnce());
@@ -211,12 +217,12 @@ function renderGraphLegend(graph: NonNullable<PlaygroundSnapshot["graph"]>): voi
   labGraphLegend.replaceChildren(...entries);
 }
 
-function activateLab(id: PlaygroundPreset): void {
+function activateLab(id: PlaygroundPreset, source: LabActivationSource = "selection"): void {
   appMode = "lab";
   activeLab = mechanicsLab(id);
   renderLabGuide(activeLab);
   applyModeUi();
-  playground.loadPreset(id, true);
+  playground.loadPreset(id, shouldAutoPlayLab(source));
   pulseWorld();
 }
 

@@ -613,7 +613,7 @@ export class PhysicsPlayground {
         topY,
         loadX,
         pullX,
-        pullStartY: topY + 138,
+        pullStartY: topY + 205,
         pullDistance: 0,
       };
       this.applyGuidedScenePoses();
@@ -1389,43 +1389,153 @@ export class PhysicsPlayground {
   private drawLeverChallenge(scene: Extract<GuidedMechanicsScene, { kind: "lever" }>): void {
     const { ctx } = this;
     const direction = { x: Math.cos(scene.angle), y: Math.sin(scene.angle) };
-    const left = {
-      x: scene.center.x - direction.x * (scene.model.loadArm + 55),
-      y: scene.center.y - direction.y * (scene.model.loadArm + 55),
-    };
-    const right = {
-      x: scene.center.x + direction.x * scene.beamLength * 0.52,
-      y: scene.center.y + direction.y * scene.beamLength * 0.52,
-    };
-    ctx.strokeStyle = "#46546a";
-    ctx.lineWidth = 14;
-    ctx.beginPath();
-    ctx.moveTo(left.x, left.y);
-    ctx.lineTo(right.x, right.y);
-    ctx.stroke();
+    const beamLeft = -(scene.model.loadArm + 64);
+    const beamRight = scene.beamLength * 0.52;
+    const effortFractions = [0.35, 0.6, 0.9] as const;
+    const effortLabels = ["가까이", "중간", "멀리"] as const;
 
-    for (const fraction of [0.35, 0.6, 0.9]) {
+    ctx.save();
+    ctx.shadowColor = "#25324a2f";
+    ctx.shadowBlur = 10;
+    ctx.shadowOffsetY = 7;
+    ctx.fillStyle = "#8090a8";
+    ctx.beginPath();
+    ctx.moveTo(scene.center.x, scene.center.y + 5);
+    ctx.lineTo(scene.center.x - 58, scene.center.y + 112);
+    ctx.lineTo(scene.center.x + 58, scene.center.y + 112);
+    ctx.closePath();
+    ctx.fill();
+    ctx.shadowColor = "transparent";
+    ctx.fillStyle = "#5e6d84";
+    this.roundRect(scene.center.x - 76, scene.center.y + 104, 152, 18, 7);
+    ctx.fill();
+    ctx.fillStyle = "#aeb9c8";
+    ctx.beginPath();
+    ctx.moveTo(scene.center.x, scene.center.y + 16);
+    ctx.lineTo(scene.center.x - 40, scene.center.y + 100);
+    ctx.lineTo(scene.center.x + 40, scene.center.y + 100);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+
+    ctx.save();
+    ctx.translate(scene.center.x, scene.center.y);
+    ctx.rotate(scene.angle);
+    ctx.shadowColor = "#17233b3d";
+    ctx.shadowBlur = 9;
+    ctx.shadowOffsetY = 6;
+    const beamGradient = ctx.createLinearGradient(0, -12, 0, 12);
+    beamGradient.addColorStop(0, "#71839d");
+    beamGradient.addColorStop(0.5, "#43536b");
+    beamGradient.addColorStop(1, "#2f3d53");
+    ctx.fillStyle = beamGradient;
+    this.roundRect(beamLeft, -12, beamRight - beamLeft, 24, 10);
+    ctx.fill();
+    ctx.shadowColor = "transparent";
+    ctx.fillStyle = "#aeb9c8";
+    this.roundRect(beamLeft + 7, -8, beamRight - beamLeft - 14, 5, 3);
+    ctx.fill();
+    ctx.strokeStyle = "#dce3ecaa";
+    ctx.lineWidth = 2;
+    for (let tick = -scene.model.loadArm; tick <= beamRight - 14; tick += 34) {
+      ctx.beginPath();
+      ctx.moveTo(tick, -10);
+      ctx.lineTo(tick, tick % 68 === 0 ? -2 : -5);
+      ctx.stroke();
+    }
+    ctx.fillStyle = "#495a72";
+    this.roundRect(-scene.model.loadArm - 43, -17, 86, 10, 5);
+    ctx.fill();
+    ctx.restore();
+
+    for (const [index, fraction] of effortFractions.entries()) {
       const arm = scene.beamLength * 0.52 * fraction;
       const selected = Math.abs(arm - scene.model.effortArm) < 4;
-      ctx.fillStyle = selected ? "#e05c3f" : "#ffffff";
-      ctx.strokeStyle = "#e05c3f";
+      const point = {
+        x: scene.center.x + direction.x * arm,
+        y: scene.center.y + direction.y * arm,
+      };
+      ctx.save();
+      if (selected) {
+        ctx.shadowColor = "#e05c3f66";
+        ctx.shadowBlur = 12;
+      }
+      ctx.fillStyle = selected ? "#e05c3f" : "#f8fafc";
+      ctx.strokeStyle = selected ? "#ffffff" : "#e05c3f";
       ctx.lineWidth = 3;
       ctx.beginPath();
-      ctx.arc(scene.center.x + direction.x * arm, scene.center.y + direction.y * arm, selected ? 12 : 9, 0, Math.PI * 2);
+      ctx.arc(point.x, point.y, selected ? 11 : 8, 0, Math.PI * 2);
       ctx.fill();
       ctx.stroke();
+      ctx.shadowColor = "transparent";
+      ctx.fillStyle = selected ? "#c9472f" : "#66758a";
+      ctx.font = `700 ${selected ? 14 : 13}px Inter, system-ui, sans-serif`;
+      ctx.textAlign = "center";
+      ctx.fillText(effortLabels[index], point.x, point.y - 22);
+      ctx.restore();
     }
 
     const handle = this.leverHandlePoint(scene);
-    this.drawArrow(handle.x, handle.y - 58, { x: 0, y: 58 }, 1, "#e05c3f", "아래로 눌러요");
-    ctx.fillStyle = "#ffffff";
-    ctx.strokeStyle = "#e05c3f";
-    ctx.lineWidth = 4;
+    const effortPoint = {
+      x: scene.center.x + direction.x * scene.model.effortArm,
+      y: scene.center.y + direction.y * scene.model.effortArm,
+    };
+    ctx.strokeStyle = "#d7dee8";
+    ctx.lineWidth = 8;
     ctx.beginPath();
-    ctx.arc(handle.x, handle.y, 14, 0, Math.PI * 2);
+    ctx.moveTo(effortPoint.x, effortPoint.y + 5);
+    ctx.lineTo(handle.x, handle.y);
+    ctx.stroke();
+    ctx.strokeStyle = "#74839a";
+    ctx.lineWidth = 3;
+    ctx.stroke();
+    ctx.save();
+    ctx.shadowColor = "#d4472e4f";
+    ctx.shadowBlur = 9;
+    ctx.fillStyle = "#e05c3f";
+    ctx.strokeStyle = "#e05c3f";
+    this.roundRect(handle.x - 30, handle.y - 10, 60, 20, 10);
+    ctx.fill();
+    ctx.shadowColor = "transparent";
+    ctx.fillStyle = "#ffb29f";
+    this.roundRect(handle.x - 22, handle.y - 6, 44, 5, 3);
+    ctx.fill();
+    ctx.restore();
+    ctx.fillStyle = "#c9472f";
+    ctx.font = "800 14px Inter, system-ui, sans-serif";
+    ctx.textAlign = "left";
+    ctx.fillText("아래로 눌러요", handle.x + 40, handle.y + 5);
+
+    ctx.fillStyle = "#ffffff";
+    ctx.strokeStyle = "#34405a";
+    ctx.lineWidth = 5;
+    ctx.beginPath();
+    ctx.arc(scene.center.x, scene.center.y, 13, 0, Math.PI * 2);
     ctx.fill();
     ctx.stroke();
-    this.drawPivot(scene.center, "받침점");
+    ctx.fillStyle = "#34405a";
+    ctx.beginPath();
+    ctx.arc(scene.center.x, scene.center.y, 4, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.font = "800 14px Inter, system-ui, sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText("받침점", scene.center.x, scene.center.y - 27);
+
+    const distanceLabelPoint = {
+      x: (scene.center.x + effortPoint.x) / 2,
+      y: (scene.center.y + effortPoint.y) / 2 + 35,
+    };
+    ctx.strokeStyle = "#8a98aa";
+    ctx.lineWidth = 2;
+    ctx.setLineDash([5, 4]);
+    ctx.beginPath();
+    ctx.moveTo(scene.center.x + 12, scene.center.y + 30);
+    ctx.lineTo(effortPoint.x, effortPoint.y + 30);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = "#66758a";
+    ctx.font = "700 13px Inter, system-ui, sans-serif";
+    ctx.fillText(`힘점 거리 ${(scene.model.effortArm / PIXELS_PER_METER).toFixed(1)} m`, distanceLabelPoint.x, distanceLabelPoint.y);
 
     const lifting = scene.model.applyForce(scene.appliedForce).lifting;
     ctx.fillStyle = lifting ? "#167b5a" : "#46546a";
@@ -1444,48 +1554,130 @@ export class PhysicsPlayground {
     const { ctx } = this;
     const load = this.simulation.getBody(scene.loadId);
     if (!load) return;
-    const wheelRadius = 38;
-    const wheelY = scene.topY + 34;
-    ctx.strokeStyle = "#34405a";
-    ctx.lineWidth = 5;
-    ctx.fillStyle = "#eef2f7";
+    const fixedY = Math.max(250, scene.topY + 132);
+    const movingY = load.state.position.y - 88;
+    const guide = { x: scene.pullX, y: fixedY, radius: 18 };
+    const fixedWheels: Array<{ x: number; y: number; radius: number }> = [];
+    const movingWheels: Array<{ x: number; y: number; radius: number }> = [];
 
-    for (let index = 0; index < Math.min(scene.model.supportStrands, 2); index += 1) {
-      const wheelX = scene.loadX + (index - 0.5) * 62;
-      ctx.beginPath();
-      ctx.arc(wheelX, wheelY, wheelRadius, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.stroke();
-    }
-    if (scene.model.supportStrands === 4) {
-      ctx.beginPath();
-      ctx.arc(scene.loadX, load.state.position.y - 64, 31, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.stroke();
-    }
-
-    ctx.strokeStyle = "#34405a";
-    ctx.lineWidth = 5;
-    const spread = scene.model.supportStrands === 1 ? 0 : 34;
-    for (let strand = 0; strand < scene.model.supportStrands; strand += 1) {
-      const offset = scene.model.supportStrands === 1
-        ? 0
-        : -spread + strand * (spread * 2 / (scene.model.supportStrands - 1));
-      ctx.beginPath();
-      ctx.moveTo(scene.loadX + offset, wheelY);
-      ctx.lineTo(scene.loadX + offset, load.state.position.y - 44);
-      ctx.stroke();
-    }
-    const handle = this.pulleyHandlePoint(scene);
-    ctx.beginPath();
-    ctx.moveTo(scene.loadX + spread + wheelRadius, wheelY);
-    ctx.lineTo(scene.pullX, wheelY);
-    ctx.lineTo(scene.pullX, handle.y);
-    ctx.stroke();
-    ctx.fillStyle = "#e05c3f";
-    ctx.beginPath();
-    ctx.arc(handle.x, handle.y, 15, 0, Math.PI * 2);
+    ctx.save();
+    ctx.shadowColor = "#26344c2f";
+    ctx.shadowBlur = 8;
+    ctx.shadowOffsetY = 5;
+    ctx.fillStyle = "#68778d";
+    this.roundRect(scene.loadX - 104, fixedY - 70, scene.pullX - scene.loadX + 138, 18, 7);
     ctx.fill();
+    ctx.shadowColor = "transparent";
+    ctx.fillStyle = "#aeb9c8";
+    this.roundRect(scene.loadX - 96, fixedY - 66, scene.pullX - scene.loadX + 122, 5, 3);
+    ctx.fill();
+    ctx.restore();
+
+    const traceRope = () => {
+      ctx.beginPath();
+      if (scene.model.supportStrands === 1) {
+        const radius = 36;
+        const fixed = { x: scene.loadX + radius, y: fixedY, radius };
+        fixedWheels.push(fixed);
+        ctx.moveTo(scene.loadX, load.state.position.y - 42);
+        ctx.lineTo(scene.loadX, fixedY);
+        ctx.arc(fixed.x, fixed.y, radius, Math.PI, Math.PI * 2);
+        ctx.lineTo(guide.x - guide.radius, guide.y);
+      } else if (scene.model.supportStrands === 2) {
+        const lower = { x: scene.loadX, y: movingY, radius: 31 };
+        const fixed = { x: scene.loadX + 62, y: fixedY, radius: 34 };
+        movingWheels.push(lower);
+        fixedWheels.push(fixed);
+        ctx.moveTo(lower.x - lower.radius, fixedY - 52);
+        ctx.lineTo(lower.x - lower.radius, lower.y);
+        ctx.arc(lower.x, lower.y, lower.radius, Math.PI, 0, true);
+        ctx.lineTo(fixed.x - fixed.radius, fixed.y);
+        ctx.arc(fixed.x, fixed.y, fixed.radius, Math.PI, Math.PI * 2);
+        ctx.lineTo(guide.x - guide.radius, guide.y);
+      } else {
+        const radius = 24;
+        const lowerLeft = { x: scene.loadX - 48, y: movingY, radius };
+        const upperLeft = { x: scene.loadX, y: fixedY, radius };
+        const lowerRight = { x: scene.loadX + 48, y: movingY, radius };
+        const upperRight = { x: scene.loadX + 96, y: fixedY, radius };
+        movingWheels.push(lowerLeft, lowerRight);
+        fixedWheels.push(upperLeft, upperRight);
+        ctx.moveTo(lowerLeft.x - radius, fixedY - 52);
+        ctx.lineTo(lowerLeft.x - radius, lowerLeft.y);
+        ctx.arc(lowerLeft.x, lowerLeft.y, radius, Math.PI, 0, true);
+        ctx.lineTo(upperLeft.x - radius, upperLeft.y);
+        ctx.arc(upperLeft.x, upperLeft.y, radius, Math.PI, Math.PI * 2);
+        ctx.lineTo(lowerRight.x - radius, lowerRight.y);
+        ctx.arc(lowerRight.x, lowerRight.y, radius, Math.PI, 0, true);
+        ctx.lineTo(upperRight.x - radius, upperRight.y);
+        ctx.arc(upperRight.x, upperRight.y, radius, Math.PI, Math.PI * 2);
+        ctx.lineTo(guide.x - guide.radius, guide.y);
+      }
+      ctx.arc(guide.x, guide.y, guide.radius, Math.PI, Math.PI / 2, true);
+      ctx.lineTo(guide.x, this.pulleyHandlePoint(scene).y);
+    };
+
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    ctx.strokeStyle = "#31435f";
+    ctx.lineWidth = 9;
+    traceRope();
+    ctx.stroke();
+    fixedWheels.length = 0;
+    movingWheels.length = 0;
+    ctx.strokeStyle = "#75a4dd";
+    ctx.lineWidth = 4;
+    traceRope();
+    ctx.stroke();
+
+    const anchorX = scene.model.supportStrands === 1
+      ? null
+      : movingWheels[0].x - movingWheels[0].radius;
+    if (anchorX !== null) this.drawPulleyAnchor({ x: anchorX, y: fixedY - 52 });
+
+    if (movingWheels.length > 0) {
+      const left = movingWheels[0].x - movingWheels[0].radius - 9;
+      const rightWheel = movingWheels.at(-1)!;
+      const right = rightWheel.x + rightWheel.radius + 9;
+      ctx.fillStyle = "#6b7a90";
+      this.roundRect(left, movingY - 12, right - left, 24, 8);
+      ctx.fill();
+      ctx.strokeStyle = "#34405a";
+      ctx.lineWidth = 7;
+      ctx.beginPath();
+      ctx.moveTo(scene.loadX, movingY + 18);
+      ctx.lineTo(scene.loadX, load.state.position.y - 42);
+      ctx.stroke();
+      ctx.fillStyle = "#34405a";
+      ctx.beginPath();
+      ctx.arc(scene.loadX, load.state.position.y - 42, 7, 0, Math.PI * 2);
+      ctx.fill();
+    } else {
+      ctx.fillStyle = "#34405a";
+      ctx.beginPath();
+      ctx.arc(scene.loadX, load.state.position.y - 42, 7, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    for (const wheel of fixedWheels) this.drawPulleyWheel(wheel, false);
+    for (const wheel of movingWheels) this.drawPulleyWheel(wheel, true);
+    this.drawPulleyWheel(guide, false);
+
+    const handle = this.pulleyHandlePoint(scene);
+    ctx.save();
+    ctx.shadowColor = "#c9472f55";
+    ctx.shadowBlur = 9;
+    ctx.fillStyle = "#e05c3f";
+    this.roundRect(handle.x - 30, handle.y - 10, 60, 20, 10);
+    ctx.fill();
+    ctx.shadowColor = "transparent";
+    ctx.fillStyle = "#ffb29f";
+    this.roundRect(handle.x - 22, handle.y - 6, 44, 5, 3);
+    ctx.fill();
+    ctx.restore();
+    ctx.fillStyle = "#c9472f";
+    ctx.font = "800 14px Inter, system-ui, sans-serif";
+    ctx.textAlign = "left";
+    ctx.fillText("당기는 손잡이", handle.x + 38, handle.y + 5);
 
     ctx.font = "800 16px Inter, system-ui, sans-serif";
     ctx.textAlign = "center";
@@ -1514,6 +1706,77 @@ export class PhysicsPlayground {
       24,
       154,
     );
+  }
+
+  private drawPulleyWheel(
+    wheel: { x: number; y: number; radius: number },
+    moving: boolean,
+  ): void {
+    const { ctx } = this;
+    ctx.save();
+    ctx.shadowColor = "#1f2b4038";
+    ctx.shadowBlur = 8;
+    ctx.shadowOffsetY = 4;
+    ctx.fillStyle = moving ? "#e7edf5" : "#f5f8fb";
+    ctx.strokeStyle = "#34405a";
+    ctx.lineWidth = 5;
+    ctx.beginPath();
+    ctx.arc(wheel.x, wheel.y, wheel.radius, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    ctx.shadowColor = "transparent";
+    ctx.strokeStyle = "#8b9aaf";
+    ctx.lineWidth = Math.max(5, wheel.radius * 0.17);
+    ctx.beginPath();
+    ctx.arc(wheel.x, wheel.y, wheel.radius * 0.72, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.strokeStyle = "#5c6d84";
+    ctx.lineWidth = 4;
+    for (let spoke = 0; spoke < 6; spoke += 1) {
+      const angle = spoke * Math.PI / 3;
+      ctx.beginPath();
+      ctx.moveTo(wheel.x, wheel.y);
+      ctx.lineTo(
+        wheel.x + Math.cos(angle) * wheel.radius * 0.62,
+        wheel.y + Math.sin(angle) * wheel.radius * 0.62,
+      );
+      ctx.stroke();
+    }
+    ctx.fillStyle = moving ? "#e05c3f" : "#5b7cfa";
+    ctx.strokeStyle = "#ffffff";
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(wheel.x, wheel.y, Math.max(7, wheel.radius * 0.22), 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    if (!moving) {
+      ctx.strokeStyle = "#596a81";
+      ctx.lineWidth = 6;
+      ctx.beginPath();
+      ctx.moveTo(wheel.x, wheel.y - wheel.radius - 5);
+      ctx.lineTo(wheel.x, wheel.y - wheel.radius - 22);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  private drawPulleyAnchor(point: Vector2): void {
+    const { ctx } = this;
+    ctx.save();
+    ctx.strokeStyle = "#596a81";
+    ctx.lineWidth = 6;
+    ctx.beginPath();
+    ctx.moveTo(point.x, point.y - 18);
+    ctx.lineTo(point.x, point.y + 2);
+    ctx.stroke();
+    ctx.fillStyle = "#ffffff";
+    ctx.strokeStyle = "#34405a";
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.arc(point.x, point.y + 7, 8, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    ctx.restore();
   }
 
   private drawConstraintLink(start: Vector2, end: Vector2, rigid: boolean, label: string): void {
@@ -2017,6 +2280,17 @@ export class PhysicsPlayground {
 
   private drawLabel(object: PlaygroundObject): void {
     const { ctx } = this;
+    if (this.guidedScene?.kind === "pulley-advantage" && this.guidedScene.loadId === object.id) {
+      ctx.save();
+      ctx.font = "800 16px Inter, system-ui, sans-serif";
+      ctx.textAlign = "center";
+      ctx.fillStyle = "#ffffff";
+      ctx.shadowColor = "#91321f66";
+      ctx.shadowBlur = 4;
+      ctx.fillText(object.label, object.x, object.y + 5);
+      ctx.restore();
+      return;
+    }
     ctx.save();
     ctx.font = "600 14px Inter, system-ui, sans-serif";
     ctx.textAlign = "center";

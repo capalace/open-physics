@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { MECHANICS_LABS, mechanicsLab } from "./mechanics-labs";
+import { MECHANICS_LABS, mechanicsLab, shouldAutoPlayLab } from "./mechanics-labs";
 
 describe("mechanics labs", () => {
   it("defines ten distinct experiments with actionable learning content", () => {
@@ -22,5 +22,10 @@ describe("mechanics labs", () => {
     expect(mechanicsLab("orbit").controls).toEqual(["velocity"]);
     expect(mechanicsLab("friction").controls).toContain("material");
     expect(mechanicsLab("free-fall").controls).toContain("gravity");
+  });
+
+  it("keeps the initial lab stable but auto-plays labs selected by the learner", () => {
+    expect(shouldAutoPlayLab("initial")).toBe(false);
+    expect(shouldAutoPlayLab("selection")).toBe(true);
   });
 });
