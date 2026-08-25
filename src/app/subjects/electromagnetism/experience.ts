@@ -23,6 +23,29 @@ const sandboxKinds: readonly [ElectromagnetismSandboxKind, string, string][] = [
   ["probe", "✦", "탐침"],
 ];
 
+type ElectromagnetismLegendKind = "field" | "force" | "velocity" | "voltage" | "value" | "current" | "connection";
+export interface ElectromagnetismLegendItem { readonly kind: ElectromagnetismLegendKind; readonly label: string }
+
+export function electromagnetismLegend(mode: ElectromagnetismLabId | "sandbox"): readonly ElectromagnetismLegendItem[] {
+  switch (mode) {
+    case "sandbox": return [
+      { kind: "field", label: "작은 화살표 = 전기장" },
+      { kind: "connection", label: "점선 = 자동 연결" },
+    ];
+    case "charge": return [{ kind: "force", label: "화살표 = 전기력" }];
+    case "electric-field": return [{ kind: "field", label: "작은 화살표 = 전기장" }];
+    case "potential": return [{ kind: "value", label: "전위는 숫자로 표시" }];
+    case "circuits": return [{ kind: "current", label: "움직이는 점 = 전류" }];
+    case "capacitors": return [{ kind: "field", label: "판 사이 화살표 = 전기장" }];
+    case "magnetic-field": return [{ kind: "field", label: "원형 화살표 = 자기장" }];
+    case "electromagnetic-force": return [
+      { kind: "velocity", label: "보라 화살표 = 속도" },
+      { kind: "force", label: "주황 화살표 = 자기력" },
+    ];
+    case "induction": return [{ kind: "voltage", label: "화살표 = 유도 전압" }];
+  }
+}
+
 class ElectromagnetismController implements SubjectController {
   private readonly previousHtml: [string, string, string];
   private readonly model = new ElectromagnetismModel("sandbox");
@@ -88,7 +111,7 @@ class ElectromagnetismController implements SubjectController {
         </div>
         <span class="em-run-state" data-em-run-state>멈춤</span>
       </div>
-      <div class="em-canvas-frame"><canvas data-em-canvas width="960" height="600" aria-label="전자기학 2D 실험 공간"></canvas><span>전자기학 · 직접 조작</span></div>`;
+      <div class="em-canvas-frame"><canvas data-em-canvas width="960" height="600" aria-label="전자기학 2D 실험 공간"></canvas><div class="em-canvas-legend" data-em-canvas-legend></div><span>전자기학 · 직접 조작</span></div>`;
     this.hosts.inspectorPanel.innerHTML = `
       <section class="em-guide" data-em-guide></section>
       <section class="em-readout">
@@ -181,9 +204,17 @@ class ElectromagnetismController implements SubjectController {
     });
     this.require<HTMLElement>(this.hosts.workspace, ".em-toolbar").classList.toggle("is-sandbox", mode === "sandbox");
     this.require<HTMLElement>(this.hosts.workspace, "[data-em-sandbox-tools]").hidden = mode !== "sandbox";
+    this.renderCanvasLegend();
     this.renderGuide();
     this.renderControls();
     this.render();
+  }
+
+  private renderCanvasLegend(): void {
+    const legend = this.require<HTMLElement>(this.hosts.workspace, "[data-em-canvas-legend]");
+    const items = electromagnetismLegend(this.activeMode);
+    legend.setAttribute("aria-label", items.map((item) => item.label).join(", "));
+    legend.innerHTML = items.map((item) => `<span><i class="em-legend-mark em-legend-mark--${item.kind}" aria-hidden="true"></i>${item.label}</span>`).join("");
   }
 
   private renderGuide(): void {
