@@ -12,6 +12,7 @@ import {
   type ElectromagnetismSnapshot,
 } from "./models";
 import { ElectromagnetismRenderer } from "./renderer";
+import "./style.css";
 
 const escapeHtml = (value: string): string => value
   .replaceAll("&", "&amp;")
