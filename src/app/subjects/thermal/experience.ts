@@ -1,4 +1,5 @@
 import type { SubjectController, SubjectExperience, SubjectHosts } from "../subject-experience";
+import { subjectBrowserMarkup, subjectGuideMarkup, subjectSandboxGuideMarkup } from "../subject-ui";
 import { thermalDefinition, thermalLab, type ThermalLabId } from "./catalog";
 import { ThermalWorld, type ThermalSceneId, type ThermalTool } from "./models";
 import { renderThermalGraph, ThermalRenderer } from "./renderer";
@@ -28,8 +29,13 @@ export class ThermalExperienceController implements SubjectController {
   private disposed = false;
 
   constructor(private readonly hosts: SubjectHosts) {
-    hosts.workspace.innerHTML = `<section class="thermal-experience"><div class="thermal-toolbar" aria-label="열 실험 실행"><button type="button" data-action="play">⏸ 멈춤</button><button type="button" data-action="step">한 단계</button><button type="button" data-action="reset">↻ 처음으로</button></div><canvas class="thermal-canvas" aria-label="열 실험 장면"></canvas></section>`;
-    hosts.experimentPanel.innerHTML = `<div class="thermal-panel"><p class="thermal-label">실험 선택</p><div class="thermal-lab-list">${thermalDefinition.labs.map((lab) => `<button type="button" data-scene="${lab.id}"><span>${lab.icon}</span><strong>${lab.title}</strong><small>${lab.category}</small></button>`).join("")}<button type="button" data-scene="sandbox"><span>＋</span><strong>${thermalDefinition.sandboxTitle}</strong><small>자유 구성</small></button></div><div class="thermal-palette" hidden></div></div>`;
+    hosts.workspace.innerHTML = `<section class="thermal-experience"><div class="thermal-toolbar world-toolbar" aria-label="열 실험 실행"><button class="primary-button" type="button" data-action="play">⏸ 멈춤</button><button class="icon-button text-button" type="button" data-action="step">한 단계</button><button class="icon-button text-button" type="button" data-action="reset">↻ 처음으로</button></div><canvas class="thermal-canvas" aria-label="열 실험 장면"></canvas></section>`;
+    hosts.experimentPanel.innerHTML = `${subjectBrowserMarkup(thermalDefinition, {
+      rootClass: "thermal-panel",
+      listClass: "thermal-lab-list",
+      buttonClass: "thermal-lab-button",
+      choiceAttribute: "data-scene",
+    })}<div class="thermal-palette" hidden></div>`;
     hosts.inspectorPanel.innerHTML = `<article class="thermal-guide"></article><section class="thermal-graph-card"><h3></h3><p class="thermal-current" aria-live="polite"></p><canvas class="thermal-graph" aria-label="열 실험 그래프"></canvas><div class="thermal-legend"></div></section>`;
     const canvas = hosts.workspace.querySelector<HTMLCanvasElement>(".thermal-canvas")!;
     this.graphCanvas = hosts.inspectorPanel.querySelector<HTMLCanvasElement>(".thermal-graph")!;
@@ -84,7 +90,11 @@ export class ThermalExperienceController implements SubjectController {
       button.setAttribute("aria-pressed", String(active));
     });
     if (this.world.scene === "sandbox") {
-      guide.innerHTML = `<p class="thermal-kicker">자유 탐구</p><h2>${thermalDefinition.sandboxTitle}</h2><p>${thermalDefinition.sandboxDescription}</p><ol><li>팔레트에서 장치를 추가해요.</li><li>장치를 끌어 서로 가까이 놓아요.</li><li>아래 손잡이로 세기를 바꾸고 측정해요.</li></ol><p class="thermal-observe">장면의 입자 운동과 온도·압력 측정이 함께 달라지는지 보세요.</p>`;
+      guide.innerHTML = subjectSandboxGuideMarkup(
+        thermalDefinition,
+        ["팔레트에서 장치를 추가해요.", "장치를 끌어 서로 가까이 놓아요.", "손잡이로 세기를 바꾸고 측정해요."],
+        "장면의 입자 운동과 온도·압력 측정이 함께 달라지는지 보세요.",
+      );
       paletteHost.hidden = false;
       paletteHost.innerHTML = `<p>장치 팔레트</p>${palette.map((item) => `<button type="button" data-tool="${item.type}">＋ ${item.label}</button>`).join("")}<button type="button" data-remove>마지막 장치 지우기</button>`;
       paletteHost.querySelectorAll<HTMLButtonElement>("[data-tool]").forEach((button) => button.addEventListener("click", () => { this.world.addObject(button.dataset.tool as ThermalTool, 0.45 + (this.world.snapshot().objects.length % 4) * 0.1, 0.48); this.refresh(); }));
@@ -97,7 +107,7 @@ export class ThermalExperienceController implements SubjectController {
     }
     paletteHost.hidden = true;
     const lab = thermalLab(this.world.scene as ThermalLabId);
-    guide.innerHTML = `<p class="thermal-kicker">${lab.category}</p><h2>${lab.icon} ${lab.title}</h2><p class="thermal-question">${lab.question}</p><ol>${lab.steps.map((step) => `<li>${step}</li>`).join("")}</ol><p class="thermal-observe"><strong>관찰:</strong> ${lab.observe}</p><details open><summary>${lab.law.title}</summary><p>${lab.law.description}</p><code>${lab.law.equation}</code></details>`;
+    guide.innerHTML = subjectGuideMarkup(lab);
     const card = this.hosts.inspectorPanel.querySelector<HTMLElement>(".thermal-graph-card")!;
     card.hidden = false;
     card.querySelector("h3")!.textContent = lab.graph.title;

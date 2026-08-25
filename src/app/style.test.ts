@@ -11,6 +11,14 @@ const subjectStyles = ["electromagnetism", "waves", "light", "thermal", "modern"
 const subjectShellStyles = readFileSync(new URL("./subjects/style.css", import.meta.url), "utf8");
 const bootstrap = readFileSync(new URL("./main.ts", import.meta.url), "utf8");
 const lightExperience = readFileSync(new URL("./subjects/light/experience.ts", import.meta.url), "utf8");
+const subjectUi = readFileSync(new URL("./subjects/subject-ui.ts", import.meta.url), "utf8");
+const subjectExperienceSources = [
+  "electromagnetism/experience.ts",
+  "waves/experience.ts",
+  "light/experience.ts",
+  "thermal/experience.ts",
+  "modern/experience.ts",
+].map((path) => readFileSync(new URL(`./subjects/${path}`, import.meta.url), "utf8"));
 
 describe("playground typography", () => {
   it("keeps every interface label at least 12px tall", () => {
@@ -80,10 +88,26 @@ describe("mechanics lab graph", () => {
 });
 
 describe("subject visual shell", () => {
+  it("keeps the initial lab blank until the selected subject is mounted", () => {
+    expect(markup).toContain('data-app-ready="false"');
+    expect(markup).not.toMatch(/class="is-active"[^>]+data-subject/);
+    expect(markup).toContain('<link rel="stylesheet" href="/src/app/subjects/style.css" />');
+    expect(styles).toMatch(/body\[data-app-ready="false"\]\s+\.app-layout\s*\{[^}]*visibility:\s*hidden/s);
+    expect(bootstrap).toContain('document.body.dataset.appReady = "true"');
+  });
+
   it("uses the mechanics surface contract for every subject selector and toolbar", () => {
-    expect(bootstrap).toContain('import "./subjects/style.css"');
     expect(subjectShellStyles).toContain("--subject-card-background: #fafbfd;");
     expect(subjectShellStyles).toContain("--subject-toolbar-background: #ffffff;");
+    expect(subjectShellStyles.match(/--subject-accent:/g)).toHaveLength(1);
+    expect(subjectUi).toContain('class="subject-browser ${options.rootClass}"');
+    expect(subjectUi).toContain("quick-start-list");
+    expect(subjectUi).toContain("preset-icon");
+
+    for (const source of subjectExperienceSources) {
+      expect(source).toContain("subjectBrowserMarkup");
+      expect(source).toContain("world-toolbar");
+    }
 
     for (const selector of [
       ".em-lab-button",
@@ -103,7 +127,7 @@ describe("subject visual shell", () => {
   });
 
   it("gives the light lab the same visible workspace toolbar contract", () => {
-    expect(lightExperience).toContain('class="light-experience__toolbar"');
+    expect(lightExperience).toContain('class="light-experience__toolbar world-toolbar"');
     expect(lightExperience).toContain("data-light-toolbar-reset");
   });
 });

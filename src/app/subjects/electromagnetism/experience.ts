@@ -1,7 +1,7 @@
 import type { Vector2 } from "../../../physics/core";
 import type { SubjectController, SubjectExperience, SubjectHosts } from "../subject-experience";
+import { subjectBrowserMarkup, subjectGuideMarkup, subjectSandboxGuideMarkup } from "../subject-ui";
 import {
-  ELECTROMAGNETISM_LABS,
   ELECTROMAGNETISM_SUBJECT,
   electromagnetismLab,
   type ElectromagnetismLabId,
@@ -13,12 +13,6 @@ import {
 } from "./models";
 import { ElectromagnetismRenderer } from "./renderer";
 import "./style.css";
-
-const escapeHtml = (value: string): string => value
-  .replaceAll("&", "&amp;")
-  .replaceAll("<", "&lt;")
-  .replaceAll(">", "&gt;")
-  .replaceAll('"', "&quot;");
 
 const sandboxKinds: readonly [ElectromagnetismSandboxKind, string, string][] = [
   ["charge", "⊕", "전하"],
@@ -75,27 +69,18 @@ class ElectromagnetismController implements SubjectController {
   }
 
   private renderShell(): void {
-    const categories = [...new Set(ELECTROMAGNETISM_LABS.map((lab) => lab.category))];
-    this.hosts.experimentPanel.innerHTML = `
-      <section class="em-browser">
-        <div class="em-heading"><h2>실험 선택</h2><span>9개 선택</span></div>
-        <button class="em-lab-button em-sandbox-button" type="button" data-em-mode="sandbox">
-          <span class="em-icon">✦</span><span><strong>${ELECTROMAGNETISM_SUBJECT.sandboxTitle}</strong><small>${ELECTROMAGNETISM_SUBJECT.sandboxDescription}</small></span>
-        </button>
-        ${categories.map((category) => `
-          <span class="em-category">${escapeHtml(category)}</span>
-          ${ELECTROMAGNETISM_LABS.filter((lab) => lab.category === category).map((lab) => `
-            <button class="em-lab-button" type="button" data-em-mode="${lab.id}">
-              <span class="em-icon">${escapeHtml(lab.icon)}</span><span><strong>${escapeHtml(lab.title)}</strong><small>${escapeHtml(lab.question)}</small></span>
-            </button>`).join("")}
-        `).join("")}
-      </section>`;
+    this.hosts.experimentPanel.innerHTML = subjectBrowserMarkup(ELECTROMAGNETISM_SUBJECT, {
+      rootClass: "em-browser",
+      buttonClass: "em-lab-button",
+      sandboxClass: "em-sandbox-button",
+      choiceAttribute: "data-em-mode",
+    });
     this.hosts.workspace.innerHTML = `
-      <div class="em-toolbar">
-        <div class="em-transport">
-          <button type="button" data-em-action="play">▶ 실행</button>
-          <button type="button" data-em-action="step">한 단계</button>
-          <button type="button" data-em-action="reset">↻ 처음으로</button>
+      <div class="em-toolbar world-toolbar">
+        <div class="em-transport transport-controls">
+          <button class="primary-button" type="button" data-em-action="play">▶ 실행</button>
+          <button class="icon-button text-button" type="button" data-em-action="step">한 단계</button>
+          <button class="icon-button text-button" type="button" data-em-action="reset">↻ 처음으로</button>
         </div>
         <div class="em-palette" data-em-sandbox-tools hidden>
           ${sandboxKinds.map(([kind, icon, label]) => `<button type="button" data-em-add="${kind}"><b>${icon}</b>${label}</button>`).join("")}
@@ -203,16 +188,15 @@ class ElectromagnetismController implements SubjectController {
   private renderGuide(): void {
     const guide = this.require<HTMLElement>(this.hosts.inspectorPanel, "[data-em-guide]");
     if (this.activeMode === "sandbox") {
-      guide.innerHTML = `<span class="em-eyebrow">${ELECTROMAGNETISM_SUBJECT.eyebrow}</span><h2>${ELECTROMAGNETISM_SUBJECT.sandboxTitle}</h2><p>${ELECTROMAGNETISM_SUBJECT.sandboxDescription}</p><div class="em-observe"><strong>이렇게 해보세요</strong><p>팔레트에서 장치를 추가하고 Canvas에서 직접 옮겨 새로운 전기·자기 장면을 만드세요.</p></div>`;
+      guide.innerHTML = subjectSandboxGuideMarkup(
+        ELECTROMAGNETISM_SUBJECT,
+        ["위 팔레트에서 장치를 추가해요.", "Canvas에서 장치를 잡아 옮겨요.", "탐침과 그래프로 변화를 비교해요."],
+        "장치를 옮길 때 전기장·자기장과 측정값이 함께 달라지는지 보세요.",
+      );
       return;
     }
     const lab = electromagnetismLab(this.activeMode);
-    guide.innerHTML = `
-      <span class="em-eyebrow">${ELECTROMAGNETISM_SUBJECT.eyebrow}</span>
-      <h2>${escapeHtml(lab.title)}</h2><p class="em-question">${escapeHtml(lab.question)}</p>
-      <div class="em-steps"><h3>이렇게 해보세요</h3><ol>${lab.steps.map((step) => `<li>${escapeHtml(step)}</li>`).join("")}</ol></div>
-      <div class="em-observe"><strong>눈여겨볼 것</strong><p>${escapeHtml(lab.observe)}</p></div>
-      <div class="em-law"><span>연결되는 법칙</span><strong>${escapeHtml(lab.law.title)}</strong><p>${escapeHtml(lab.law.description)}</p><code>${escapeHtml(lab.law.equation)}</code></div>`;
+    guide.innerHTML = subjectGuideMarkup(lab);
   }
 
   private renderControls(): void {

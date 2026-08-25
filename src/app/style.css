@@ -19,6 +19,7 @@ body {
   background: radial-gradient(circle at 16% -10%, #dfe8ff 0, transparent 30%), #eef2f7;
   color: var(--ink);
 }
+body[data-app-ready="false"] .app-layout { visibility: hidden; }
 button, input { font: inherit; }
 button { color: inherit; }
 button:focus-visible, input:focus-visible { outline: 3px solid #91a8ff; outline-offset: 2px; }
@@ -125,7 +126,7 @@ button:focus-visible, input:focus-visible { outline: 3px solid #91a8ff; outline-
 .quick-start.is-active { border-color: #8ca5ff; background: #eef3ff; box-shadow: inset 0 0 0 1px #8ca5ff; }
 .quick-start > span:last-child { display: block; min-width: 0; }
 .quick-start strong, .quick-start small { display: block; min-width: 0; }
-.quick-start strong { font-size: 13px; line-height: 1.3; }
+.quick-start strong { overflow: hidden; font-size: 13px; line-height: 1.3; text-overflow: ellipsis; white-space: nowrap; }
 .quick-start small { margin-top: 3px; overflow: hidden; color: #7b879a; font-size: 12px; line-height: 1.35; text-overflow: ellipsis; white-space: nowrap; }
 .preset-icon { display: grid; flex: 0 0 25px; place-items: center; width: 25px; height: 25px; border-radius: 7px; font-size: 14px; }
 .preset-icon.blue { background: #e8efff; color: #496de7; }

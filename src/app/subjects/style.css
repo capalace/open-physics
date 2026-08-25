@@ -3,7 +3,7 @@
  * Subject styles own the canvas illustration; this file owns the surrounding UI.
  */
 body[data-subject]:not([data-subject="mechanics"]) {
-  --subject-accent: #5575e8;
+  --subject-accent: #365eea;
   --subject-soft: #eef3ff;
   --subject-card-background: #fafbfd;
   --subject-toolbar-background: #ffffff;
@@ -11,12 +11,6 @@ body[data-subject]:not([data-subject="mechanics"]) {
   --subject-muted: #718096;
   --subject-line: #e1e6ee;
 }
-
-body[data-subject="electromagnetism"][data-subject] { --subject-accent: #5b7cfa; --subject-soft: #eef3ff; }
-body[data-subject="waves"][data-subject] { --subject-accent: #1595c4; --subject-soft: #eaf7fc; }
-body[data-subject="light"][data-subject] { --subject-accent: #4d7bd0; --subject-soft: #eef3ff; }
-body[data-subject="thermal"][data-subject] { --subject-accent: #df6f3c; --subject-soft: #fff2ea; }
-body[data-subject="modern"][data-subject] { --subject-accent: #696ee8; --subject-soft: #f0f0ff; }
 
 body[data-subject]:not([data-subject="mechanics"]) :is(
   .subject-electromagnetism,
@@ -35,20 +29,11 @@ body[data-subject]:not([data-subject="mechanics"]) :is(
   font-family: inherit;
 }
 
-/* Experiment selector: same one-column card language as mechanics. */
-body[data-subject]:not([data-subject="mechanics"]) :is(
-  .em-browser,
-  .light-experience
-) { padding: 0; }
+/* Experiment selector: the mechanics browser markup and exact measurements. */
+body[data-subject]:not([data-subject="mechanics"]) .subject-browser { padding: 0; }
 
-body[data-subject]:not([data-subject="mechanics"]) :is(
-  .em-heading h2,
-  .waves-experience__experiments h2,
-  .light-experience h2,
-  .thermal-label,
-  .modern-experience__experiments h2
-) {
-  margin: 0 0 12px;
+body[data-subject]:not([data-subject="mechanics"]) .subject-browser .section-heading h2 {
+  margin: 0;
   color: #536078;
   font-size: 14px;
   font-weight: 800;
@@ -67,8 +52,6 @@ body[data-subject]:not([data-subject="mechanics"]) :is(
   font-weight: 800;
 }
 
-body[data-subject="light"] .light-experience > .light-experience__eyebrow { display: none; }
-
 body[data-subject]:not([data-subject="mechanics"]) :is(
   .em-lab-button,
   .waves-experience__lab,
@@ -76,18 +59,22 @@ body[data-subject]:not([data-subject="mechanics"]) :is(
   .thermal-lab-list button,
   .modern-experience__lab
 ) {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   width: 100%;
   min-height: 58px;
-  margin: 0 0 6px;
+  margin: 0;
   border: 1px solid var(--subject-line);
   border-radius: 10px;
-  padding: 7px 8px;
+  padding: 6px;
   background: var(--subject-card-background);
   box-shadow: none;
   color: var(--subject-ink);
   font: inherit;
   text-align: left;
   cursor: pointer;
+  transition: 160ms ease;
 }
 
 body[data-subject]:not([data-subject="mechanics"]) :is(
@@ -96,7 +83,7 @@ body[data-subject]:not([data-subject="mechanics"]) :is(
   .light-experience__list button,
   .thermal-lab-list button,
   .modern-experience__lab
-):hover { border-color: #cbd5e4; background: #f5f7fb; }
+):hover { border-color: #bdcaf0; background: #f2f5fc; transform: translateY(-1px); }
 
 body[data-subject]:not([data-subject="mechanics"]) :is(
   .em-lab-button,
@@ -105,9 +92,9 @@ body[data-subject]:not([data-subject="mechanics"]) :is(
   .thermal-lab-list button,
   .modern-experience__lab
 ).is-active {
-  border-color: var(--subject-accent);
-  background: var(--subject-soft);
-  box-shadow: inset 0 0 0 1px var(--subject-accent);
+  border-color: #8ca5ff;
+  background: #eef3ff;
+  box-shadow: inset 0 0 0 1px #8ca5ff;
   color: var(--subject-ink);
 }
 
@@ -117,7 +104,7 @@ body[data-subject]:not([data-subject="mechanics"]) :is(
   .light-experience__list button,
   .thermal-lab-list button,
   .modern-experience__lab
-) strong { color: var(--subject-ink); font-size: 13px; line-height: 1.35; }
+) strong { display: block; min-width: 0; overflow: hidden; color: var(--subject-ink); font-size: 13px; line-height: 1.3; text-overflow: ellipsis; white-space: nowrap; }
 
 body[data-subject]:not([data-subject="mechanics"]) :is(
   .em-lab-button,
@@ -125,26 +112,42 @@ body[data-subject]:not([data-subject="mechanics"]) :is(
   .light-experience__list button,
   .thermal-lab-list button,
   .modern-experience__lab
-) small { color: #7b879a; font-size: 12px; line-height: 1.35; }
-
-body[data-subject="electromagnetism"] .em-lab-button small {
-  display: -webkit-box;
+) small {
+  display: block;
+  min-width: 0;
+  margin-top: 3px;
   overflow: hidden;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
+  color: #7b879a;
+  font-size: 12px;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-body[data-subject]:not([data-subject="mechanics"]) :is(
-  .waves-experience__lab > span,
-  .light-experience__list button > span,
-  .thermal-lab-list button > span,
-  .modern-experience__lab > span
-) { color: var(--subject-accent); }
+body[data-subject]:not([data-subject="mechanics"]) .subject-browser .quick-start > span:last-child {
+  display: block;
+  min-width: 0;
+}
 
-body[data-subject]:not([data-subject="mechanics"]) :is(
-  .waves-experience__lab--sandbox,
-  .modern-experience__lab--sandbox
-) { margin-top: 12px; }
+body[data-subject]:not([data-subject="mechanics"]) .subject-browser .preset-icon {
+  display: grid;
+  flex: 0 0 25px;
+  place-items: center;
+  width: 25px;
+  height: 25px;
+  border-radius: 7px;
+  font-size: 14px;
+}
+
+body[data-subject]:not([data-subject="mechanics"]) .subject-browser .preset-icon.blue {
+  background: #e8efff;
+  color: #496de7;
+}
+
+body[data-subject]:not([data-subject="mechanics"]) .subject-browser .preset-icon.purple {
+  background: #f0e9fa;
+  color: #8157ba;
+}
 
 /* Workspace: neutral controls around each subject's own canvas artwork. */
 body[data-subject]:not([data-subject="mechanics"]) :is(
@@ -171,7 +174,7 @@ body[data-subject]:not([data-subject="mechanics"]) :is(
 ) {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 10px;
   min-height: 54px;
   margin-bottom: 12px;
   border: 1px solid #dce3ed;
@@ -216,7 +219,7 @@ body[data-subject]:not([data-subject="mechanics"]) :is(
   border-color: var(--subject-accent);
   background: var(--subject-accent);
   color: #fff;
-  box-shadow: 0 5px 12px color-mix(in srgb, var(--subject-accent) 22%, transparent);
+  box-shadow: 0 5px 12px #365eea33;
 }
 
 body[data-subject="light"] .light-experience__toolbar button:hover,
@@ -266,78 +269,125 @@ body[data-subject]:not([data-subject="mechanics"]) :is(
   .modern-experience__inspector
 ) { font-family: inherit; }
 
-body[data-subject]:not([data-subject="mechanics"]) :is(
-  .em-guide h2,
-  .waves-experience__inspector h2,
-  .light-experience__inspector h2,
-  .thermal-guide h2,
-  .modern-experience__inspector h2
-) {
-  margin: 2px 0 12px;
+body[data-subject]:not([data-subject="mechanics"]) .subject-guide.lab-guide {
+  display: grid;
+  gap: 12px;
+}
+
+body[data-subject]:not([data-subject="mechanics"]) .subject-guide.lab-guide h2 {
+  margin: -3px 0 0;
   color: #17243b;
   font-size: 21px;
   line-height: 1.3;
   letter-spacing: -.045em;
 }
 
-body[data-subject]:not([data-subject="mechanics"]) :is(
-  .em-question,
-  .waves-experience__question,
-  .light-experience__question,
-  .thermal-question,
-  .modern-experience__question
-) {
+body[data-subject]:not([data-subject="mechanics"]) .subject-guide .lab-question {
   margin: 0;
-  border: 0;
-  padding: 0;
-  background: transparent;
   color: #5f6e84;
   font-size: 14px;
   font-weight: 700;
   line-height: 1.55;
 }
 
-body[data-subject]:not([data-subject="mechanics"]) :is(
-  .em-guide ol,
-  .waves-experience__inspector ol,
-  .light-experience__guide ol,
-  .thermal-guide ol,
-  .modern-experience__inspector ol
-) {
-  margin: 12px 0;
+body[data-subject]:not([data-subject="mechanics"]) .subject-guide .lab-steps {
   border: 1px solid #dfe5ef;
   border-radius: 12px;
-  padding: 10px 12px 10px 32px;
+  padding: 12px;
   background: #fafbfd;
+}
+
+body[data-subject]:not([data-subject="mechanics"]) .subject-guide .lab-steps h3 {
+  margin: 0 0 9px;
+  color: #526076;
+  font-size: 13px;
+}
+
+body[data-subject]:not([data-subject="mechanics"]) .subject-guide .lab-steps ol {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  counter-reset: lab-step;
+  list-style: none;
+}
+
+body[data-subject]:not([data-subject="mechanics"]) .subject-guide .lab-steps li {
+  position: relative;
+  min-height: 24px;
+  margin: 0;
+  padding-left: 31px;
   color: #657287;
   font-size: 13px;
   line-height: 1.5;
+  counter-increment: lab-step;
 }
 
-body[data-subject]:not([data-subject="mechanics"]) :is(
-  .em-observe,
-  .waves-experience__observe,
-  .light-experience__observe,
-  .thermal-observe,
-  .modern-experience__observe
-) {
-  margin: 12px 0;
+body[data-subject]:not([data-subject="mechanics"]) .subject-guide .lab-observation {
+  margin: 0;
   border: 0;
-  border-left: 4px solid var(--subject-accent);
-  border-radius: 10px;
+  border-radius: 11px;
   padding: 11px 12px;
-  background: var(--subject-soft);
-  color: #536078;
+  background: #e7f7f0;
+}
+
+body[data-subject]:not([data-subject="mechanics"]) .subject-guide .lab-observation strong {
+  color: #167657;
+  font-size: 12px;
+}
+
+body[data-subject]:not([data-subject="mechanics"]) .subject-guide .lab-observation p {
+  margin: 5px 0 0;
+  color: #3e6f60;
   font-size: 13px;
   line-height: 1.55;
 }
 
+body[data-subject]:not([data-subject="mechanics"]) .subject-guide .lab-law {
+  display: grid;
+  gap: 5px;
+  margin: 0;
+  border: 0;
+  border-left: 3px solid #8ca5ff;
+  border-radius: 0;
+  padding: 2px 0 2px 11px;
+  background: transparent;
+}
+
+body[data-subject]:not([data-subject="mechanics"]) .subject-guide .lab-law > span {
+  color: #8793a5;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+body[data-subject]:not([data-subject="mechanics"]) .subject-guide .lab-law strong {
+  color: #354259;
+  font-size: 13px;
+}
+
+body[data-subject]:not([data-subject="mechanics"]) .subject-guide .lab-law p {
+  margin: 0;
+  color: #6f7c90;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+body[data-subject]:not([data-subject="mechanics"]) .subject-guide .lab-law code {
+  justify-self: start;
+  border-radius: 6px;
+  padding: 4px 7px;
+  background: #eef2fa;
+  color: #405fc5;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 800;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
 body[data-subject]:not([data-subject="mechanics"]) :is(
-  .em-law,
-  .waves-experience__law,
-  .light-experience__guide details,
-  .thermal-guide details,
-  .modern-experience__law,
   .waves-experience__term,
   .modern-experience__term
 ) {
@@ -349,27 +399,6 @@ body[data-subject]:not([data-subject="mechanics"]) :is(
   color: #536078;
   font-size: 13px;
   line-height: 1.55;
-}
-
-body[data-subject]:not([data-subject="mechanics"]) :is(
-  .em-law code,
-  .waves-experience__law code,
-  .light-experience__guide code,
-  .thermal-guide code,
-  .modern-experience__law code
-) {
-  display: inline-block;
-  width: fit-content;
-  border-radius: 6px;
-  padding: 4px 7px;
-  background: var(--subject-soft);
-  color: var(--subject-accent);
-  font-family: inherit;
-  font-size: 13px;
-  font-weight: 800;
-  line-height: 1.45;
-  overflow-wrap: anywhere;
-  white-space: normal;
 }
 
 body[data-subject]:not([data-subject="mechanics"]) :is(

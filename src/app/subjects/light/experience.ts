@@ -1,4 +1,5 @@
 import type { SubjectController, SubjectExperience, SubjectHosts } from "../subject-experience";
+import { subjectBrowserMarkup, subjectGuideMarkup, subjectSandboxGuideMarkup } from "../subject-ui";
 import { lightDefinition, lightLab, type LightLabId } from "./catalog";
 import { LightLabModel, type LightDeviceKind, type LightSceneId } from "./models";
 import { LightRenderer } from "./renderer";
@@ -23,7 +24,7 @@ class LightController implements SubjectController {
     hosts.experimentPanel.classList.add("light-experience__experiments");
     hosts.workspace.classList.add("light-experience__workspace");
     hosts.inspectorPanel.classList.add("light-experience__inspector");
-    hosts.workspace.innerHTML = `<div class="light-experience__shell"><div class="light-experience__toolbar" aria-label="빛 실험 실행"><button type="button" data-light-toolbar-reset>↻ 처음으로</button><span class="light-experience__toolbar-hint">장치를 끌어 빛의 경로를 바꿔 보세요</span></div><div class="light-experience__stage"><canvas aria-label="빛 실험 장면"></canvas><div class="light-experience__value" aria-live="polite"></div></div></div>`;
+    hosts.workspace.innerHTML = `<div class="light-experience__shell"><div class="light-experience__toolbar world-toolbar" aria-label="빛 실험 실행"><button class="icon-button text-button" type="button" data-light-toolbar-reset>↻ 처음으로</button><span class="light-experience__toolbar-hint">장치를 끌어 빛의 경로를 바꿔 보세요</span></div><div class="light-experience__stage"><canvas aria-label="빛 실험 장면"></canvas><div class="light-experience__value" aria-live="polite"></div></div></div>`;
     this.canvas = hosts.workspace.querySelector("canvas")!;
     hosts.inspectorPanel.innerHTML = `<section class="light-experience__guide"></section><section class="light-experience__graph"><h3></h3><canvas aria-label="실험 그래프"></canvas><div class="light-experience__axes"></div></section><section class="light-experience__palette" hidden></section>`;
     this.graphCanvas = hosts.inspectorPanel.querySelector(".light-experience__graph canvas")!;
@@ -52,8 +53,12 @@ class LightController implements SubjectController {
   }
 
   private renderExperimentList(): void {
-    const cards = lightDefinition.labs.map((lab) => `<button type="button" data-light-lab="${lab.id}"><span>${lab.icon}</span><strong>${lab.title}</strong><small>${lab.category}</small></button>`).join("");
-    this.hosts.experimentPanel.innerHTML = `<div class="light-experience"><p class="light-experience__eyebrow">${lightDefinition.eyebrow}</p><h2>빛 실험 선택</h2><div class="light-experience__list">${cards}<button type="button" data-light-lab="sandbox"><span>＋</span><strong>${lightDefinition.sandboxTitle}</strong><small>자유 구성</small></button></div></div>`;
+    this.hosts.experimentPanel.innerHTML = subjectBrowserMarkup(lightDefinition, {
+      rootClass: "light-experience",
+      listClass: "light-experience__list",
+      buttonClass: "light-experience__lab",
+      choiceAttribute: "data-light-lab",
+    });
     this.hosts.experimentPanel.querySelectorAll<HTMLElement>("[data-light-lab]").forEach((button) => {
       button.addEventListener("click", () => this.activate(button.dataset.lightLab as LightSceneId), { signal: this.events.lifetimeSignal });
     });
@@ -99,11 +104,15 @@ class LightController implements SubjectController {
     graph.querySelector("h3")!.textContent = graphHeading.title;
     graph.querySelector(".light-experience__axes")!.textContent = graphHeading.axes;
     if (this.model.activeScene === "sandbox") {
-      guide.innerHTML = `<p class="light-experience__eyebrow">자유 구성</p><h2>${lightDefinition.sandboxTitle}</h2><p>${lightDefinition.sandboxDescription}</p><ol><li>아래 팔레트에서 장치를 추가해요.</li><li>Canvas에서 장치를 잡아 옮겨요.</li><li>필요 없는 장치를 선택해 지워요.</li></ol><p class="light-experience__observe">광원과 장치를 옮길 때 실제 광선 경로가 함께 이어지는지 확인하세요.</p>`;
+      guide.innerHTML = subjectSandboxGuideMarkup(
+        lightDefinition,
+        ["아래 팔레트에서 장치를 추가해요.", "Canvas에서 장치를 잡아 옮겨요.", "필요 없는 장치를 선택해 지워요."],
+        "광원과 장치를 옮길 때 실제 광선 경로가 함께 이어지는지 확인하세요.",
+      );
       return;
     }
     const lab = lightLab(this.model.activeScene as LightLabId);
-    guide.innerHTML = `<p class="light-experience__eyebrow">탐구 질문</p><h2>${lab.title}</h2><p class="light-experience__question">${lab.question}</p><ol>${lab.steps.map((step) => `<li>${step}</li>`).join("")}</ol><p class="light-experience__observe"><strong>관찰:</strong> ${lab.observe}</p><details><summary>${lab.law.title}</summary><p>${lab.law.description}</p><code>${lab.law.equation}</code></details>`;
+    guide.innerHTML = subjectGuideMarkup(lab);
   }
 
   private renderPalette(): void {

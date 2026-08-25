@@ -1,4 +1,5 @@
 import type { SubjectController, SubjectExperience, SubjectHosts } from "../subject-experience";
+import { subjectBrowserMarkup, subjectGuideMarkup, subjectSandboxGuideMarkup } from "../subject-ui";
 import { WAVES_LAB_IDS, wavesDefinition, type WavesLabId } from "./catalog";
 import { WavesModel, type WaveDeviceKind, type WavesSnapshot } from "./models";
 import { drawGraph, WavesRenderer } from "./renderer";
@@ -76,30 +77,29 @@ class WavesController implements SubjectController {
   }
 
   private renderExperimentList(): void {
-    const fragment = document.createDocumentFragment();
-    const heading = document.createElement("h2"); heading.textContent = "파동 실험 선택"; fragment.append(heading);
-    wavesDefinition.labs.forEach((lab) => {
-      const button = document.createElement("button");
-      button.type = "button"; button.dataset.labId = lab.id; button.className = "waves-experience__lab";
-      button.innerHTML = `<span aria-hidden="true">${lab.icon}</span><strong>${lab.title}</strong><small>${lab.category}</small>`;
-      this.listen(button, "click", () => this.activate(lab.id as WavesLabId));
-      fragment.append(button);
+    this.hosts.experimentPanel.innerHTML = subjectBrowserMarkup(wavesDefinition, {
+      rootClass: "waves-experience__browser",
+      buttonClass: "waves-experience__lab",
+      sandboxClass: "waves-experience__lab--sandbox",
+      choiceAttribute: "data-lab-id",
     });
-    const sandbox = document.createElement("button");
-    sandbox.type = "button"; sandbox.dataset.labId = "sandbox"; sandbox.className = "waves-experience__lab waves-experience__lab--sandbox";
-    sandbox.innerHTML = `<span aria-hidden="true">＋</span><strong>${wavesDefinition.sandboxTitle}</strong><small>자유 구성</small>`;
-    this.listen(sandbox, "click", () => this.activate("sandbox")); fragment.append(sandbox);
-    this.hosts.experimentPanel.replaceChildren(fragment);
+    this.hosts.experimentPanel.querySelectorAll<HTMLButtonElement>("[data-lab-id]").forEach((button) => {
+      this.listen(button, "click", () => this.activate(button.dataset.labId as WavesLabId | "sandbox"));
+    });
     this.markActive();
   }
 
   private renderWorkspace(): void {
     const shell = document.createElement("section"); shell.className = "waves-experience";
-    const toolbar = document.createElement("div"); toolbar.className = "waves-experience__toolbar";
+    const toolbar = document.createElement("div"); toolbar.className = "waves-experience__toolbar world-toolbar";
     const play = this.actionButton("재생·멈춤", () => { this.model.toggleRunning(); this.refreshReadout(); });
     const step = this.actionButton("한 단계", () => { const wasRunning = this.model.snapshot().running; this.model.setRunning(true); this.model.step(1 / 30); this.model.setRunning(wasRunning); this.refreshReadout(); });
     const reset = this.actionButton("처음으로", () => { this.model.reset(); this.renderInspector(); this.refreshReadout(); });
-    toolbar.append(play, step, reset);
+    const transport = document.createElement("div"); transport.className = "transport-controls";
+    play.className = "primary-button";
+    step.className = "icon-button text-button";
+    reset.className = "icon-button text-button";
+    transport.append(play, step, reset); toolbar.append(transport);
     this.canvas.className = "waves-experience__canvas";
     this.canvas.setAttribute("aria-label", "직접 조작할 수 있는 파동 실험 Canvas");
     shell.append(toolbar, this.canvas);
@@ -140,14 +140,8 @@ class WavesController implements SubjectController {
     const lab = wavesDefinition.labs.find((item) => item.id === this.active);
     if (!lab) return;
     const article = document.createElement("article");
-    article.innerHTML = `
-      <p class="waves-experience__category">${lab.category}</p>
-      <h2>${lab.title}</h2>
-      <p class="waves-experience__question">${lab.question}</p>
-      <ol>${lab.steps.map((step) => `<li>${step}</li>`).join("")}</ol>
-      <p class="waves-experience__observe"><strong>관찰:</strong> ${lab.observe}</p>
+    article.innerHTML = `${subjectGuideMarkup(lab)}
       <div class="waves-experience__term"><strong>${lab.controls[0]}</strong></div>
-      <section class="waves-experience__law"><h3>${lab.law.title}</h3><p>${lab.law.description}</p><code>${lab.law.equation}</code></section>
       <section class="waves-experience__graph"><h3>${lab.graph.title}</h3><p>${lab.graph.yLabel} / ${lab.graph.xLabel}</p></section>`;
     this.measurement.className = "waves-experience__measurement";
     this.graphCanvas.className = "waves-experience__graph-canvas";
@@ -157,7 +151,11 @@ class WavesController implements SubjectController {
 
   private renderSandboxInspector(fragment: DocumentFragment, snapshot: WavesSnapshot): void {
     const article = document.createElement("article");
-    article.innerHTML = `<p class="waves-experience__category">자유 구성</p><h2>${wavesDefinition.sandboxTitle}</h2><p>${wavesDefinition.sandboxDescription}</p><p class="waves-experience__observe">장치를 추가한 뒤 Canvas에서 끌어 원하는 위치에 놓으세요. 배치 중에는 파동이 멈춰 있어요.</p><h3>장치 팔레트</h3>`;
+    article.innerHTML = `${subjectSandboxGuideMarkup(
+      wavesDefinition,
+      ["아래 팔레트에서 장치를 추가해요.", "Canvas에서 장치를 잡아 옮겨요.", "파형과 측정값의 변화를 비교해요."],
+      "장치를 옮길 때 파동이 멈추고, 놓으면 새 배치에서 다시 이어지는지 보세요.",
+    )}<h3>장치 팔레트</h3>`;
     const controls = document.createElement("div"); controls.className = "waves-experience__palette";
     palette.forEach(({ kind, label }) => {
       const button = document.createElement("button"); button.type = "button"; button.textContent = `＋ ${label}`;

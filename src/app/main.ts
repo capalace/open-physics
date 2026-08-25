@@ -1,5 +1,4 @@
 import type { SubjectExperience, SubjectHosts, SubjectId } from "./subjects/subject-experience";
-import "./subjects/style.css";
 
 const SUBJECT_IDS: readonly SubjectId[] = [
   "mechanics",
@@ -32,6 +31,7 @@ document.querySelectorAll<HTMLButtonElement>("button[data-subject]").forEach((bu
 
 if (activeSubject === "mechanics") {
   await import("./mechanics-main");
+  document.body.dataset.appReady = "true";
 } else {
   const experience = await loadExperience(activeSubject);
   if (!experience) {
@@ -48,6 +48,7 @@ if (activeSubject === "mechanics") {
     hosts.workspace.setAttribute("aria-label", `${experience.definition.label} 물리 월드`);
     const controller = experience.mount(hosts);
     controller.resize();
+    document.body.dataset.appReady = "true";
     const resize = () => controller.resize();
     window.addEventListener("resize", resize);
     window.addEventListener("pagehide", (event) => {

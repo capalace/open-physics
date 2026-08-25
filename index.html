@@ -5,16 +5,17 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="description" content="물체를 직접 배치하고 움직이며 물리 법칙을 관찰하는 인터랙티브 2D 물리 샌드박스" />
   <link rel="stylesheet" href="/src/app/style.css" />
+  <link rel="stylesheet" href="/src/app/subjects/style.css" />
   <title>Open Physics — 물리를 직접 움직여 보세요</title>
 </head>
-<body data-app-mode="lab">
+<body data-app-mode="lab" data-app-ready="false">
   <header class="topbar">
     <a class="brand" href="./" aria-label="Open Physics 홈">
       <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i></span>
       <span><strong>Open Physics</strong><small>Interactive lab</small></span>
     </a>
     <nav class="subject-nav" aria-label="물리 영역">
-      <button class="is-active" type="button" data-subject="mechanics">역학</button>
+      <button type="button" data-subject="mechanics">역학</button>
       <button type="button" data-subject="electromagnetism">전자기학</button>
       <button type="button" data-subject="waves">파동</button>
       <button type="button" data-subject="light">빛</button>
