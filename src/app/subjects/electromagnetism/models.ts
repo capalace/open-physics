@@ -285,8 +285,10 @@ export class ElectromagnetismModel {
   private fieldSamples(): FieldSample[] {
     if (this.mode !== "electric-field" && this.mode !== "sandbox") return [];
     const charges = this.mode === "electric-field" ? this.guidedCharges() : this.sandboxChargeSources();
-    return Array.from({ length: 48 }, (_, index) => {
-      const point = { x: 0.18 + (index % 8) * 0.1, y: 0.16 + Math.floor(index / 8) * 0.13 };
+    const columns = 12; const rows = 8;
+    return Array.from({ length: columns * rows }, (_, index) => {
+      const column = index % columns; const row = Math.floor(index / columns);
+      const point = { x: 0.1 + column * 0.8 / (columns - 1), y: 0.12 + row * 0.76 / (rows - 1) };
       return { point, vector: this.electricFieldAt(point, charges) };
     });
   }

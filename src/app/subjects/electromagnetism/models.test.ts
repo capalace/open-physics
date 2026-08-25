@@ -161,6 +161,7 @@ describe("ElectromagnetismModel", () => {
   it("connects sandbox charges and probes to field and potential calculations", () => {
     const model = new ElectromagnetismModel("sandbox");
     const initial = model.snapshot();
+    expect(initial.fieldSamples).toHaveLength(96);
     expect(initial.measurement.label).toBe("탐침 전기장");
     expect(initial.measurement.value).toBeGreaterThan(0);
     expect(initial.secondaryMeasurement?.label).toBe("탐침 전위");
