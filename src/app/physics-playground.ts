@@ -111,6 +111,7 @@ export interface SelectedObjectUpdate {
 }
 
 const PIXELS_PER_METER = 48;
+const PRESET_REFERENCE_WIDTH = 960;
 const FIXED_STEP = 1 / 120;
 const FLOOR_HEIGHT = 48;
 const RESTING_REBOUND_SPEED = 10;
@@ -419,12 +420,12 @@ export class PhysicsPlayground {
 
     if (preset === "free-fall") {
       this.replaceGravity(9.81);
-      this.addCircle(350, 125, 24, { label: "가벼운 공", color: "#5b7cfa", mass: 0.5, material: "wood" });
-      this.addCircle(480, 125, 24, { label: "기준 공", color: "#25a77a", mass: 1, material: "wood" });
-      this.addCircle(610, 125, 24, { label: "무거운 공", color: "#f27a54", mass: 3, material: "wood" });
+      this.addCircle(this.presetX(350), 125, 24, { label: "가벼운 공", color: "#5b7cfa", mass: 0.5, material: "wood" });
+      this.addCircle(this.presetX(480), 125, 24, { label: "기준 공", color: "#25a77a", mass: 1, material: "wood" });
+      this.addCircle(this.presetX(610), 125, 24, { label: "무거운 공", color: "#f27a54", mass: 3, material: "wood" });
     } else if (preset === "projectile") {
       this.replaceGravity(9.81);
-      this.addCircle(145, this.floorY - 42, 22, {
+      this.addCircle(this.presetX(145), this.floorY - 42, 22, {
         label: "발사체",
         color: "#5b7cfa",
         mass: 1,
@@ -433,14 +434,14 @@ export class PhysicsPlayground {
       });
     } else if (preset === "collision") {
       this.replaceGravity(0);
-      this.addCircle(285, 300, 32, {
+      this.addCircle(this.presetX(285), 300, 32, {
         label: "물체 A",
         color: "#5b7cfa",
         mass: 1,
         material: "rubber",
         velocity: { x: 3.4, y: 0 },
       });
-      this.addCircle(675, 300, 40, {
+      this.addCircle(this.presetX(675), 300, 40, {
         label: "물체 B",
         color: "#f27a54",
         mass: 2,
@@ -871,6 +872,10 @@ export class PhysicsPlayground {
   }
 
   private toDegrees(radians: number): number { return radians * 180 / Math.PI; }
+
+  private presetX(referenceX: number): number {
+    return referenceX / PRESET_REFERENCE_WIDTH * this.canvas.width;
+  }
 
   private refreshOrbitAnalysis(): void {
     const orbit = this.orbitExperiment;

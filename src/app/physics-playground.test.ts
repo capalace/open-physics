@@ -267,6 +267,19 @@ describe("PhysicsPlayground gravity visualization", () => {
     playground.setGravity(0);
     expect(body.state.acceleration).toEqual({ x: 0, y: 0 });
   });
+
+  it("centers the three free-fall balls when the preset loads in a wide world", () => {
+    vi.stubGlobal("requestAnimationFrame", () => 0);
+    const playground = new PhysicsPlayground(createCanvas(), { width: 1400, height: 600 });
+
+    playground.loadPreset("free-fall");
+
+    const positions = playground.simulation.allBodies.map((body) => body.state.position.x);
+    const groupCenter = positions.reduce((sum, x) => sum + x, 0) / positions.length;
+    expect(positions[1]).toBeCloseTo(playground.canvas.width / 2);
+    expect(positions[1] - positions[0]).toBeCloseTo(positions[2] - positions[1]);
+    expect(groupCenter).toBeCloseTo(playground.canvas.width / 2);
+  });
 });
 
 describe("PhysicsPlayground lab graphs", () => {
