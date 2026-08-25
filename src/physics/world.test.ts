@@ -80,6 +80,25 @@ describe("MultiBodyWorld", () => {
     expect(world.getBody("b")?.state.position.x).toBeCloseTo(2);
   });
 
+  it("manages the lifecycle of dynamically added distance constraints", () => {
+    const world = new MultiBodyWorld();
+    world.addBody({ id: "a", fixed: true, state: { position: { x: 0, y: 0 }, velocity: { x: 0, y: 0 }, acceleration: { x: 0, y: 0 }, mass: 1 } });
+    world.addBody({ id: "b", state: { position: { x: 2, y: 0 }, velocity: { x: 0, y: 0 }, acceleration: { x: 0, y: 0 }, mass: 1 } });
+    const rope = { id: "rope-1", bodyA: "a", bodyB: "b", distance: 2 };
+
+    world.addConstraint(rope);
+    expect(world.constraints).toEqual([rope]);
+    expect(() => world.addConstraint(rope)).toThrow("Distance constraint already exists");
+
+    world.removeBody("a");
+    expect(world.constraints).toEqual([]);
+
+    world.addBody({ id: "c", fixed: true, state: { position: { x: 0, y: 0 }, velocity: { x: 0, y: 0 }, acceleration: { x: 0, y: 0 }, mass: 1 } });
+    world.addConstraint({ id: "rope-2", bodyA: "c", bodyB: "b", distance: 2 });
+    world.clear();
+    expect(world.constraints).toEqual([]);
+  });
+
   it("separates overlapping bodies even when they are initially at rest", () => {
     const world = new MultiBodyWorld();
     world.addBody({ id: "a", radius: 1, state: { position: { x: 0, y: 0 }, velocity: { x: 0, y: 0 }, acceleration: { x: 0, y: 0 }, mass: 1 } });

@@ -191,6 +191,7 @@ body[data-app-mode="sandbox"] .creation-controls .danger-button { margin-left: a
 .icon-button.text-button { width: auto; padding: 0 11px; }
 .focus-button { min-width: 104px; }
 .icon-button:hover, .creation-controls button:hover { border-color: #b8c5d8; background: #f5f7fb; }
+.creation-controls button.is-active { border-color: #5575e8; background: #eef3ff; color: #365eea; box-shadow: inset 0 0 0 1px #5575e8; }
 button:disabled { opacity: .45; cursor: not-allowed; }
 .toolbar-divider { align-self: stretch; width: 1px; margin: 3px 2px; background: #e4e9f0; }
 .creation-controls button { display: inline-flex; flex: 0 0 auto; align-items: center; gap: 6px; padding: 0 10px; white-space: nowrap; }
@@ -199,9 +200,10 @@ button:disabled { opacity: .45; cursor: not-allowed; }
 .apparatus-symbol { display: inline-grid; width: 17px; place-items: center; color: #5575e8; font-size: 16px; font-style: normal; font-weight: 900; line-height: 1; }
 .apparatus-symbol.lever { font-size: 12px; transform: rotate(-9deg); }
 .shape-circle { display: inline-block; width: 11px; height: 11px; border: 2px solid #5575e8; border-radius: 50%; }
-.shape-box, .shape-block { display: inline-block; border: 2px solid #5575e8; border-radius: 2px; }
+.shape-box, .shape-block, .shape-anchor { display: inline-block; border: 2px solid #5575e8; border-radius: 2px; }
 .shape-box { width: 12px; height: 12px; }
 .shape-block { width: 17px; height: 8px; }
+.shape-anchor { width: 11px; height: 11px; border: 4px double #5575e8; border-radius: 50%; }
 .creation-controls .danger-button { border-color: transparent; color: #c45038; }
 
 .run-indicator {

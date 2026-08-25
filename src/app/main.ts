@@ -73,6 +73,14 @@ document.querySelectorAll<HTMLButtonElement>("[data-apparatus-kind]").forEach((b
     }
   });
 });
+document.querySelectorAll<HTMLButtonElement>("[data-connection-kind]").forEach((button) => {
+  button.addEventListener("click", () => {
+    if (appMode === "sandbox") {
+      playground.startRopeConnection();
+      pulseWorld();
+    }
+  });
+});
 deleteButton.addEventListener("click", () => {
   if (appMode === "sandbox") playground.removeSelected();
 });
@@ -124,6 +132,7 @@ document.querySelectorAll<HTMLButtonElement>("[data-mass]").forEach((button) => 
 objectColor.addEventListener("input", () => playground.updateSelected({ color: objectColor.value }));
 
 window.addEventListener("keydown", (event) => {
+  if (event.code === "Escape" && playground.cancelRopeConnection()) return;
   if (event.code === "Escape" && appLayout.classList.contains("is-focus-mode")) {
     setFocusMode(false);
     return;
@@ -185,6 +194,12 @@ function renderSnapshot(snapshot: PlaygroundSnapshot): void {
     || snapshot.selected.guided
     || snapshot.selected.shape !== "box";
   deleteButton.disabled = appMode === "lab" || !snapshot.selected;
+  const ropeButton = required<HTMLButtonElement>("[data-connection-kind=\"rope\"]");
+  const ropeActive = Boolean(snapshot.ropeConnection);
+  setActive(ropeButton, ropeActive);
+  ropeButton.disabled = appMode === "lab"
+    || (!ropeActive && (!snapshot.selected || snapshot.selected.guided));
+  ropeButton.querySelector("span")!.textContent = ropeActive ? "두 번째 물체 선택" : "줄";
   document.querySelectorAll<HTMLElement>("[data-movable-only]").forEach((element) => {
     element.hidden = appMode === "sandbox"
       ? Boolean(snapshot.selected?.fixed && !snapshot.selected.guided)
@@ -199,7 +214,8 @@ function renderSnapshot(snapshot: PlaygroundSnapshot): void {
   required<HTMLElement>("#selection-name").textContent = selected.label;
   required<HTMLElement>("#selection-type").textContent = selected.guided
     ? "장치에 연결된 짐"
-    : selected.fixed ? "움직이지 않는 블록" : selected.shape === "circle" ? "움직이는 공" : "움직이는 상자";
+    : selected.anchor ? "줄을 묶는 고정점"
+      : selected.fixed ? "움직이지 않는 블록" : selected.shape === "circle" ? "움직이는 공" : "움직이는 상자";
 
   syncInput(objectLabel, selected.label);
   syncInput(objectMass, selected.mass.toFixed(1));

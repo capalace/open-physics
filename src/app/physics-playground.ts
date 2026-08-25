@@ -32,7 +32,7 @@ export type PlaygroundPreset =
   | "constraints"
   | "pulley";
 export type PlaygroundMaterial = "rubber" | "wood" | "steel" | "clay";
-export type SandboxObjectKind = "ball" | "box" | "block";
+export type SandboxObjectKind = "ball" | "box" | "block" | "anchor";
 export type SandboxApparatusKind = "spring" | "lever" | "pulley";
 
 export const MATERIALS: Readonly<Record<PlaygroundMaterial, {
@@ -56,6 +56,7 @@ export interface PlaygroundObject {
   radius: number;
   color: string;
   material: PlaygroundMaterial;
+  anchor?: boolean;
 }
 
 export interface PlaygroundObjectOptions {
@@ -65,6 +66,7 @@ export interface PlaygroundObjectOptions {
   material?: PlaygroundMaterial;
   velocity?: Vector2;
   fixed?: boolean;
+  anchor?: boolean;
 }
 
 export interface PlaygroundSnapshot {
@@ -80,7 +82,9 @@ export interface PlaygroundSnapshot {
     material: PlaygroundMaterial;
     fixed: boolean;
     guided: boolean;
+    anchor: boolean;
   } | null;
+  ropeConnection: { startId: string; startLabel: string } | null;
   graph: PlaygroundGraph | null;
 }
 
@@ -292,7 +296,10 @@ export class PhysicsPlayground {
   private accumulator = 0;
   private trailTick = 0;
   private objectSequence = 0;
+  private ropeSequence = 0;
   private readonly trails = new Map<string, Vector2[]>();
+  private ropeStartId: string | null = null;
+  private ropePointer: Vector2 | null = null;
   private springLaw: AnchoredSpringLaw | null = null;
   private frictionLaw: PushFrictionLaw | null = null;
   private buoyancyLaw: BuoyancyRegionLaw | null = null;
@@ -331,6 +338,7 @@ export class PhysicsPlayground {
   }
 
   addSandboxObject(kind: SandboxObjectKind): PlaygroundObject {
+    this.resetRopeConnectionState();
     this._paused = true;
     this.accumulator = 0;
     const sequence = this.objects.size + 1;
@@ -346,6 +354,15 @@ export class PhysicsPlayground {
         material: "wood",
       });
     }
+    if (kind === "anchor") {
+      return this.addCircle(this.canvas.width * 0.22, this.floorY * 0.32, 14, {
+        label: `고정점 ${sequence}`,
+        color: "#53699d",
+        material: "steel",
+        fixed: true,
+        anchor: true,
+      });
+    }
     return this.addBox(this.canvas.width * 0.58, this.floorY - 115, 170, 26, {
       label: `고정 블록 ${sequence}`,
       color: "#718099",
@@ -355,6 +372,7 @@ export class PhysicsPlayground {
   }
 
   addSandboxApparatus(kind: SandboxApparatusKind): PlaygroundObject {
+    this.resetRopeConnectionState();
     this._paused = true;
     this.labMode = false;
     this.accumulator = 0;
@@ -382,6 +400,30 @@ export class PhysicsPlayground {
     return object;
   }
 
+  startRopeConnection(): boolean {
+    if (this.ropeStartId) {
+      this.resetRopeConnectionState();
+      this.notify();
+      return false;
+    }
+    const object = this.selectedId ? this.objects.get(this.selectedId) : undefined;
+    if (this.labMode || !object || this.isGuidedBody(object.id)) return false;
+    this._paused = true;
+    this.accumulator = 0;
+    this.ropeStartId = object.id;
+    this.ropePointer = { x: object.x, y: object.y };
+    this.canvas.style.cursor = "crosshair";
+    this.notify();
+    return true;
+  }
+
+  cancelRopeConnection(): boolean {
+    if (!this.ropeStartId) return false;
+    this.resetRopeConnectionState();
+    this.notify();
+    return true;
+  }
+
   startSandbox(): void {
     this._paused = true;
     this.labMode = false;
@@ -390,6 +432,7 @@ export class PhysicsPlayground {
     this.accumulator = 0;
     this.trailTick = 0;
     this.selectedId = null;
+    this.resetRopeConnectionState();
     this.objects.clear();
     this.trails.clear();
     this.clearExperimentLaws();
@@ -417,6 +460,7 @@ export class PhysicsPlayground {
       radius,
       color: options.color ?? this.nextColor(),
       material: options.material ?? "rubber",
+      anchor: options.anchor,
     };
     this.registerObject(object, options);
     return object;
@@ -435,6 +479,7 @@ export class PhysicsPlayground {
       radius: Math.min(width, height) / 2,
       color: options.color ?? this.nextColor(),
       material: options.material ?? "wood",
+      anchor: options.anchor,
     };
     this.registerObject(object, options);
     return object;
@@ -448,6 +493,7 @@ export class PhysicsPlayground {
     this.accumulator = 0;
     this.trailTick = 0;
     this.selectedId = null;
+    this.resetRopeConnectionState();
     this.objects.clear();
     this.trails.clear();
     this.clearExperimentLaws();
@@ -618,6 +664,7 @@ export class PhysicsPlayground {
 
   removeSelected(): void {
     if (!this.selectedId) return;
+    if (this.ropeStartId === this.selectedId) this.resetRopeConnectionState();
     const guidedIds = this.guidedBodyIds();
     if (guidedIds.includes(this.selectedId)) {
       this.removeGuidedApparatus();
@@ -723,14 +770,17 @@ export class PhysicsPlayground {
           material: object.material,
           fixed: Boolean(body.fixed),
           guided: this.isGuidedBody(object.id),
+          anchor: Boolean(object.anchor),
         };
       }
     }
+    const ropeStart = this.ropeStartId ? this.objects.get(this.ropeStartId) : undefined;
     return {
       paused: this.paused,
       gravity: this.gravity,
       preset: this.currentPreset,
       selected,
+      ropeConnection: ropeStart ? { startId: ropeStart.id, startLabel: ropeStart.label } : null,
       graph: this.labMode ? {
         ...GRAPH_SPECS[this.currentPreset],
         xLabel: "시간",
@@ -1027,7 +1077,14 @@ export class PhysicsPlayground {
     this.challengeDragOrigin = null;
     this.challengeDragPoint = null;
     this.challengeDragStartPullDistance = 0;
+    this.resetRopeConnectionState();
     this.impulseFlash = 0;
+  }
+
+  private resetRopeConnectionState(): void {
+    this.ropeStartId = null;
+    this.ropePointer = null;
+    this.canvas.style.cursor = "grab";
   }
 
   private gravityAcceleration(): Vector2 {
@@ -1213,6 +1270,22 @@ export class PhysicsPlayground {
           nextFloorY - halfHeight,
         ),
       };
+    }
+    for (let index = 0; index < this.simulation.constraints.length; index += 1) {
+      const constraint = this.simulation.constraints[index];
+      const a = this.simulation.getBody(constraint.bodyA);
+      const b = this.simulation.getBody(constraint.bodyB);
+      if (!a || !b) continue;
+      this.simulation.constraints[index] = {
+        ...constraint,
+        distance: Math.hypot(
+          b.state.position.x - a.state.position.x,
+          b.state.position.y - a.state.position.y,
+        ),
+      };
+    }
+    if (this.ropePointer) {
+      this.ropePointer = { x: this.ropePointer.x * scaleX, y: this.ropePointer.y * scaleY };
     }
 
     this.canvas.width = width;
@@ -1401,6 +1474,7 @@ export class PhysicsPlayground {
     }
     this.drawOrbitGuide();
     this.drawGuidedScene();
+    this.drawSandboxRopes();
     if (this.springLaw) this.drawSpringConnection();
     this.drawTrajectoryPreview();
     for (const object of this.objects.values()) this.drawObject(object);
@@ -1898,6 +1972,44 @@ export class PhysicsPlayground {
     ctx.restore();
   }
 
+  private drawSandboxRopes(): void {
+    const { ctx } = this;
+    ctx.save();
+    ctx.lineCap = "round";
+    for (const constraint of this.simulation.constraints) {
+      if (!constraint.id.startsWith("sandbox-rope-")) continue;
+      const a = this.simulation.getBody(constraint.bodyA);
+      const b = this.simulation.getBody(constraint.bodyB);
+      if (!a || !b) continue;
+      ctx.strokeStyle = "#33435d";
+      ctx.lineWidth = 7;
+      ctx.beginPath();
+      ctx.moveTo(a.state.position.x, a.state.position.y);
+      ctx.lineTo(b.state.position.x, b.state.position.y);
+      ctx.stroke();
+      ctx.strokeStyle = "#79a7d8";
+      ctx.lineWidth = 3;
+      ctx.stroke();
+    }
+
+    const start = this.ropeStartId ? this.simulation.getBody(this.ropeStartId) : undefined;
+    if (start && this.ropePointer) {
+      ctx.strokeStyle = "#5575e8aa";
+      ctx.lineWidth = 4;
+      ctx.setLineDash([9, 8]);
+      ctx.beginPath();
+      ctx.moveTo(start.state.position.x, start.state.position.y);
+      ctx.lineTo(this.ropePointer.x, this.ropePointer.y);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle = "#5575e8";
+      ctx.beginPath();
+      ctx.arc(start.state.position.x, start.state.position.y, 6, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+
   private drawPivot(point: Vector2, label: string, labelOffset = 17): void {
     const { ctx } = this;
     ctx.save();
@@ -2276,11 +2388,52 @@ export class PhysicsPlayground {
     return false;
   }
 
+  private drawAnchorObject(object: PlaygroundObject, selected: boolean): void {
+    const { ctx } = this;
+    ctx.save();
+    ctx.shadowColor = selected ? "#5575e877" : "#22304a2f";
+    ctx.shadowBlur = selected ? 16 : 8;
+    if (selected) {
+      ctx.fillStyle = "#ffffff";
+      ctx.beginPath();
+      ctx.arc(object.x, object.y, object.radius + 7, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.fillStyle = "#34405a";
+    ctx.beginPath();
+    ctx.arc(object.x, object.y, object.radius, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.shadowColor = "transparent";
+    ctx.fillStyle = selected ? "#5575e8" : object.color;
+    ctx.beginPath();
+    ctx.arc(object.x, object.y, object.radius - 4, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "#ffffff";
+    ctx.beginPath();
+    ctx.arc(object.x, object.y, 4, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = "#ffffffaa";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(object.x - 6, object.y);
+    ctx.lineTo(object.x + 6, object.y);
+    ctx.moveTo(object.x, object.y - 6);
+    ctx.lineTo(object.x, object.y + 6);
+    ctx.stroke();
+    ctx.restore();
+  }
+
   private drawObject(object: PlaygroundObject): void {
     const { ctx } = this;
     const selected = object.id === this.selectedId;
     const body = this.simulation.getBody(object.id);
     if (!body) return;
+
+    if (object.anchor) {
+      this.drawAnchorObject(object, selected);
+      this.drawLabel(object);
+      return;
+    }
 
     ctx.save();
     ctx.shadowColor = selected ? `${object.color}77` : "#22304a22";
@@ -2675,9 +2828,49 @@ export class PhysicsPlayground {
     this.notify();
   }
 
+  private completeRopeConnection(point: Vector2): boolean {
+    const startId = this.ropeStartId;
+    const target = this.hitTest(point);
+    if (!startId || !target || target.id === startId || this.isGuidedBody(target.id)) {
+      this.ropePointer = point;
+      return false;
+    }
+    const start = this.simulation.getBody(startId);
+    const end = this.simulation.getBody(target.id);
+    if (!start || !end) return false;
+    const duplicate = this.simulation.constraints.some((constraint) =>
+      constraint.id.startsWith("sandbox-rope-")
+      && (
+        (constraint.bodyA === startId && constraint.bodyB === target.id)
+        || (constraint.bodyA === target.id && constraint.bodyB === startId)
+      ));
+    const distance = Math.hypot(
+      end.state.position.x - start.state.position.x,
+      end.state.position.y - start.state.position.y,
+    );
+    if (!duplicate && distance > 0) {
+      this.ropeSequence += 1;
+      this.simulation.addConstraint({
+        id: `sandbox-rope-${this.ropeSequence}`,
+        bodyA: startId,
+        bodyB: target.id,
+        distance,
+      });
+    }
+    this.selectedId = target.id;
+    this.resetRopeConnectionState();
+    this.clearTrails();
+    this.notify();
+    return true;
+  }
+
   private bindPointerEvents(): void {
     this.canvas.addEventListener("pointerdown", (event) => {
       const point = this.pointFromEvent(event);
+      if (this.ropeStartId) {
+        this.completeRopeConnection(point);
+        return;
+      }
       if (this.beginChallengeInteraction(point, event.pointerId)) return;
       const resizeHit = this.hitResizeHandle(point);
       if (resizeHit && this.selectedId) {
@@ -2715,6 +2908,11 @@ export class PhysicsPlayground {
 
     this.canvas.addEventListener("pointermove", (event) => {
       const point = this.pointFromEvent(event);
+      if (this.ropeStartId) {
+        this.ropePointer = point;
+        this.canvas.style.cursor = this.hitTest(point) ? "pointer" : "crosshair";
+        return;
+      }
       if (event.pointerId === this.pointerId && this.challengeDrag) {
         this.updateChallengeInteraction(point);
         return;
@@ -2752,8 +2950,8 @@ export class PhysicsPlayground {
       };
       body.state.velocity = { x: 0, y: 0 };
       this.resolveSpringMount(previousPosition);
-      object.x = body.state.position.x;
-      object.y = body.state.position.y;
+      this.simulation.satisfyConstraints();
+      this.syncObjects();
       this.trails.set(object.id, [{ ...body.state.position }]);
       this.simulation.refreshAccelerations();
       this.recordGraphSample(true);

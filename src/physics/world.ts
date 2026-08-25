@@ -152,13 +152,45 @@ export class MultiBodyWorld {
     return true;
   }
 
-  removeBody(id: string): boolean { return this.bodies.delete(id); }
+  addConstraint(constraint: DistanceConstraint): void {
+    if (this.constraints.some((active) => active.id === constraint.id)) {
+      throw new Error(`Distance constraint already exists: ${constraint.id}`);
+    }
+    if (constraint.bodyA === constraint.bodyB) {
+      throw new Error("Distance constraint endpoints must be different bodies.");
+    }
+    if (!this.bodies.has(constraint.bodyA) || !this.bodies.has(constraint.bodyB)) {
+      throw new Error("Distance constraint bodies must exist in the world.");
+    }
+    if (!Number.isFinite(constraint.distance) || constraint.distance <= 0) {
+      throw new RangeError("Distance constraint length must be greater than zero.");
+    }
+    this.constraints.push(constraint);
+  }
+
+  removeConstraint(id: string): boolean {
+    const index = this.constraints.findIndex((constraint) => constraint.id === id);
+    if (index < 0) return false;
+    this.constraints.splice(index, 1);
+    return true;
+  }
+
+  removeBody(id: string): boolean {
+    const removed = this.bodies.delete(id);
+    if (!removed) return false;
+    for (let index = this.constraints.length - 1; index >= 0; index -= 1) {
+      const constraint = this.constraints[index];
+      if (constraint.bodyA === id || constraint.bodyB === id) this.constraints.splice(index, 1);
+    }
+    return true;
+  }
   getBody(id: string): Body | undefined { return this.bodies.get(id); }
   get allBodies(): readonly Body[] { return [...this.bodies.values()]; }
   get currentTime(): number { return this.time; }
 
   clear(): void {
     this.bodies.clear();
+    this.constraints.length = 0;
     this.collisions.length = 0;
     this.time = 0;
   }
@@ -170,6 +202,11 @@ export class MultiBodyWorld {
     this.resolveConstraints();
     this.resolveCollisions();
     this.time += dt;
+  }
+
+  /** Re-applies geometric links after direct manipulation without advancing time. */
+  satisfyConstraints(): void {
+    this.resolveConstraints();
   }
 
   /** Advances body states using forces evaluated for each body in this world. */
@@ -204,6 +241,18 @@ export class MultiBodyWorld {
       }
       if (!b.fixed) {
         b.state.position = sub(b.state.position, scale(normal, correction * inverseMassB));
+      }
+
+      const relativeNormalSpeed = (
+        (b.state.velocity.x - a.state.velocity.x) * normal.x
+        + (b.state.velocity.y - a.state.velocity.y) * normal.y
+      );
+      const velocityCorrection = relativeNormalSpeed / totalInverseMass;
+      if (!a.fixed) {
+        a.state.velocity = add(a.state.velocity, scale(normal, velocityCorrection * inverseMassA));
+      }
+      if (!b.fixed) {
+        b.state.velocity = sub(b.state.velocity, scale(normal, velocityCorrection * inverseMassB));
       }
     }
   }

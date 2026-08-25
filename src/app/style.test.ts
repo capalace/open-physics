@@ -36,7 +36,7 @@ describe("sandbox object palette", () => {
     const objectKinds = [...markup.matchAll(/data-object-kind="([^"]+)"/g)]
       .map((match) => match[1]);
 
-    expect(objectKinds).toEqual(["ball", "box", "block"]);
+    expect(objectKinds).toEqual(["ball", "box", "block", "anchor"]);
   });
 
   it("offers reusable mechanics apparatus in the sandbox", () => {
@@ -44,6 +44,7 @@ describe("sandbox object palette", () => {
       .map((match) => match[1]);
 
     expect(apparatusKinds).toEqual(["spring", "lever", "pulley"]);
+    expect(markup).toContain('data-connection-kind="rope"');
   });
 
   it("uses direct manipulation instead of size presets", () => {

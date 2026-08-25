@@ -123,7 +123,7 @@ describe("PhysicsPlayground object creation", () => {
     });
   });
 
-  it("creates three distinct sandbox primitives with matching motion roles", () => {
+  it("creates distinct moving and fixed sandbox primitives", () => {
     vi.stubGlobal("requestAnimationFrame", () => 0);
     const playground = new PhysicsPlayground(createCanvas(), { width: 960, height: 600 });
     playground.startSandbox();
@@ -139,6 +139,67 @@ describe("PhysicsPlayground object creation", () => {
     expect(playground.simulation.getBody(box.id)?.fixed).not.toBe(true);
     expect(block).toMatchObject({ shape: "box", width: 170, height: 26 });
     expect(playground.simulation.getBody(block.id)?.fixed).toBe(true);
+  });
+
+  it("creates a fixed point that can anchor a rope", () => {
+    vi.stubGlobal("requestAnimationFrame", () => 0);
+    const playground = new PhysicsPlayground(createCanvas(), { width: 960, height: 600 });
+    playground.startSandbox();
+
+    const anchor = playground.addSandboxObject("anchor");
+
+    expect(anchor).toMatchObject({ shape: "circle", anchor: true, label: expect.stringContaining("고정점") });
+    expect(playground.simulation.getBody(anchor.id)?.fixed).toBe(true);
+  });
+
+  it("connects two sandbox objects with a fixed-length rope", () => {
+    vi.stubGlobal("requestAnimationFrame", () => 0);
+    const { canvas, dispatchPointer } = createInteractiveCanvas();
+    const playground = new PhysicsPlayground(canvas, { width: 960, height: 600 });
+    playground.startSandbox();
+    const first = [...playground.objects.values()][0];
+    const second = playground.addSandboxObject("ball");
+    playground.select(first.id);
+
+    expect(playground.startRopeConnection()).toBe(true);
+    expect(playground.snapshot().ropeConnection).toMatchObject({ startId: first.id });
+    dispatchPointer("pointerdown", second.x, second.y);
+
+    const [rope] = playground.simulation.constraints;
+    expect(rope).toMatchObject({ bodyA: first.id, bodyB: second.id });
+    expect(rope.distance).toBeCloseTo(Math.hypot(second.x - first.x, second.y - first.y));
+    expect(playground.snapshot().ropeConnection).toBeNull();
+
+    dispatchPointer("pointerdown", second.x, second.y);
+    dispatchPointer("pointermove", second.x + 100, second.y + 50);
+    expect(Math.hypot(second.x - first.x, second.y - first.y)).toBeCloseTo(rope.distance);
+    dispatchPointer("pointerup", second.x, second.y);
+
+    const firstBody = playground.simulation.getBody(first.id)!;
+    const secondBody = playground.simulation.getBody(second.id)!;
+    secondBody.state.position.x += 100;
+    playground.simulation.step(1 / 120);
+    expect(Math.hypot(
+      secondBody.state.position.x - firstBody.state.position.x,
+      secondBody.state.position.y - firstBody.state.position.y,
+    )).toBeCloseTo(rope.distance);
+  });
+
+  it("removes a rope when either connected endpoint is deleted", () => {
+    vi.stubGlobal("requestAnimationFrame", () => 0);
+    const { canvas, dispatchPointer } = createInteractiveCanvas();
+    const playground = new PhysicsPlayground(canvas, { width: 960, height: 600 });
+    playground.startSandbox();
+    const moving = [...playground.objects.values()][0];
+    const anchor = playground.addSandboxObject("anchor");
+    playground.select(moving.id);
+    playground.startRopeConnection();
+    dispatchPointer("pointerdown", anchor.x, anchor.y);
+
+    playground.select(anchor.id);
+    playground.removeSelected();
+
+    expect(playground.simulation.constraints).toEqual([]);
   });
 
   it("connects a sandbox spring to the selected movable object", () => {

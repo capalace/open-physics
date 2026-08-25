@@ -22,7 +22,7 @@ The intended audience is broad: children, students, and anyone who wants to expl
 - **Model-based physics:** Objects interact according to the equations and assumptions of the active physical model rather than attempting to reproduce every detail of the real world.
 - **Progressive complexity:** The same world can expose simple or more advanced physical models depending on the current section, preset, or user configuration.
 - **Purposeful guidance:** A lab gives users a question, a small set of useful actions, and a clear observation target without grading or forcing a single answer.
-- **Separate lab and sandbox affordances:** Guided labs protect essential apparatus and expose only relevant controls. The free sandbox exposes general creation and editing tools, including reusable spring, lever, and pulley apparatus.
+- **Separate lab and sandbox affordances:** Guided labs protect essential apparatus and expose only relevant controls. The free sandbox exposes general creation and editing tools, including fixed points, user-created ropes, and reusable spring, lever, and pulley apparatus.
 - **Presets are implementation details:** A preset configures a useful physical situation; a user-facing lab adds purpose, instructions, observation, and allowed controls around it.
 - **Visual understanding:** Important physical quantities and relationships should be observable through motion, vectors, fields, graphs, energy displays, waves, particles, and other appropriate visualizations.
 - **Physics first, curriculum second:** The product structure should represent physics naturally. Educational curricula are references for coverage and progression, not hard architectural boundaries.
