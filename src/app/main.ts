@@ -49,7 +49,8 @@ if (activeSubject === "mechanics") {
     controller.resize();
     const resize = () => controller.resize();
     window.addEventListener("resize", resize);
-    window.addEventListener("pagehide", () => {
+    window.addEventListener("pagehide", (event) => {
+      if (event.persisted) return;
       window.removeEventListener("resize", resize);
       controller.unmount();
     }, { once: true });

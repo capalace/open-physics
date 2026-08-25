@@ -5,6 +5,7 @@ import { readFileSync } from "node:fs";
 
 const markup = readFileSync(new URL("../../index.html", import.meta.url), "utf8");
 const bootstrap = readFileSync(new URL("./main.ts", import.meta.url), "utf8");
+const styles = readFileSync(new URL("./style.css", import.meta.url), "utf8");
 
 describe("physics subject shell", () => {
   it("offers every subject at the same navigation level", () => {
@@ -27,5 +28,16 @@ describe("physics subject shell", () => {
       expect(bootstrap).toContain(`./subjects/${subject}`);
     }
     expect(bootstrap).toContain('await import("./mechanics-main")');
+  });
+
+  it("keeps navigation recoverable across home and browser history", () => {
+    expect(markup).toContain('class="brand" href="./"');
+    expect(bootstrap).toContain("if (event.persisted) return");
+  });
+
+  it("switches to the narrower layout before the three columns overflow", () => {
+    expect(styles).toContain("@media (max-width: 1020px)");
+    expect(styles).toContain("@media (min-width: 1021px) and (min-height: 700px)");
+    expect(styles).toContain('body:not([data-subject="mechanics"]) .inspector-panel { display: block; }');
   });
 });

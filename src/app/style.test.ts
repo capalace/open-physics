@@ -5,10 +5,13 @@ import { readFileSync } from "node:fs";
 
 const styles = readFileSync(new URL("./style.css", import.meta.url), "utf8");
 const markup = readFileSync(new URL("../../index.html", import.meta.url), "utf8");
+const subjectStyles = ["electromagnetism", "waves", "light", "thermal", "modern"]
+  .map((subject) => readFileSync(new URL(`./subjects/${subject}/style.css`, import.meta.url), "utf8"))
+  .join("\n");
 
 describe("playground typography", () => {
   it("keeps every interface label at least 12px tall", () => {
-    const fontSizes = [...styles.matchAll(/font-size:\s*([0-9.]+)px/g)]
+    const fontSizes = [...`${styles}\n${subjectStyles}`.matchAll(/font-size:\s*([0-9.]+)px/g)]
       .map((match) => Number(match[1]));
 
     expect(fontSizes.length).toBeGreaterThan(0);

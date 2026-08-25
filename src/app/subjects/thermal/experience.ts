@@ -58,8 +58,11 @@ export class ThermalExperienceController implements SubjectController {
 
   activate(scene: ThermalSceneId): void {
     this.world.reset(scene);
-    this.hosts.experimentPanel.querySelectorAll<HTMLElement>("[data-scene]").forEach((button) =>
-      button.classList.toggle("is-active", button.dataset.scene === scene));
+    this.hosts.experimentPanel.querySelectorAll<HTMLElement>("[data-scene]").forEach((button) => {
+      const active = button.dataset.scene === scene;
+      button.classList.toggle("is-active", active);
+      button.setAttribute("aria-pressed", String(active));
+    });
     this.refreshPanels();
     this.refresh();
   }
@@ -75,8 +78,11 @@ export class ThermalExperienceController implements SubjectController {
   private refreshPanels(): void {
     const guide = this.hosts.inspectorPanel.querySelector<HTMLElement>(".thermal-guide")!;
     const paletteHost = this.hosts.experimentPanel.querySelector<HTMLElement>(".thermal-palette")!;
-    this.hosts.experimentPanel.querySelectorAll<HTMLElement>("[data-scene]").forEach((button) =>
-      button.classList.toggle("is-active", button.dataset.scene === this.world.scene));
+    this.hosts.experimentPanel.querySelectorAll<HTMLElement>("[data-scene]").forEach((button) => {
+      const active = button.dataset.scene === this.world.scene;
+      button.classList.toggle("is-active", active);
+      button.setAttribute("aria-pressed", String(active));
+    });
     if (this.world.scene === "sandbox") {
       guide.innerHTML = `<p class="thermal-kicker">자유 탐구</p><h2>${thermalDefinition.sandboxTitle}</h2><p>${thermalDefinition.sandboxDescription}</p><ol><li>팔레트에서 장치를 추가해요.</li><li>장치를 끌어 서로 가까이 놓아요.</li><li>아래 손잡이로 세기를 바꾸고 측정해요.</li></ol><p class="thermal-observe">장면의 입자 운동과 온도·압력 측정이 함께 달라지는지 보세요.</p>`;
       paletteHost.hidden = false;

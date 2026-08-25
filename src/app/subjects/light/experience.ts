@@ -68,7 +68,11 @@ class LightController implements SubjectController {
   private activate(sceneId: LightSceneId): void {
     this.model.load(sceneId);
     this.selectedSandboxDevice = null;
-    this.hosts.experimentPanel.querySelectorAll("[data-light-lab]").forEach((button) => button.classList.toggle("is-active", (button as HTMLElement).dataset.lightLab === sceneId));
+    this.hosts.experimentPanel.querySelectorAll<HTMLElement>("[data-light-lab]").forEach((button) => {
+      const active = button.dataset.lightLab === sceneId;
+      button.classList.toggle("is-active", active);
+      button.setAttribute("aria-pressed", String(active));
+    });
     this.renderGuide();
     this.renderPalette();
     this.paint();

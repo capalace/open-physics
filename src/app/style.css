@@ -64,6 +64,7 @@ button:focus-visible, input:focus-visible { outline: 3px solid #91a8ff; outline-
 
 .subject-nav { display: flex; justify-content: center; gap: 3px; }
 .subject-nav button {
+  min-height: 40px;
   border: 0;
   border-radius: 9px;
   padding: 9px 14px;
@@ -366,7 +367,7 @@ body[data-app-mode="sandbox"] .object-editor { margin-top: 0; padding-top: 0; bo
 .trail-icon::after { position: absolute; top: 8px; left: 3px; width: 12px; border-top: 2px dashed #8391a6; content: ""; transform: rotate(-20deg); }
 .vector-icon::after { position: absolute; top: 8px; left: 3px; width: 11px; border-top: 2px solid #8391a6; content: ""; transform: rotate(-28deg); }
 
-@media (min-width: 941px) {
+@media (min-width: 1021px) and (min-height: 700px) {
   .app-layout { height: calc(100vh - 68px); min-height: 0; }
   .app-layout.is-focus-mode { grid-template-columns: minmax(0, 1fr); }
   .app-layout.is-focus-mode > .panel { display: none; }
@@ -381,11 +382,12 @@ body[data-app-mode="sandbox"] .object-editor { margin-top: 0; padding-top: 0; bo
   .workspace { padding: 16px; }
   .topbar { grid-template-columns: 240px 1fr 280px; }
 }
-@media (max-width: 940px) {
+@media (max-width: 1020px) {
   .topbar { position: static; grid-template-columns: 1fr; gap: 12px; padding: 14px 18px; }
   .subject-nav { justify-content: flex-start; overflow-x: auto; }
   .app-layout { grid-template-columns: 220px minmax(0, 1fr); }
   .inspector-panel { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: start; gap: 20px; border-top: 1px solid var(--line); border-left: 0; }
+  body:not([data-subject="mechanics"]) .inspector-panel { display: block; }
   .lab-guide, .object-editor, .environment-section { grid-column: auto; }
   .visualization-section { grid-column: 3; }
   .visualization-section { margin-top: 0; }
