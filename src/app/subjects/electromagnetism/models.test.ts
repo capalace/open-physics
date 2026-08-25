@@ -1,9 +1,20 @@
 import { describe, expect, it } from "vitest";
 import { ELECTROMAGNETISM_LAB_IDS } from "./catalog";
 import { ElectromagnetismModel, normalizedToWorld } from "./models";
-import { canvasToModel, modelToCanvas } from "./renderer";
+import { canvasToModel, electricFieldLines, modelToCanvas } from "./renderer";
 
 describe("ElectromagnetismModel", () => {
+  it("traces a sparse set of field lines with the correct charge direction", () => {
+    const positive = electricFieldLines([{ id: "positive", kind: "charge", position: { x: 0.5, y: 0.5 }, value: 2e-6 }]);
+    const negative = electricFieldLines([{ id: "negative", kind: "charge", position: { x: 0.5, y: 0.5 }, value: -2e-6 }]);
+
+    expect(positive).toHaveLength(8);
+    expect(negative).toHaveLength(8);
+    expect(positive.every((line) => line.points.length > 10 && line.direction === 1)).toBe(true);
+    expect(negative.every((line) => line.points.length > 10 && line.direction === -1)).toBe(true);
+    expect(positive[0].points.at(-1)!.x).toBeGreaterThan(positive[0].points[0].x);
+  });
+
   it("changes Coulomb force when the learner moves or flips the test charge", () => {
     const model = new ElectromagnetismModel("charge");
     const initial = model.snapshot();
