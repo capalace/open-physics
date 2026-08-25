@@ -538,6 +538,24 @@ describe("PhysicsPlayground extended mechanics", () => {
     expect(startY - load.state.position.y).toBeCloseTo(50);
   });
 
+  it("lifts the four-strand pulley load higher with repeated reachable pulls", () => {
+    vi.stubGlobal("requestAnimationFrame", () => 0);
+    const { canvas, dispatchPointer } = createInteractiveCanvas();
+    const playground = new PhysicsPlayground(canvas, { width: 960, height: 600 });
+    playground.loadPreset("pulley");
+    const load = playground.simulation.allBodies[0];
+    const startY = load.state.position.y;
+
+    dispatchPointer("pointerdown", 584, 86);
+    for (let pull = 0; pull < 4; pull += 1) {
+      dispatchPointer("pointerdown", 653, 323);
+      dispatchPointer("pointermove", 653, 523);
+      dispatchPointer("pointerup", 653, 523);
+    }
+
+    expect(startY - load.state.position.y).toBeCloseTo(200);
+  });
+
   it("draws a four-strand block and tackle with detailed wheels and a pull handle", () => {
     vi.stubGlobal("requestAnimationFrame", () => 0);
     const rendering = createRenderingCanvas();

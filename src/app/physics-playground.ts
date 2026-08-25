@@ -131,6 +131,7 @@ const MAX_GRAPH_SAMPLES = 150;
 const TRAJECTORY_PREVIEW_STEP = 0.08;
 const TRAJECTORY_PREVIEW_STEPS = 45;
 const SPRING_MOUNT_CLEARANCE = 8;
+const PULLEY_PULL_STROKE = 200;
 const COLORS = ["#5b7cfa", "#f27a54", "#25a77a", "#a069dc", "#e2a62b"];
 
 type ResizeHandle = "width" | "height" | "both";
@@ -235,11 +236,13 @@ type GuidedMechanicsScene =
     kind: "pulley-advantage";
     loadId: string;
     model: PulleyAdvantageChallenge;
-    topY: number;
+    fixedY: number;
     loadX: number;
+    loadStartY: number;
     pullX: number;
     pullStartY: number;
     pullDistance: number;
+    maxLift: number;
   };
 
 interface OrbitExperiment {
@@ -275,6 +278,7 @@ export class PhysicsPlayground {
   private challengeDrag: ChallengeDrag | null = null;
   private challengeDragOrigin: Vector2 | null = null;
   private challengeDragPoint: Vector2 | null = null;
+  private challengeDragStartPullDistance = 0;
   private selectedId: string | null = null;
   private labMode = true;
   private graphTime = 0;
@@ -597,10 +601,11 @@ export class PhysicsPlayground {
       this.setBodyPose(rodObject.id, rodPose);
     } else {
       this.replaceGravity(9.81);
-      const topY = 118;
+      const fixedY = 210;
       const loadX = this.canvas.width * 0.38;
+      const loadStartY = this.floorY - 52;
       const pullX = this.canvas.width * 0.68;
-      const load = this.addBox(loadX, this.floorY - 94, 82, 82, {
+      const load = this.addBox(loadX, loadStartY, 82, 82, {
         label: "들어 올릴 짐",
         color: "#f27a54",
         mass: 20,
@@ -611,11 +616,13 @@ export class PhysicsPlayground {
         kind: "pulley-advantage",
         loadId: load.id,
         model: new PulleyAdvantageChallenge({ loadMass: 20, gravity: this.gravity, supportStrands: 1 }),
-        topY,
+        fixedY,
         loadX,
+        loadStartY,
         pullX,
-        pullStartY: topY + 205,
+        pullStartY: fixedY + 113,
         pullDistance: 0,
+        maxLift: Math.max(0, loadStartY - fixedY - 90),
       };
       this.applyGuidedScenePoses();
     }
@@ -931,6 +938,7 @@ export class PhysicsPlayground {
     this.challengeDrag = null;
     this.challengeDragOrigin = null;
     this.challengeDragPoint = null;
+    this.challengeDragStartPullDistance = 0;
     this.impulseFlash = 0;
   }
 
@@ -968,9 +976,9 @@ export class PhysicsPlayground {
       this.setBodyPose(scene.ropeId, scene.rope.pose());
       this.setBodyPose(scene.rodId, scene.rod.pose());
     } else {
-      const lift = scene.model.liftDistanceForPull(scene.pullDistance);
+      const lift = Math.min(scene.maxLift, scene.model.liftDistanceForPull(scene.pullDistance));
       this.setBodyPose(scene.loadId, {
-        position: { x: scene.loadX, y: this.floorY - 94 - lift },
+        position: { x: scene.loadX, y: scene.loadStartY - lift },
         velocity: { x: 0, y: 0 },
         acceleration: { x: 0, y: 0 },
       });
@@ -1013,11 +1021,13 @@ export class PhysicsPlayground {
       scene.model.setLoadArm(scene.model.loadArm * scaleX);
       scene.model.setEffortArm(scene.model.effortArm * scaleX);
     } else {
-      scene.topY *= scaleY;
+      scene.fixedY *= scaleY;
       scene.loadX *= scaleX;
+      scene.loadStartY *= scaleY;
       scene.pullX *= scaleX;
       scene.pullStartY *= scaleY;
       scene.pullDistance *= scaleY;
+      scene.maxLift *= scaleY;
     }
     this.applyGuidedScenePoses();
   }
@@ -1559,7 +1569,7 @@ export class PhysicsPlayground {
     const { ctx } = this;
     const load = this.simulation.getBody(scene.loadId);
     if (!load) return;
-    const fixedY = Math.max(250, scene.topY + 132);
+    const fixedY = scene.fixedY;
     const movingY = load.state.position.y - 88;
     const guide = { x: scene.pullX, y: fixedY, radius: 18 };
     const fixedWheels: Array<{ x: number; y: number; radius: number }> = [];
@@ -1570,11 +1580,11 @@ export class PhysicsPlayground {
     ctx.shadowBlur = 8;
     ctx.shadowOffsetY = 5;
     ctx.fillStyle = "#68778d";
-    this.roundRect(scene.loadX - 104, fixedY - 70, scene.pullX - scene.loadX + 138, 18, 7);
+    this.roundRect(scene.loadX - 104, fixedY - 40, scene.pullX - scene.loadX + 138, 18, 7);
     ctx.fill();
     ctx.shadowColor = "transparent";
     ctx.fillStyle = "#aeb9c8";
-    this.roundRect(scene.loadX - 96, fixedY - 66, scene.pullX - scene.loadX + 122, 5, 3);
+    this.roundRect(scene.loadX - 96, fixedY - 36, scene.pullX - scene.loadX + 122, 5, 3);
     ctx.fill();
     ctx.restore();
 
@@ -1590,7 +1600,7 @@ export class PhysicsPlayground {
         ctx.lineTo(guide.x - guide.radius, guide.y);
       } else if (scene.model.supportStrands === 2) {
         const lower = { x: scene.loadX, y: movingY, radius: 31 };
-        const fixed = { x: scene.loadX + 62, y: fixedY, radius: 34 };
+        const fixed = { x: scene.loadX + 70, y: fixedY, radius: 34 };
         movingWheels.push(lower);
         fixedWheels.push(fixed);
         ctx.moveTo(lower.x - lower.radius, fixedY - 52);
@@ -2463,7 +2473,7 @@ export class PhysicsPlayground {
       x: scene.pullX,
       y: this.challengeDrag === "pulley" && this.challengeDragPoint
         ? this.challengeDragPoint.y
-        : scene.pullStartY + scene.pullDistance,
+        : scene.pullStartY,
     };
   }
 
@@ -2517,6 +2527,9 @@ export class PhysicsPlayground {
     this.challengeDrag = hit.kind;
     this.challengeDragOrigin = { ...hit.handle };
     this.challengeDragPoint = { ...hit.handle };
+    this.challengeDragStartPullDistance = hit.kind === "pulley" && this.guidedScene?.kind === "pulley-advantage"
+      ? this.guidedScene.pullDistance
+      : 0;
     this._paused = false;
     this.canvas.setPointerCapture(pointerId);
     this.canvas.style.cursor = "grabbing";
@@ -2541,9 +2554,16 @@ export class PhysicsPlayground {
       this.challengeDragPoint = { x: origin.x, y: origin.y + dy };
       this.applyGuidedScenePoses();
     } else if (this.challengeDrag === "pulley" && this.guidedScene?.kind === "pulley-advantage") {
-      const dy = Math.max(0, Math.min(250, point.y - origin.y));
-      this.guidedScene.pullDistance = dy;
-      this.challengeDragPoint = { x: origin.x, y: origin.y + dy };
+      const scene = this.guidedScene;
+      const reachableStroke = Math.max(0, Math.min(
+        PULLEY_PULL_STROKE,
+        this.floorY - 28 - scene.pullStartY,
+      ));
+      const dy = Math.max(0, Math.min(reachableStroke, point.y - origin.y));
+      const maximumPullDistance = scene.model.pullDistanceForLift(scene.maxLift);
+      scene.pullDistance = Math.min(maximumPullDistance, this.challengeDragStartPullDistance + dy);
+      const acceptedStroke = scene.pullDistance - this.challengeDragStartPullDistance;
+      this.challengeDragPoint = { x: origin.x, y: origin.y + acceptedStroke };
       this.applyGuidedScenePoses();
     }
     this.graphTime += GRAPH_SAMPLE_INTERVAL;
@@ -2664,6 +2684,7 @@ export class PhysicsPlayground {
       this.challengeDrag = null;
       this.challengeDragOrigin = null;
       this.challengeDragPoint = null;
+      this.challengeDragStartPullDistance = 0;
       this.canvas.style.cursor = "grab";
       if (autoPlay && (launchesVelocity || releasesSpring || releasesGuided)) this.paused = false;
     };
