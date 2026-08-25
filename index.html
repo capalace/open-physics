@@ -24,15 +24,15 @@
   </header>
 
   <main class="app-layout">
-    <aside id="experiment-panel" class="panel experiment-panel" aria-label="역학 실험과 자유 놀이터">
-      <div class="mode-switch" role="tablist" aria-label="학습 방식 선택">
-        <button class="is-active" type="button" role="tab" aria-selected="true" data-app-mode="lab">역학 실험실</button>
-        <button type="button" role="tab" aria-selected="false" data-app-mode="sandbox">자유 놀이터</button>
-      </div>
-
+    <aside id="experiment-panel" class="panel experiment-panel" aria-label="역학 실험 선택">
       <section id="lab-browser" class="panel-section quick-start-section">
-        <div class="section-heading"><h2>실험 선택</h2><span>10개 실험</span></div>
+        <div class="section-heading"><h2>실험 선택</h2><span>11개 선택</span></div>
         <div class="quick-start-list">
+          <span class="topic-label">나만의 실험</span>
+          <button class="quick-start sandbox-start" type="button" data-start-sandbox>
+            <span class="preset-icon purple">✦</span>
+            <span><strong>빈 실험실 만들기</strong><small>물체와 장치를 자유롭게 조합해요</small></span>
+          </button>
           <span class="topic-label">움직임과 힘</span>
           <button class="quick-start" type="button" data-lab="free-fall">
             <span class="preset-icon blue">↓</span>
@@ -77,13 +77,6 @@
             <span><strong>부력</strong><small>물체는 언제 물에 뜰까?</small></span>
           </button>
         </div>
-      </section>
-
-      <section id="sandbox-browser" class="sandbox-browser" hidden>
-        <span class="sandbox-symbol" aria-hidden="true">✦</span>
-        <h2>정답 없는 실험 공간</h2>
-        <p>공과 상자를 힘으로 밀고 줄·막대·용수철로 연결해 보세요. 중력원과 물, 지렛대와 도르래도 한 월드에 함께 놓을 수 있어요.</p>
-        <button id="new-sandbox" type="button">새 자유 월드 시작</button>
       </section>
     </aside>
 

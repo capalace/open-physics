@@ -17,16 +17,20 @@ describe("playground typography", () => {
 });
 
 describe("mechanics lab content", () => {
-  it("offers ten distinct one-column labs and a separate sandbox", () => {
+  it("offers ten distinct labs and one empty lab in the same one-column selector", () => {
     const labs = [...markup.matchAll(/data-lab="([^"]+)"/g)].map((match) => match[1]);
+    const choices = [...markup.matchAll(/class="quick-start(?: [^"]*)?"/g)];
 
     expect(labs).toHaveLength(10);
     expect(new Set(labs).size).toBe(10);
+    expect(choices).toHaveLength(11);
     expect(labs).not.toEqual(expect.arrayContaining(["momentum", "energy", "circular", "pendulum"]));
-    expect(markup).toContain('data-app-mode="lab"');
-    expect(markup).toContain('data-app-mode="sandbox"');
+    expect(markup).toContain("data-start-sandbox");
+    expect(markup).toContain("빈 실험실 만들기");
+    expect(markup).not.toMatch(/<button[^>]+data-app-mode=/);
+    expect(markup).not.toContain("mode-switch");
     expect(markup).toContain('id="lab-guide"');
-    expect(markup).toContain('id="new-sandbox"');
+    expect(markup).not.toContain('id="new-sandbox"');
     expect(styles).toMatch(/\.quick-start-list\s*\{[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\)/s);
   });
 });

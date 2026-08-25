@@ -22,7 +22,7 @@ The intended audience is broad: children, students, and anyone who wants to expl
 - **Model-based physics:** Objects interact according to the equations and assumptions of the active physical model rather than attempting to reproduce every detail of the real world.
 - **Progressive complexity:** The same world can expose simple or more advanced physical models depending on the current section, preset, or user configuration.
 - **Purposeful guidance:** A lab gives users a question, a small set of useful actions, and a clear observation target without grading or forcing a single answer.
-- **Separate lab and sandbox affordances:** Guided labs protect essential apparatus and expose only relevant controls. The free sandbox exposes general creation and editing tools, including fixed points, rope and rod connections, direct forces, gravity and water environments, and reusable spring, lever, and pulley apparatus.
+- **One experiment selector, distinct affordances:** Guided labs and the empty lab belong at the same navigation level. Guided labs protect essential apparatus and expose only relevant controls; `빈 실험실 만들기` exposes general creation and editing tools, including fixed points, rope and rod connections, direct forces, gravity and water environments, and reusable spring, lever, and pulley apparatus.
 - **Labs lead into composition:** Every core mechanics phenomenon offered as a guided lab should also be reproducible from sandbox parts. A lab supplies the question and prepared starting state; the sandbox keeps the underlying objects, forces, connections, environments, and observations available for new combinations.
 - **Presets are implementation details:** A preset configures a useful physical situation; a user-facing lab adds purpose, instructions, observation, and allowed controls around it.
 - **Visual understanding:** Important physical quantities and relationships should be observable through motion, vectors, fields, graphs, energy displays, waves, particles, and other appropriate visualizations.
@@ -342,7 +342,7 @@ Observation
 Free exploration
 ```
 
-Guided experiments configure an initial state, suggest useful actions, expose relevant visualizations, and protect apparatus that is essential to the phenomenon. They may intentionally hide unrelated controls so the experiment remains legible. This does not reduce the capabilities of the separate free sandbox.
+Guided experiments configure an initial state, suggest useful actions, expose relevant visualizations, and protect apparatus that is essential to the phenomenon. They may intentionally hide unrelated controls so the experiment remains legible. The empty lab remains a peer entry in the same experiment selector while exposing the full sandbox toolset after selection.
 
 A section may therefore contain:
 
@@ -352,7 +352,7 @@ A section may therefore contain:
 - variations of the same physical situation;
 - a free-experiment entry point.
 
-The two modes have different responsibilities:
+The two internal workspace states have different responsibilities, but they are not presented as separate top-level tabs:
 
 ```text
 Guided Lab

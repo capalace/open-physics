@@ -90,9 +90,6 @@ button:focus-visible, input:focus-visible { outline: 3px solid #91a8ff; outline-
 .panel-heading p { margin: 0; color: var(--muted); font-size: 14px; line-height: 1.65; }
 .panel-section { padding-top: 22px; border-top: 1px solid #e5eaf1; }
 .quick-start-section { padding-top: 0; border-top: 0; }
-.mode-switch { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; border-radius: 12px; padding: 4px; background: #e9eef6; }
-.mode-switch button { min-height: 40px; border: 0; border-radius: 9px; background: transparent; color: #6f7c90; cursor: pointer; font-size: 13px; font-weight: 800; }
-.mode-switch button.is-active { background: white; color: #284bc9; box-shadow: 0 3px 10px #24324e18; }
 .section-heading { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
 .section-heading h2 { margin: 0; color: #536078; font-size: 14px; letter-spacing: .02em; }
 .section-heading > span { border-radius: 999px; padding: 3px 7px; background: #eef2f7; color: #8390a4; font-size: 12px; font-weight: 800; }
@@ -135,13 +132,6 @@ button:focus-visible, input:focus-visible { outline: 3px solid #91a8ff; outline-
 .preset-icon.orange { background: #fff0eb; color: var(--orange); }
 .preset-icon.purple { background: #f0e9fa; color: #8157ba; }
 .preset-icon.gold { background: #fff4d8; color: #aa7610; }
-
-.sandbox-browser { display: grid; justify-items: start; margin-top: 2px; border: 1px solid #dbe3ef; border-radius: 16px; padding: 22px 18px; background: linear-gradient(145deg, #f7f9ff, #eef3ff); }
-.sandbox-symbol { display: grid; place-items: center; width: 42px; height: 42px; border-radius: 13px; background: #365eea; color: white; font-size: 20px; box-shadow: 0 8px 18px #365eea36; }
-.sandbox-browser h2 { margin: 18px 0 8px; font-size: 19px; letter-spacing: -.035em; }
-.sandbox-browser p { margin: 0; color: #68768b; font-size: 13px; line-height: 1.65; }
-.sandbox-browser button { width: 100%; min-height: 42px; margin-top: 18px; border: 1px solid #365eea; border-radius: 9px; background: white; color: #3155da; cursor: pointer; font-size: 13px; font-weight: 800; }
-.sandbox-browser button:hover { background: #365eea; color: white; }
 
 .law-note { display: grid; gap: 5px; margin-top: 10px; border: 1px solid #dfe5ef; border-radius: 11px; padding: 11px; background: white; }
 .law-note > span { color: #8793a5; font-size: 12px; font-weight: 800; }

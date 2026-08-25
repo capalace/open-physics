@@ -43,8 +43,6 @@ const objectColor = required<HTMLInputElement>("#object-color");
 const lawTitle = required<HTMLElement>("#law-title");
 const lawDescription = required<HTMLElement>("#law-description");
 const lawEquation = required<HTMLElement>("#law-equation");
-const labBrowser = required<HTMLElement>("#lab-browser");
-const sandboxBrowser = required<HTMLElement>("#sandbox-browser");
 const labGuide = required<HTMLElement>("#lab-guide");
 const labGraph = required<HTMLElement>("#lab-graph");
 const labGraphCanvas = required<HTMLCanvasElement>("#lab-graph-canvas");
@@ -105,18 +103,7 @@ deleteButton.addEventListener("click", () => {
 });
 focusButton.addEventListener("click", () => setFocusMode(!appLayout.classList.contains("is-focus-mode")));
 
-document.querySelectorAll<HTMLButtonElement>("[data-app-mode]").forEach((button) => {
-  button.addEventListener("click", () => {
-    const mode = button.dataset.appMode as AppMode;
-    if (mode === appMode) return;
-    if (mode === "lab") activateLab(activeLab.id);
-    else activateSandbox();
-  });
-});
-required<HTMLButtonElement>("#new-sandbox").addEventListener("click", () => {
-  playground.startSandbox();
-  pulseWorld();
-});
+required<HTMLButtonElement>("[data-start-sandbox]").addEventListener("click", activateSandbox);
 
 bindToggle("#show-grid", "grid");
 bindToggle("#show-trails", "trails");
@@ -205,6 +192,7 @@ function renderSnapshot(snapshot: PlaygroundSnapshot): void {
   document.querySelectorAll<HTMLButtonElement>("[data-lab]").forEach((button) => {
     setActive(button, appMode === "lab" && button.dataset.lab === activeLab.id);
   });
+  setActive(required<HTMLButtonElement>("[data-start-sandbox]"), appMode === "sandbox");
   const editorAvailable = !objectEditor.hidden;
   inspectorEmpty.hidden = !editorAvailable || Boolean(snapshot.selected);
   inspectorForm.hidden = !editorAvailable || !snapshot.selected;
@@ -309,15 +297,7 @@ function activateSandbox(): void {
 
 function applyModeUi(): void {
   document.body.dataset.appMode = appMode;
-  labBrowser.hidden = appMode !== "lab";
-  sandboxBrowser.hidden = appMode !== "sandbox";
   labGuide.hidden = appMode !== "lab";
-
-  document.querySelectorAll<HTMLButtonElement>("[data-app-mode]").forEach((button) => {
-    const active = button.dataset.appMode === appMode;
-    button.classList.toggle("is-active", active);
-    button.setAttribute("aria-selected", String(active));
-  });
   document.querySelectorAll<HTMLElement>("[data-sandbox-only]").forEach((element) => {
     element.hidden = appMode !== "sandbox";
   });
