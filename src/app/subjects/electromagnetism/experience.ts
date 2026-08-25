@@ -39,6 +39,7 @@ class ElectromagnetismController implements SubjectController {
   private dragging = false;
   private draggedSandboxId: string | null = null;
   private selectedSandboxId: string | null = null;
+  private previousPointerTime = 0;
   private activeMode: ElectromagnetismLabId | "sandbox" = "charge";
   private readonly eventScope = new AbortController();
 
@@ -113,6 +114,7 @@ class ElectromagnetismController implements SubjectController {
       <section class="em-controls" data-em-controls></section>
       <section class="em-graph">
         <div><span>실험 그래프</span><strong data-em-graph-title></strong></div>
+        <span class="em-graph-legend" data-em-graph-legend></span>
         <canvas data-em-graph-canvas width="280" height="160"></canvas>
         <p><span data-em-graph-x></span><span data-em-graph-y></span></p>
       </section>`;
@@ -154,26 +156,29 @@ class ElectromagnetismController implements SubjectController {
       this.dragging = true;
       this.canvas.setPointerCapture(event.pointerId);
       const point = this.pointer(event);
+      this.previousPointerTime = event.timeStamp;
       if (this.activeMode === "sandbox") {
         const object = this.model.hitSandboxObject(point);
         this.draggedSandboxId = object?.id ?? null;
         this.selectedSandboxId = object?.id ?? null;
       } else {
-        this.model.drag(point);
+        this.model.drag(point, 0);
       }
       this.render();
     }, { signal: this.eventScope.signal });
     this.canvas.addEventListener("pointermove", (event) => {
       if (!this.dragging) return;
       const point = this.pointer(event);
-      if (this.activeMode === "sandbox" && this.draggedSandboxId) this.model.moveSandboxObject(this.draggedSandboxId, point);
-      else if (this.activeMode !== "sandbox") this.model.drag(point);
+      const dt = Math.max(1 / 240, (event.timeStamp - this.previousPointerTime) / 1000);
+      this.previousPointerTime = event.timeStamp;
+      if (this.activeMode === "sandbox" && this.draggedSandboxId) this.model.moveSandboxObject(this.draggedSandboxId, point, dt);
+      else if (this.activeMode !== "sandbox") this.model.drag(point, dt);
       this.render();
     }, { signal: this.eventScope.signal });
     const endDrag = () => {
       this.dragging = false;
       this.draggedSandboxId = null;
-      if (this.activeMode === "electromagnetic-force") this.model.setRunning(true);
+      if (this.activeMode === "electromagnetic-force" || this.activeMode === "induction") this.model.setRunning(true);
       this.render();
     };
     this.canvas.addEventListener("pointerup", endDrag, { signal: this.eventScope.signal });
@@ -217,9 +222,14 @@ class ElectromagnetismController implements SubjectController {
     const needsSign = lab.controls.some((control) => control.includes("sign") || control === "source-charge" || control === "test-charge");
     const needsDirection = lab.controls.some((control) => control.includes("direction") || control === "current");
     const needsTurns = lab.controls.includes("coil-turns");
+    const levelLabels: Partial<Record<ElectromagnetismLabId, string>> = {
+      charge: "전하량", "electric-field": "원천 전하량", potential: "시험 전하량",
+      circuits: "전압", capacitors: "전압", "magnetic-field": "전류",
+    };
+    const levelLabel = levelLabels[this.activeMode];
     controls.innerHTML = `
       <h3>바꿔 볼 조건</h3>
-      <div class="em-choice"><span>세기</span><button data-em-control="level" data-value="0.5">약하게</button><button data-em-control="level" data-value="1">보통</button><button data-em-control="level" data-value="1.5">강하게</button></div>
+      ${levelLabel ? `<div class="em-choice"><span>${levelLabel}</span><button data-em-control="level" data-value="0.5">약하게</button><button data-em-control="level" data-value="1">보통</button><button data-em-control="level" data-value="1.5">강하게</button></div>` : ""}
       ${needsSign ? `<button class="em-wide-control" data-em-control="sign">전하 부호 뒤집기 (+/−)</button>` : ""}
       ${needsDirection ? `<button class="em-wide-control" data-em-control="direction">전류·자기장 방향 뒤집기</button>` : ""}
       ${needsTurns ? `<div class="em-choice"><span>코일 감은 수</span><button data-em-control="turns" data-value="40">40회</button><button data-em-control="turns" data-value="80">80회</button><button data-em-control="turns" data-value="140">140회</button></div>` : ""}`;
@@ -240,14 +250,18 @@ class ElectromagnetismController implements SubjectController {
       this.require<HTMLOutputElement>(this.hosts.inspectorPanel, "[data-em-secondary-value]").textContent = `${this.format(snapshot.secondaryMeasurement.value)} ${snapshot.secondaryMeasurement.unit}`;
     }
     if (snapshot.mode === "sandbox") {
-      this.require<HTMLElement>(this.hosts.inspectorPanel, "[data-em-graph-title]").textContent = "배치한 장치";
-      this.require<HTMLElement>(this.hosts.inspectorPanel, "[data-em-graph-x]").textContent = "가로축 · 종류";
-      this.require<HTMLElement>(this.hosts.inspectorPanel, "[data-em-graph-y]").textContent = "세로축 · 개수";
+      this.require<HTMLElement>(this.hosts.inspectorPanel, "[data-em-graph-title]").textContent = snapshot.sandboxGraph.title;
+      this.require<HTMLElement>(this.hosts.inspectorPanel, "[data-em-graph-x]").textContent = `가로축 · ${snapshot.sandboxGraph.xLabel}`;
+      this.require<HTMLElement>(this.hosts.inspectorPanel, "[data-em-graph-y]").textContent = `세로축 · ${snapshot.sandboxGraph.yLabel}`;
+      this.require<HTMLElement>(this.hosts.inspectorPanel, "[data-em-graph-legend]").textContent = "● 현재 구성";
+      this.require<HTMLElement>(this.hosts.inspectorPanel, "[data-em-graph-legend]").style.color = snapshot.sandboxGraph.color;
     } else {
       const lab = electromagnetismLab(snapshot.mode);
       this.require<HTMLElement>(this.hosts.inspectorPanel, "[data-em-graph-title]").textContent = lab.graph.title;
       this.require<HTMLElement>(this.hosts.inspectorPanel, "[data-em-graph-x]").textContent = `가로축 · ${lab.graph.xLabel}`;
       this.require<HTMLElement>(this.hosts.inspectorPanel, "[data-em-graph-y]").textContent = `세로축 · ${lab.graph.yLabel}`;
+      this.require<HTMLElement>(this.hosts.inspectorPanel, "[data-em-graph-legend]").textContent = `● ${lab.graph.series[0].label}`;
+      this.require<HTMLElement>(this.hosts.inspectorPanel, "[data-em-graph-legend]").style.color = lab.graph.series[0].color;
     }
     this.renderGraph(snapshot);
   }
@@ -259,28 +273,31 @@ class ElectromagnetismController implements SubjectController {
     ctx.clearRect(0, 0, width, height); ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, width, height);
     const finite = snapshot.graph.filter((point) => Number.isFinite(point.x) && Number.isFinite(point.y));
     if (finite.length === 0) return;
-    const minX = Math.min(...finite.map((point) => point.x)); const maxX = Math.max(...finite.map((point) => point.x));
-    let minY = Math.min(0, ...finite.map((point) => point.y)); let maxY = Math.max(0, ...finite.map((point) => point.y));
+    const marker = snapshot.graphMarker && Number.isFinite(snapshot.graphMarker.x) && Number.isFinite(snapshot.graphMarker.y) ? snapshot.graphMarker : null;
+    const minX = Math.min(...finite.map((point) => point.x), marker?.x ?? Infinity); const maxX = Math.max(...finite.map((point) => point.x), marker?.x ?? -Infinity);
+    let minY = Math.min(0, ...finite.map((point) => point.y), marker?.y ?? Infinity); let maxY = Math.max(0, ...finite.map((point) => point.y), marker?.y ?? -Infinity);
     if (maxY - minY < 1e-9) maxY = minY + 1;
     const px = (x: number) => pad.l + (x - minX) / Math.max(1e-9, maxX - minX) * (width - pad.l - pad.r);
     const py = (y: number) => pad.t + (maxY - y) / (maxY - minY) * (height - pad.t - pad.b);
     ctx.strokeStyle = "#e2e8f1"; ctx.lineWidth = 1;
     for (let line = 0; line <= 2; line += 1) { const y = pad.t + (height - pad.t - pad.b) * line / 2; ctx.beginPath(); ctx.moveTo(pad.l, y); ctx.lineTo(width - pad.r, y); ctx.stroke(); }
-    ctx.strokeStyle = "#5b7cfa"; ctx.lineWidth = 3; ctx.beginPath(); finite.forEach((point, index) => { if (index === 0) ctx.moveTo(px(point.x), py(point.y)); else ctx.lineTo(px(point.x), py(point.y)); }); ctx.stroke();
+    const color = snapshot.mode === "sandbox" ? snapshot.sandboxGraph.color : electromagnetismLab(snapshot.mode).graph.series[0].color;
+    ctx.strokeStyle = color; ctx.lineWidth = 3; ctx.beginPath(); finite.forEach((point, index) => { if (index === 0) ctx.moveTo(px(point.x), py(point.y)); else ctx.lineTo(px(point.x), py(point.y)); }); ctx.stroke();
+    if (marker) { ctx.fillStyle = "#fff"; ctx.strokeStyle = color; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(px(marker.x), py(marker.y), 6, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); }
     ctx.fillStyle = "#718096"; ctx.font = "11px system-ui"; ctx.textAlign = "left"; ctx.fillText(this.format(minX), pad.l, height - 8); ctx.textAlign = "right"; ctx.fillText(this.format(maxX), width - pad.r, height - 8);
     ctx.textAlign = "right"; ctx.fillText(this.format(maxY), pad.l - 5, pad.t + 4); ctx.fillText(this.format(minY), pad.l - 5, height - pad.b);
   }
 
   private pointer(event: PointerEvent): Vector2 {
-    const rect = this.canvas.getBoundingClientRect();
-    return { x: (event.clientX - rect.left) / Math.max(1, rect.width), y: (event.clientY - rect.top) / Math.max(1, rect.height) };
+    return this.renderer.pointerToModel(event.clientX, event.clientY);
   }
 
   private animate = (time: number): void => {
     const dt = this.previousFrameTime === 0 ? 1 / 60 : Math.min(1 / 30, (time - this.previousFrameTime) / 1000);
     this.previousFrameTime = time;
+    const wasRunning = this.model.snapshot().running;
     this.model.step(dt);
-    if (this.model.snapshot().running) this.render();
+    if (wasRunning) this.render();
     this.frame = requestAnimationFrame(this.animate);
   };
 
