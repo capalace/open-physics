@@ -5,9 +5,9 @@ import type { WorldForceLaw } from "../world";
 import {
   AnchoredSpringLaw,
   BuoyancyRegionLaw,
-  HorizontalGroundFrictionModifier,
   HorizontalSurfaceFrictionLaw,
   PushFrictionLaw,
+  SurfaceContactFrictionModifier,
 } from "./world-mechanics";
 
 const context = { time: 0, dt: 0.1 };
@@ -62,30 +62,78 @@ describe("AnchoredSpringLaw", () => {
   });
 });
 
-describe("HorizontalGroundFrictionModifier", () => {
+describe("SurfaceContactFrictionModifier", () => {
   it("cancels a small horizontal force while a body is resting on the ground", () => {
-    const friction = new HorizontalGroundFrictionModifier({ surfaceY: 100, normalAcceleration: 10 });
+    const friction = new SurfaceContactFrictionModifier({ floorY: 100, normalAcceleration: 10 });
     const resting = body({ staticFriction: 0.5, kineticFriction: 0.3 });
 
-    expect(friction.modifyForce(resting, { vector: { x: 8, y: 20 }, source: "external" }, context).vector)
+    expect(friction.modifyForce(resting, [], { vector: { x: 8, y: 20 }, source: "external" }, context).vector)
       .toEqual({ x: 0, y: 20 });
   });
 
   it("uses kinetic friction after the maximum static force is exceeded", () => {
-    const friction = new HorizontalGroundFrictionModifier({ surfaceY: 100, normalAcceleration: 10 });
+    const friction = new SurfaceContactFrictionModifier({ floorY: 100, normalAcceleration: 10 });
     const resting = body({ staticFriction: 0.5, kineticFriction: 0.3 });
 
-    expect(friction.modifyForce(resting, { vector: { x: 12, y: 20 }, source: "external" }, context).vector.x)
+    expect(friction.modifyForce(resting, [], { vector: { x: 12, y: 20 }, source: "external" }, context).vector.x)
       .toBe(6);
   });
 
   it("stops a moving body without reversing it", () => {
-    const friction = new HorizontalGroundFrictionModifier({ surfaceY: 100, normalAcceleration: 10 });
+    const friction = new SurfaceContactFrictionModifier({ floorY: 100, normalAcceleration: 10 });
     const moving = body({ staticFriction: 0.7, kineticFriction: 0.6 });
     moving.state.velocity.x = 0.1;
 
-    expect(friction.modifyForce(moving, { vector: { x: 0, y: 20 }, source: "external" }, context).vector.x)
+    expect(friction.modifyForce(moving, [], { vector: { x: 0, y: 20 }, source: "external" }, context).vector.x)
       .toBe(-2);
+  });
+
+  it("combines both materials while resting on top of a fixed block", () => {
+    const friction = new SurfaceContactFrictionModifier({ floorY: 500, normalAcceleration: 10 });
+    const resting = body({ staticFriction: 0.5, kineticFriction: 0.3 });
+    resting.state.position = { x: 50, y: 40 };
+    const block = body({
+      id: "block",
+      radius: undefined,
+      collider: { kind: "box", halfWidth: 30, halfHeight: 5 },
+      staticFriction: 0.8,
+      kineticFriction: 0.6,
+      fixed: true,
+    });
+    block.state.position = { x: 50, y: 55 };
+
+    expect(friction.modifyForce(
+      resting,
+      [resting, block],
+      { vector: { x: 8, y: 20 }, source: "external" },
+      context,
+    ).vector).toEqual({ x: 0, y: 20 });
+  });
+
+  it("applies friction along the side of a fixed block", () => {
+    const friction = new SurfaceContactFrictionModifier({ floorY: 500, normalAcceleration: 10 });
+    const sliding = body({ staticFriction: 0.5, kineticFriction: 0.3 });
+    sliding.state.position = { x: 40, y: 50 };
+    sliding.state.velocity.y = 4;
+    const wall = body({
+      id: "wall",
+      radius: undefined,
+      collider: { kind: "box", halfWidth: 5, halfHeight: 30 },
+      staticFriction: 0.8,
+      kineticFriction: 0.6,
+      fixed: true,
+    });
+    wall.state.position = { x: 55, y: 50 };
+
+    const result = friction.modifyForce(
+      sliding,
+      [sliding, wall],
+      { vector: { x: 20, y: 0 }, source: "external" },
+      context,
+    );
+
+    expect(result.vector.x).toBe(20);
+    expect(result.vector.y).toBeLessThan(0);
   });
 
   it("modifies the combined force before the simulation integrates it", () => {
@@ -96,7 +144,7 @@ describe("HorizontalGroundFrictionModifier", () => {
     };
     const simulation = new PhysicsSimulation({
       laws: [push],
-      forceModifiers: [new HorizontalGroundFrictionModifier({ surfaceY: 100, normalAcceleration: 10 })],
+      forceModifiers: [new SurfaceContactFrictionModifier({ floorY: 100, normalAcceleration: 10 })],
     });
     simulation.addBody(body({ staticFriction: 0.5, kineticFriction: 0.3 }));
 

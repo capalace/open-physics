@@ -3,8 +3,8 @@ import { PointGravityField, UniformGravityField } from "../physics/fields";
 import {
   AnchoredSpringLaw,
   BuoyancyRegionLaw,
-  HorizontalGroundFrictionModifier,
   PushFrictionLaw,
+  SurfaceContactFrictionModifier,
 } from "../physics/laws/world-mechanics";
 import { PhysicsSimulation } from "../physics/simulation";
 import type { Body } from "../physics/world";
@@ -301,7 +301,7 @@ export class PhysicsPlayground {
   private readonly trails = new Map<string, Vector2[]>();
   private ropeStartId: string | null = null;
   private ropePointer: Vector2 | null = null;
-  private readonly groundFriction: HorizontalGroundFrictionModifier;
+  private readonly surfaceFriction: SurfaceContactFrictionModifier;
   private springLaw: AnchoredSpringLaw | null = null;
   private frictionLaw: PushFrictionLaw | null = null;
   private buoyancyLaw: BuoyancyRegionLaw | null = null;
@@ -318,13 +318,13 @@ export class PhysicsPlayground {
     this.onUpdate = options.onUpdate;
     this.canvas.width = options.width ?? 960;
     this.canvas.height = options.height ?? 600;
-    this.groundFriction = new HorizontalGroundFrictionModifier({
-      surfaceY: this.floorY,
+    this.surfaceFriction = new SurfaceContactFrictionModifier({
+      floorY: this.floorY,
       normalAcceleration: this.gravity * PIXELS_PER_METER,
     });
     this.simulation = new PhysicsSimulation({
       fields: [new UniformGravityField({ x: 0, y: this.gravity * PIXELS_PER_METER })],
-      forceModifiers: [this.groundFriction],
+      forceModifiers: [this.surfaceFriction],
     });
     this.bindPointerEvents();
     requestAnimationFrame((time) => this.frame(time));
@@ -562,7 +562,7 @@ export class PhysicsPlayground {
         kineticCoefficient: MATERIALS[object.material].friction,
         normalAcceleration: this.gravity * PIXELS_PER_METER,
       });
-      this.groundFriction.excludeBody(object.id);
+      this.surfaceFriction.excludeBody(object.id);
       this.simulation.addLaw(this.frictionLaw);
       this.simulation.refreshAccelerations();
     } else if (preset === "rotation") {
@@ -1069,7 +1069,7 @@ export class PhysicsPlayground {
     this.simulation.addField(new UniformGravityField({ x: 0, y: value * PIXELS_PER_METER }));
     this.frictionLaw?.setNormalAcceleration(value * PIXELS_PER_METER);
     this.buoyancyLaw?.setGravityAcceleration(value * PIXELS_PER_METER);
-    this.groundFriction.setNormalAcceleration(value * PIXELS_PER_METER);
+    this.surfaceFriction.setNormalAcceleration(value * PIXELS_PER_METER);
     if (this.guidedScene?.kind === "lever") this.guidedScene.model.setGravity(Math.max(value, 0.01));
     if (this.guidedScene?.kind === "pulley-advantage") this.guidedScene.model.setGravity(Math.max(value, 0.01));
     this.simulation.refreshAccelerations();
@@ -1081,7 +1081,7 @@ export class PhysicsPlayground {
     if (this.frictionLaw) this.simulation.removeLaw(this.frictionLaw.id);
     if (this.buoyancyLaw) this.simulation.removeLaw(this.buoyancyLaw.id);
     if (this.orbitExperiment) this.simulation.removeField(this.orbitExperiment.field.id);
-    this.groundFriction.clearExcludedBodies();
+    this.surfaceFriction.clearExcludedBodies();
     this.springLaw = null;
     this.frictionLaw = null;
     this.buoyancyLaw = null;
@@ -1239,7 +1239,7 @@ export class PhysicsPlayground {
       this.springLaw.setGeometry(anchor, this.springLaw.restLength * width / previousWidth);
     }
     this.frictionLaw?.setSurfaceY(nextFloorY);
-    this.groundFriction.setSurfaceY(nextFloorY);
+    this.surfaceFriction.setFloorY(nextFloorY);
     this.buoyancyLaw?.setWaterline(this.buoyancyLaw.waterline * scaleY);
     if (this.orbitExperiment) {
       const orbitScale = Math.min(scaleX, scaleY);

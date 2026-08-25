@@ -380,6 +380,31 @@ describe("PhysicsPlayground contacts", () => {
 
     expect(body.state.velocity.x).toBeCloseTo(120);
   });
+
+  it("uses the selected fixed block material as a friction surface", () => {
+    vi.stubGlobal("requestAnimationFrame", () => 0);
+    const finalSpeed = (surfaceMaterial: "clay" | "steel"): number => {
+      const playground = new PhysicsPlayground(createCanvas(), { width: 960, height: 600 });
+      playground.startSandbox();
+      const moving = [...playground.objects.values()][0];
+      const block = playground.addBox(480, 400, 420, 30, {
+        fixed: true,
+        material: "steel",
+      });
+      playground.updateSelected({ material: surfaceMaterial });
+      playground.select(moving.id);
+      playground.updateSelected({ material: "clay" });
+      const body = playground.simulation.getBody(moving.id)!;
+      body.state.position = { x: 300, y: 400 - block.height / 2 - moving.radius };
+      body.state.velocity = { x: 240, y: 0 };
+      const advance = playground as unknown as { advance(dt: number): void };
+
+      for (let frame = 0; frame < 120; frame += 1) advance.advance(1 / 120);
+      return Math.abs(body.state.velocity.x);
+    };
+
+    expect(finalSpeed("clay")).toBeLessThan(finalSpeed("steel"));
+  });
 });
 
 describe("PhysicsPlayground gravity visualization", () => {

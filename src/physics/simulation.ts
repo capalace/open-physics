@@ -9,7 +9,12 @@ export interface SimulatedBody extends Body { readonly charge?: number; }
 
 export interface NetForceModifier {
   readonly id: string;
-  modifyForce(body: SimulatedBody, force: Force, context: PhysicsContext): Force;
+  modifyForce(
+    body: SimulatedBody,
+    bodies: readonly SimulatedBody[],
+    force: Force,
+    context: PhysicsContext,
+  ): Force;
 }
 
 export interface SimulationConfig {
@@ -78,7 +83,9 @@ export class PhysicsSimulation extends MultiBodyWorld {
     for (const law of this.laws) vector = add(vector, law.forceOnBody(body, this.allBodies, context).vector);
     for (const field of this.fields) vector = add(vector, field.forceAt(body.state as BodyState & { charge?: number }, context).vector);
     let force: Force = { vector, source: "simulation-net" };
-    for (const modifier of this.forceModifiers) force = modifier.modifyForce(body, force, context);
+    for (const modifier of this.forceModifiers) {
+      force = modifier.modifyForce(body, this.allBodies as readonly SimulatedBody[], force, context);
+    }
     return force;
   }
 

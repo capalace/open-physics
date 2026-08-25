@@ -32,6 +32,8 @@ const appLayout = required<HTMLElement>(".app-layout");
 const inspectorEmpty = required<HTMLElement>("#inspector-empty");
 const inspectorForm = required<HTMLFormElement>("#inspector-form");
 const blockResizeHelp = required<HTMLElement>("#block-resize-help");
+const materialSettings = required<HTMLElement>("#material-settings");
+const materialTitle = required<HTMLElement>("#material-title");
 const objectLabel = required<HTMLInputElement>("#object-label");
 const objectMass = required<HTMLInputElement>("#object-mass");
 const objectColor = required<HTMLInputElement>("#object-color");
@@ -211,6 +213,10 @@ function renderSnapshot(snapshot: PlaygroundSnapshot): void {
   }
 
   const selected = snapshot.selected;
+  materialSettings.hidden = appMode === "lab"
+    ? !activeLab.controls.includes("material")
+    : Boolean(selected.anchor);
+  materialTitle.textContent = appMode === "sandbox" && selected.fixed ? "표면 재질" : "재질";
   required<HTMLElement>("#selection-name").textContent = selected.label;
   required<HTMLElement>("#selection-type").textContent = selected.guided
     ? "장치에 연결된 짐"
