@@ -269,6 +269,57 @@ describe("PhysicsPlayground gravity visualization", () => {
   });
 });
 
+describe("PhysicsPlayground lab graphs", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("provides a meaningful graph for every mechanics lab", () => {
+    vi.stubGlobal("requestAnimationFrame", () => 0);
+    const playground = new PhysicsPlayground(createCanvas(), { width: 960, height: 600 });
+    const expectedTitles = new Map([
+      ["free-fall", "바닥까지 남은 높이"],
+      ["projectile", "발사체의 높이"],
+      ["collision", "두 물체의 운동량"],
+      ["spring", "에너지가 바뀌는 모습"],
+      ["friction", "미끄러지는 속력"],
+      ["rotation", "막대의 기울기"],
+      ["constraints", "두 진자의 각도"],
+      ["pulley", "두 추의 높이"],
+      ["orbit", "큰 별에서 떨어진 거리"],
+      ["buoyancy", "물에 잠긴 깊이"],
+    ]);
+
+    for (const [preset, title] of expectedTitles) {
+      playground.loadPreset(preset as Parameters<typeof playground.loadPreset>[0]);
+      const graph = playground.snapshot().graph!;
+      expect(graph).toMatchObject({ title, xLabel: "시간", samples: [{ time: 0 }] });
+      expect(graph.samples[0].values).toHaveLength(graph.series.length);
+      expect(graph.samples[0].values.every(Number.isFinite)).toBe(true);
+    }
+  });
+
+  it("collects graph samples while a lab runs and clears them on reset", () => {
+    vi.stubGlobal("requestAnimationFrame", () => 0);
+    const playground = new PhysicsPlayground(createCanvas(), { width: 960, height: 600 });
+    const advance = playground as unknown as { advance(dt: number): void };
+    playground.loadPreset("collision", true);
+
+    for (let frame = 0; frame < 120; frame += 1) advance.advance(1 / 120);
+
+    expect(playground.snapshot().graph?.series.map((series) => series.label)).toEqual(["물체 A", "물체 B"]);
+    expect(playground.snapshot().graph?.samples.length).toBeGreaterThan(5);
+    playground.reset();
+    expect(playground.snapshot().graph?.samples).toHaveLength(1);
+  });
+
+  it("does not show a guided lab graph in the free playground", () => {
+    vi.stubGlobal("requestAnimationFrame", () => 0);
+    const playground = new PhysicsPlayground(createCanvas(), { width: 960, height: 600 });
+    playground.startSandbox();
+
+    expect(playground.snapshot().graph).toBeNull();
+  });
+});
+
 describe("PhysicsPlayground extended mechanics", () => {
   afterEach(() => vi.unstubAllGlobals());
 

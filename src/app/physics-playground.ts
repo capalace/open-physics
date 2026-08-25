@@ -74,6 +74,15 @@ export interface PlaygroundSnapshot {
     material: PlaygroundMaterial;
     fixed: boolean;
   } | null;
+  graph: PlaygroundGraph | null;
+}
+
+export interface PlaygroundGraph {
+  title: string;
+  xLabel: string;
+  yLabel: string;
+  series: Array<{ label: string; color: string }>;
+  samples: Array<{ time: number; values: number[] }>;
 }
 
 export interface PlaygroundOptions {
@@ -111,12 +120,83 @@ const VELOCITY_ANGLE_SNAP_RADIANS = 15 * Math.PI / 180;
 const RESIZE_HANDLE_RADIUS = 13;
 const MIN_BLOCK_WIDTH = 28;
 const MIN_BLOCK_HEIGHT = 24;
+const GRAPH_SAMPLE_INTERVAL = 1 / 12;
+const MAX_GRAPH_SAMPLES = 150;
 const TRAJECTORY_PREVIEW_STEP = 0.08;
 const TRAJECTORY_PREVIEW_STEPS = 45;
 const SPRING_MOUNT_CLEARANCE = 8;
 const COLORS = ["#5b7cfa", "#f27a54", "#25a77a", "#a069dc", "#e2a62b"];
 
 type ResizeHandle = "width" | "height" | "both";
+
+const GRAPH_SPECS: Readonly<Record<PlaygroundPreset, Omit<PlaygroundGraph, "samples" | "xLabel">>> = {
+  "free-fall": {
+    title: "바닥까지 남은 높이",
+    yLabel: "높이 (m)",
+    series: [
+      { label: "가벼운 공", color: "#5b7cfa" },
+      { label: "기준 공", color: "#25a77a" },
+      { label: "무거운 공", color: "#f27a54" },
+    ],
+  },
+  projectile: {
+    title: "발사체의 높이",
+    yLabel: "높이 (m)",
+    series: [{ label: "발사체", color: "#5b7cfa" }],
+  },
+  collision: {
+    title: "두 물체의 운동량",
+    yLabel: "운동량 (kg·m/s)",
+    series: [
+      { label: "물체 A", color: "#5b7cfa" },
+      { label: "물체 B", color: "#f27a54" },
+    ],
+  },
+  spring: {
+    title: "에너지가 바뀌는 모습",
+    yLabel: "에너지 비율 (%)",
+    series: [
+      { label: "움직임", color: "#5b7cfa" },
+      { label: "용수철", color: "#a069dc" },
+    ],
+  },
+  friction: {
+    title: "미끄러지는 속력",
+    yLabel: "속력 (m/s)",
+    series: [{ label: "공", color: "#e2a62b" }],
+  },
+  rotation: {
+    title: "막대의 기울기",
+    yLabel: "각도 (°)",
+    series: [{ label: "막대", color: "#5b7cfa" }],
+  },
+  constraints: {
+    title: "두 진자의 각도",
+    yLabel: "각도 (°)",
+    series: [
+      { label: "줄", color: "#5b7cfa" },
+      { label: "막대", color: "#25a77a" },
+    ],
+  },
+  pulley: {
+    title: "두 추의 높이",
+    yLabel: "높이 (m)",
+    series: [
+      { label: "왼쪽 추", color: "#5b7cfa" },
+      { label: "오른쪽 추", color: "#f27a54" },
+    ],
+  },
+  orbit: {
+    title: "큰 별에서 떨어진 거리",
+    yLabel: "중심 거리 (m)",
+    series: [{ label: "작은 별", color: "#5b7cfa" }],
+  },
+  buoyancy: {
+    title: "물에 잠긴 깊이",
+    yLabel: "잠긴 깊이 (m)",
+    series: [{ label: "공", color: "#f27a54" }],
+  },
+};
 
 type GuidedMechanicsScene =
   | {
@@ -166,6 +246,10 @@ export class PhysicsPlayground {
   private resizeHandle: ResizeHandle | null = null;
   private resizeAnchor: Vector2 | null = null;
   private selectedId: string | null = null;
+  private labMode = true;
+  private graphTime = 0;
+  private lastGraphSampleTime = 0;
+  private graphSamples: PlaygroundGraph["samples"] = [];
   private lastFrame = 0;
   private lastNotification = 0;
   private accumulator = 0;
@@ -235,6 +319,8 @@ export class PhysicsPlayground {
 
   startSandbox(): void {
     this._paused = true;
+    this.labMode = false;
+    this.resetGraph();
     this.currentPreset = "free-fall";
     this.accumulator = 0;
     this.trailTick = 0;
@@ -291,6 +377,8 @@ export class PhysicsPlayground {
 
   loadPreset(preset: PlaygroundPreset, autoPlay = false): void {
     this._paused = true;
+    this.labMode = true;
+    this.resetGraph();
     this.currentPreset = preset;
     this.accumulator = 0;
     this.trailTick = 0;
@@ -493,6 +581,7 @@ export class PhysicsPlayground {
       this.setBodyPose(right.id, poses.right);
     }
     this._paused = !autoPlay;
+    this.recordGraphSample(true);
     this.notify();
   }
 
@@ -591,6 +680,7 @@ export class PhysicsPlayground {
     this.clearTrails();
     this.simulation.refreshAccelerations();
     this.advanceGuidedScene(0);
+    this.recordGraphSample(true);
     this.notify();
   }
 
@@ -616,12 +706,116 @@ export class PhysicsPlayground {
       gravity: this.gravity,
       preset: this.currentPreset,
       selected,
+      graph: this.labMode ? {
+        ...GRAPH_SPECS[this.currentPreset],
+        xLabel: "시간",
+        samples: this.graphSamples.map((sample) => ({ time: sample.time, values: [...sample.values] })),
+      } : null,
     };
   }
 
   clearTrails(): void {
     for (const [id, object] of this.objects) this.trails.set(id, [{ x: object.x, y: object.y }]);
   }
+
+  private resetGraph(): void {
+    this.graphTime = 0;
+    this.lastGraphSampleTime = 0;
+    this.graphSamples = [];
+  }
+
+  private recordGraphProgress(dt: number): void {
+    if (!this.labMode) return;
+    this.graphTime += dt;
+    if (this.graphTime - this.lastGraphSampleTime >= GRAPH_SAMPLE_INTERVAL) {
+      this.recordGraphSample();
+    }
+  }
+
+  private recordGraphSample(replaceAtCurrentTime = false): void {
+    if (!this.labMode) return;
+    const sample = { time: this.graphTime, values: this.currentGraphValues() };
+    const last = this.graphSamples.at(-1);
+    if (replaceAtCurrentTime && last && Math.abs(last.time - this.graphTime) < 0.0001) {
+      this.graphSamples[this.graphSamples.length - 1] = sample;
+    } else {
+      this.graphSamples.push(sample);
+    }
+    if (this.graphSamples.length > MAX_GRAPH_SAMPLES) this.graphSamples.shift();
+    this.lastGraphSampleTime = this.graphTime;
+  }
+
+  private currentGraphValues(): number[] {
+    const objects = [...this.objects.values()];
+    if (this.currentPreset === "free-fall") {
+      return objects.map((object) => this.heightAboveFloor(object));
+    }
+    if (this.currentPreset === "projectile") {
+      return objects[0] ? [this.heightAboveFloor(objects[0])] : [0];
+    }
+    if (this.currentPreset === "collision") {
+      return objects.slice(0, 2).map((object) => {
+        const body = this.simulation.getBody(object.id);
+        return body ? body.state.mass * body.state.velocity.x / PIXELS_PER_METER : 0;
+      });
+    }
+    if (this.currentPreset === "spring") {
+      const law = this.springLaw;
+      const object = objects[0];
+      const body = object ? this.simulation.getBody(object.id) : undefined;
+      if (!law || !body) return [0, 0];
+      const speed = Math.hypot(body.state.velocity.x, body.state.velocity.y) / PIXELS_PER_METER;
+      const extension = (
+        Math.hypot(body.state.position.x - law.anchor.x, body.state.position.y - law.anchor.y)
+        - law.restLength
+      ) / PIXELS_PER_METER;
+      const kinetic = 0.5 * body.state.mass * speed ** 2;
+      const spring = 0.5 * law.stiffness * extension ** 2;
+      const total = kinetic + spring;
+      return total > 0.0001 ? [kinetic / total * 100, spring / total * 100] : [0, 0];
+    }
+    if (this.currentPreset === "friction") {
+      const body = objects[0] ? this.simulation.getBody(objects[0].id) : undefined;
+      return [body ? Math.hypot(body.state.velocity.x, body.state.velocity.y) / PIXELS_PER_METER : 0];
+    }
+    if (this.currentPreset === "rotation") {
+      return [this.guidedScene?.kind === "rotation" ? this.toDegrees(this.guidedScene.model.angle) : 0];
+    }
+    if (this.currentPreset === "constraints") {
+      return this.guidedScene?.kind === "constraints"
+        ? [this.toDegrees(this.guidedScene.rope.angle), this.toDegrees(this.guidedScene.rod.angle)]
+        : [0, 0];
+    }
+    if (this.currentPreset === "pulley") {
+      return objects.slice(0, 2).map((object) => this.heightAboveFloor(object));
+    }
+    if (this.currentPreset === "orbit") {
+      const orbit = this.orbitExperiment;
+      const body = orbit ? this.simulation.getBody(orbit.bodyId) : undefined;
+      return orbit && body ? [Math.hypot(
+        body.state.position.x - orbit.field.sourcePosition.x,
+        body.state.position.y - orbit.field.sourcePosition.y,
+      ) / PIXELS_PER_METER] : [0];
+    }
+    const law = this.buoyancyLaw;
+    const object = objects[0];
+    const body = object ? this.simulation.getBody(object.id) : undefined;
+    if (!law || !object || !body) return [0];
+    const submergedHeight = Math.max(
+      0,
+      Math.min(object.height, body.state.position.y + object.height / 2 - law.waterline),
+    );
+    return [submergedHeight / PIXELS_PER_METER];
+  }
+
+  private heightAboveFloor(object: PlaygroundObject): number {
+    const body = this.simulation.getBody(object.id);
+    if (!body) return 0;
+    const halfHeight = object.shape === "circle" ? object.radius : object.height / 2;
+    return Math.max(0, (this.floorY - body.state.position.y - halfHeight) / PIXELS_PER_METER);
+  }
+
+  private toDegrees(radians: number): number { return radians * 180 / Math.PI; }
 
   private registerObject(object: PlaygroundObject, options: PlaygroundObjectOptions): void {
     this.objects.set(object.id, object);
@@ -867,6 +1061,7 @@ export class PhysicsPlayground {
     }
     this.applyPresetDamping(dt);
     this.resolveWorldBounds();
+    this.recordGraphProgress(dt);
     this.trailTick += 1;
     if (this.trailTick % 4 === 0) this.recordTrails();
   }
@@ -1787,6 +1982,7 @@ export class PhysicsPlayground {
       if (!object || !body) return;
       if (this.dragGuidedBody(this.draggedId, point)) {
         this.syncObjects();
+        this.recordGraphSample(true);
         this.notify();
         return;
       }
@@ -1803,6 +1999,7 @@ export class PhysicsPlayground {
       object.y = body.state.position.y;
       this.trails.set(object.id, [{ ...body.state.position }]);
       this.simulation.refreshAccelerations();
+      this.recordGraphSample(true);
       this.notify();
     });
 
@@ -1945,6 +2142,7 @@ export class PhysicsPlayground {
     }
     this.trails.set(id, [{ ...body.state.position }]);
     this.simulation.refreshAccelerations();
+    this.recordGraphSample(true);
     this.notify();
   }
 

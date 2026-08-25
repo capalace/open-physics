@@ -250,6 +250,17 @@ canvas { display: block; width: 100%; height: auto; aspect-ratio: 8 / 5; touch-a
 .lab-law strong { color: #354259; font-size: 13px; }
 .lab-law p { margin: 0; color: #6f7c90; font-size: 12px; line-height: 1.5; }
 .lab-law code { justify-self: start; border-radius: 6px; padding: 4px 7px; background: #eef2fa; color: #405fc5; font-size: 12px; font-weight: 800; overflow-wrap: anywhere; white-space: normal; }
+.lab-graph { display: grid; gap: 8px; border: 1px solid #dce3ef; border-radius: 12px; padding: 11px; background: #fbfcff; }
+.lab-graph-heading { display: grid; gap: 3px; }
+.lab-graph-heading span { color: #8793a5; font-size: 12px; font-weight: 800; }
+.lab-graph-heading strong { color: #354259; font-size: 14px; }
+.lab-graph canvas { display: block; width: 100%; height: 150px; border-radius: 8px; background: white; cursor: default; }
+.lab-graph-legend { display: flex; flex-wrap: wrap; gap: 6px 10px; }
+.lab-graph-legend > span { display: inline-flex; align-items: center; gap: 5px; color: #536078; font-size: 12px; }
+.lab-graph-legend i { width: 8px; height: 8px; border-radius: 50%; }
+.lab-graph-legend strong { font-size: 12px; }
+.lab-graph-legend output { color: #26334a; font-size: 12px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.lab-graph-axes { display: flex; justify-content: space-between; gap: 8px; margin: 0; color: #8a96a8; font-size: 12px; line-height: 1.4; }
 .object-editor { margin-top: 22px; padding-top: 20px; border-top: 1px solid #e4e9f0; }
 body[data-app-mode="sandbox"] .object-editor { margin-top: 0; padding-top: 0; border-top: 0; }
 .inspector-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 22px; }

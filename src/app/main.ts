@@ -5,6 +5,7 @@ import {
   type PlaygroundSnapshot,
   type SandboxObjectKind,
 } from "./physics-playground";
+import { formatGraphValue, renderLabGraph } from "./lab-graph";
 import { mechanicsLab, type LabControl, type MechanicsLab } from "./mechanics-labs";
 
 type AppMode = "lab" | "sandbox";
@@ -33,6 +34,9 @@ const lawEquation = required<HTMLElement>("#law-equation");
 const labBrowser = required<HTMLElement>("#lab-browser");
 const sandboxBrowser = required<HTMLElement>("#sandbox-browser");
 const labGuide = required<HTMLElement>("#lab-guide");
+const labGraph = required<HTMLElement>("#lab-graph");
+const labGraphCanvas = required<HTMLCanvasElement>("#lab-graph-canvas");
+const labGraphLegend = required<HTMLElement>("#lab-graph-legend");
 const objectEditor = required<HTMLElement>("#object-editor");
 const inspectorHeading = required<HTMLElement>("#object-editor .inspector-header h2");
 const inspectorEyebrow = required<HTMLElement>("#object-editor .eyebrow");
@@ -144,6 +148,14 @@ function renderSnapshot(snapshot: PlaygroundSnapshot): void {
   status.textContent = snapshot.paused ? "대기" : "실행 중";
   status.dataset.running = String(!snapshot.paused);
 
+  labGraph.hidden = appMode !== "lab" || !snapshot.graph;
+  if (snapshot.graph) {
+    required<HTMLElement>("#lab-graph-title").textContent = snapshot.graph.title;
+    required<HTMLElement>("#lab-graph-y-label").textContent = `세로축 · ${snapshot.graph.yLabel}`;
+    renderLabGraph(labGraphCanvas, snapshot.graph);
+    renderGraphLegend(snapshot.graph);
+  }
+
   document.querySelectorAll<HTMLButtonElement>("[data-gravity]").forEach((button) => {
     setActive(button, Math.abs(Number(button.dataset.gravity) - snapshot.gravity) < 0.01);
   });
@@ -181,6 +193,22 @@ function renderSnapshot(snapshot: PlaygroundSnapshot): void {
     setActive(button, Number(button.dataset.mass) === selected.mass);
   });
   if (document.activeElement !== objectColor) objectColor.value = selected.color;
+}
+
+function renderGraphLegend(graph: NonNullable<PlaygroundSnapshot["graph"]>): void {
+  const latest = graph.samples.at(-1)?.values ?? [];
+  const entries = graph.series.map((series, index) => {
+    const entry = document.createElement("span");
+    const key = document.createElement("i");
+    key.style.backgroundColor = series.color;
+    const label = document.createElement("strong");
+    label.textContent = series.label;
+    const value = document.createElement("output");
+    value.textContent = formatGraphValue(latest[index] ?? 0);
+    entry.append(key, label, value);
+    return entry;
+  });
+  labGraphLegend.replaceChildren(...entries);
 }
 
 function activateLab(id: PlaygroundPreset): void {

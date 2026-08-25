@@ -46,3 +46,11 @@ describe("sandbox object palette", () => {
     expect(markup).toContain('id="block-resize-help"');
   });
 });
+
+describe("mechanics lab graph", () => {
+  it("reserves one accessible chart in the lab guide", () => {
+    expect(markup).toContain('id="lab-graph"');
+    expect(markup).toContain('id="lab-graph-canvas"');
+    expect(markup).toContain('aria-label="실험 결과 그래프"');
+  });
+});

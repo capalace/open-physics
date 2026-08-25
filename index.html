@@ -134,6 +134,12 @@
         </div>
         <div class="lab-observation"><strong>눈여겨볼 것</strong><p id="lab-observe">질량보다 중력 환경이 떨어지는 속도 변화에 어떤 영향을 주는지 보세요.</p></div>
         <div class="lab-law"><span>연결되는 법칙</span><strong id="law-title">중력과 가속도</strong><p id="law-description">중력은 물체를 아래로 끌어 속도를 계속 바꿉니다.</p><code id="law-equation">F = mg</code></div>
+        <section id="lab-graph" class="lab-graph" aria-labelledby="lab-graph-title">
+          <div class="lab-graph-heading"><span>실시간 그래프</span><strong id="lab-graph-title">바닥까지 남은 높이</strong></div>
+          <canvas id="lab-graph-canvas" width="270" height="150" aria-label="실험 결과 그래프">실험이 실행되면 시간에 따른 변화가 선 그래프로 나타납니다.</canvas>
+          <div id="lab-graph-legend" class="lab-graph-legend"></div>
+          <p class="lab-graph-axes"><span>가로축 · 시간</span><span id="lab-graph-y-label">세로축 · 높이 (m)</span></p>
+        </section>
       </section>
 
       <section id="object-editor" class="object-editor">
