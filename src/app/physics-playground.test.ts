@@ -581,6 +581,58 @@ describe("PhysicsPlayground extended mechanics", () => {
     expect(controller.guidedScene.pullDistance).toBeCloseTo(800);
   });
 
+  it("makes a high-force pulley feel harder to drag", () => {
+    vi.stubGlobal("requestAnimationFrame", () => 0);
+    const oneStrand = createInteractiveCanvas();
+    const hardPlayground = new PhysicsPlayground(oneStrand.canvas, { width: 960, height: 600 });
+    hardPlayground.loadPreset("pulley");
+    const hardLoad = hardPlayground.simulation.allBodies[0];
+    const hardStartY = hardLoad.state.position.y;
+
+    oneStrand.dispatchPointer("pointerdown", 653, 323);
+    oneStrand.dispatchPointer("pointermove", 653, 523);
+
+    const fourStrands = createInteractiveCanvas();
+    const easyPlayground = new PhysicsPlayground(fourStrands.canvas, { width: 960, height: 600 });
+    easyPlayground.loadPreset("pulley");
+    const easyLoad = easyPlayground.simulation.allBodies[0];
+    const easyStartY = easyLoad.state.position.y;
+
+    fourStrands.dispatchPointer("pointerdown", 584, 86);
+    fourStrands.dispatchPointer("pointerdown", 653, 323);
+    fourStrands.dispatchPointer("pointermove", 653, 523);
+
+    expect(hardStartY - hardLoad.state.position.y).toBeCloseTo(50);
+    expect(easyStartY - easyLoad.state.position.y).toBeCloseTo(200);
+  });
+
+  it("keeps the pulley handle where it was released and continues from there", () => {
+    vi.stubGlobal("requestAnimationFrame", () => 0);
+    const { canvas, dispatchPointer } = createInteractiveCanvas();
+    const playground = new PhysicsPlayground(canvas, { width: 960, height: 800 });
+    playground.loadPreset("pulley");
+    const load = playground.simulation.allBodies[0];
+    const startY = load.state.position.y;
+    const controller = playground as unknown as {
+      guidedScene: object;
+      pulleyHandlePoint(scene: object): { x: number; y: number };
+    };
+
+    dispatchPointer("pointerdown", 584, 86);
+    dispatchPointer("pointerdown", 653, 323);
+    dispatchPointer("pointermove", 653, 523);
+    dispatchPointer("pointerup", 653, 523);
+
+    expect(controller.pulleyHandlePoint(controller.guidedScene).y).toBeCloseTo(523);
+
+    dispatchPointer("pointerdown", 653, 523);
+    dispatchPointer("pointermove", 653, 623);
+    dispatchPointer("pointerup", 653, 623);
+
+    expect(startY - load.state.position.y).toBeCloseTo(300);
+    expect(controller.pulleyHandlePoint(controller.guidedScene).y).toBeCloseTo(623);
+  });
+
   it("stops a full pulley pull at the safe lifting height", () => {
     vi.stubGlobal("requestAnimationFrame", () => 0);
     const { canvas, dispatchPointer } = createInteractiveCanvas();

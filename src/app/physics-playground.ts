@@ -2559,8 +2559,13 @@ export class PhysicsPlayground {
       x: scene.pullX,
       y: this.challengeDrag === "pulley" && this.challengeDragPoint
         ? this.challengeDragPoint.y
-        : scene.pullStartY,
+        : scene.pullStartY + scene.model.liftDistanceForPull(scene.pullDistance),
     };
+  }
+
+  /** Makes the easier four-strand setup follow the learner's hand more readily. */
+  private pulleyDragResponse(scene: Extract<GuidedMechanicsScene, { kind: "pulley-advantage" }>): number {
+    return scene.model.supportStrands / 4;
   }
 
   private beginChallengeInteraction(point: Vector2, pointerId: number): boolean {
@@ -2643,13 +2648,14 @@ export class PhysicsPlayground {
       const scene = this.guidedScene;
       const currentLift = scene.model.liftDistanceForPull(this.challengeDragStartPullDistance);
       const remainingLift = Math.max(0, scene.maxLift - currentLift);
+      const dragResponse = this.pulleyDragResponse(scene);
       const reachableStroke = Math.max(0, Math.min(
-        remainingLift,
-        this.floorY - 28 - scene.pullStartY,
+        remainingLift / dragResponse,
+        this.floorY - 28 - origin.y,
       ));
       const dy = Math.max(0, Math.min(reachableStroke, point.y - origin.y));
       const maximumPullDistance = scene.model.pullDistanceForLift(scene.maxLift);
-      const requestedPullDistance = scene.model.pullDistanceForLift(dy);
+      const requestedPullDistance = scene.model.pullDistanceForLift(dy * dragResponse);
       scene.pullDistance = Math.min(
         maximumPullDistance,
         this.challengeDragStartPullDistance + requestedPullDistance,
