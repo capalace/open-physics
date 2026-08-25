@@ -5,6 +5,9 @@ import {
   waveNumber,
   angularFrequencyFromFrequency,
   travelingWave,
+  superposeWaves,
+  standingWave,
+  resonanceResponse,
   relativeIntensity,
   constructivePathDifference,
   destructivePathDifference,
@@ -25,6 +28,14 @@ describe("waves", () => {
   it("evaluates a traveling wave", () => {
     expect(travelingWave(2, 1, 1, 0, 0)).toBe(0);
     expect(travelingWave(2, 1, 1, Math.PI / 2, 0)).toBeCloseTo(2 * Math.sin(1.57079632679));
+  });
+  it("superposes waves and evaluates a standing wave", () => {
+    expect(superposeWaves(2, -0.5, 1)).toBe(2.5);
+    expect(standingWave(2, 1, 1, Math.PI / 2, 0)).toBeCloseTo(4);
+  });
+  it("peaks near resonance", () => {
+    expect(resonanceResponse(5, 5, 0.1)).toBeGreaterThan(resonanceResponse(2, 5, 0.1));
+    expect(() => resonanceResponse(5, 5, 0)).toThrow(RangeError);
   });
   it("uses amplitude squared for relative intensity", () => expect(relativeIntensity(3)).toBe(9));
   it("calculates interference path conditions", () => {

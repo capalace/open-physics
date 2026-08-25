@@ -1,0 +1,170 @@
+import type { SubjectController, SubjectExperience, SubjectHosts } from "../subject-experience";
+import { WAVES_LAB_IDS, wavesDefinition, type WavesLabId } from "./catalog";
+import { WavesModel, type WaveDeviceKind, type WavesSnapshot } from "./models";
+import { drawGraph, WavesRenderer } from "./renderer";
+import "./style.css";
+
+const palette: readonly { kind: WaveDeviceKind; label: string }[] = [
+  { kind: "source", label: "파원" },
+  { kind: "second-source", label: "두 번째 파원" },
+  { kind: "medium", label: "줄·매질" },
+  { kind: "boundary", label: "경계" },
+  { kind: "observer", label: "관찰자" },
+  { kind: "detector", label: "검출기" },
+];
+
+class WavesController implements SubjectController {
+  private readonly model = new WavesModel("source");
+  private readonly canvas = document.createElement("canvas");
+  private readonly graphCanvas = document.createElement("canvas");
+  private readonly measurement = document.createElement("p");
+  private readonly renderer: WavesRenderer;
+  private active: WavesLabId | "sandbox" = "source";
+  private disposers: Array<() => void> = [];
+
+  constructor(private readonly hosts: SubjectHosts) {
+    hosts.experimentPanel.classList.add("waves-experience__experiments");
+    hosts.workspace.classList.add("waves-experience__workspace");
+    hosts.inspectorPanel.classList.add("waves-experience__inspector");
+    this.renderExperimentList();
+    this.renderWorkspace();
+    this.renderInspector();
+    this.renderer = new WavesRenderer(this.canvas, this.model, () => this.refreshReadout());
+    this.refreshReadout();
+  }
+
+  resize(): void { this.renderer.resize(); this.refreshReadout(); }
+
+  unmount(): void {
+    this.renderer.destroy();
+    this.disposers.forEach((dispose) => dispose());
+    this.disposers = [];
+    this.hosts.experimentPanel.replaceChildren();
+    this.hosts.workspace.replaceChildren();
+    this.hosts.inspectorPanel.replaceChildren();
+    this.hosts.experimentPanel.classList.remove("waves-experience__experiments");
+    this.hosts.workspace.classList.remove("waves-experience__workspace");
+    this.hosts.inspectorPanel.classList.remove("waves-experience__inspector");
+  }
+
+  private listen(element: Element, event: string, listener: EventListener): void {
+    element.addEventListener(event, listener);
+    this.disposers.push(() => element.removeEventListener(event, listener));
+  }
+
+  private renderExperimentList(): void {
+    const fragment = document.createDocumentFragment();
+    const heading = document.createElement("h2"); heading.textContent = "파동 실험 선택"; fragment.append(heading);
+    wavesDefinition.labs.forEach((lab) => {
+      const button = document.createElement("button");
+      button.type = "button"; button.dataset.labId = lab.id; button.className = "waves-experience__lab";
+      button.innerHTML = `<span aria-hidden="true">${lab.icon}</span><strong>${lab.title}</strong><small>${lab.category}</small>`;
+      this.listen(button, "click", () => this.activate(lab.id as WavesLabId));
+      fragment.append(button);
+    });
+    const sandbox = document.createElement("button");
+    sandbox.type = "button"; sandbox.dataset.labId = "sandbox"; sandbox.className = "waves-experience__lab waves-experience__lab--sandbox";
+    sandbox.innerHTML = `<span aria-hidden="true">＋</span><strong>${wavesDefinition.sandboxTitle}</strong><small>자유 구성</small>`;
+    this.listen(sandbox, "click", () => this.activate("sandbox")); fragment.append(sandbox);
+    this.hosts.experimentPanel.replaceChildren(fragment);
+    this.markActive();
+  }
+
+  private renderWorkspace(): void {
+    const shell = document.createElement("section"); shell.className = "waves-experience";
+    const toolbar = document.createElement("div"); toolbar.className = "waves-experience__toolbar";
+    const play = this.actionButton("재생·멈춤", () => { this.model.toggleRunning(); this.refreshReadout(); });
+    const step = this.actionButton("한 단계", () => { const wasRunning = this.model.snapshot().running; this.model.setRunning(true); this.model.step(1 / 30); this.model.setRunning(wasRunning); this.refreshReadout(); });
+    const reset = this.actionButton("처음으로", () => { this.model.reset(); this.renderInspector(); this.refreshReadout(); });
+    toolbar.append(play, step, reset);
+    this.canvas.className = "waves-experience__canvas";
+    this.canvas.setAttribute("aria-label", "직접 조작할 수 있는 파동 실험 Canvas");
+    shell.append(toolbar, this.canvas);
+    this.hosts.workspace.replaceChildren(shell);
+  }
+
+  private actionButton(label: string, action: () => void): HTMLButtonElement {
+    const button = document.createElement("button"); button.type = "button"; button.textContent = label;
+    this.listen(button, "click", action); return button;
+  }
+
+  private activate(mode: WavesLabId | "sandbox"): void {
+    this.active = mode;
+    this.model.activate(mode);
+    this.markActive();
+    this.renderInspector();
+    this.refreshReadout();
+  }
+
+  private markActive(): void {
+    this.hosts.experimentPanel.querySelectorAll<HTMLButtonElement>("[data-lab-id]").forEach((button) => {
+      const selected = button.dataset.labId === this.active;
+      button.classList.toggle("is-active", selected);
+      button.setAttribute("aria-pressed", String(selected));
+    });
+  }
+
+  private renderInspector(): void {
+    const previousDisposers = this.disposers;
+    this.disposers = [];
+    // List/workspace listeners remain attached and are restored to the active disposer set.
+    previousDisposers.forEach((dispose) => this.disposers.push(dispose));
+    const fragment = document.createDocumentFragment();
+    const snapshot = this.model.snapshot();
+    if (this.active === "sandbox") this.renderSandboxInspector(fragment, snapshot);
+    else this.renderGuidedInspector(fragment);
+    this.hosts.inspectorPanel.replaceChildren(fragment);
+  }
+
+  private renderGuidedInspector(fragment: DocumentFragment): void {
+    const lab = wavesDefinition.labs.find((item) => item.id === this.active);
+    if (!lab) return;
+    const article = document.createElement("article");
+    article.innerHTML = `
+      <p class="waves-experience__category">${lab.category}</p>
+      <h2>${lab.title}</h2>
+      <p class="waves-experience__question">${lab.question}</p>
+      <ol>${lab.steps.map((step) => `<li>${step}</li>`).join("")}</ol>
+      <p class="waves-experience__observe"><strong>관찰:</strong> ${lab.observe}</p>
+      <div class="waves-experience__term"><strong>${lab.controls[0]}</strong></div>
+      <section class="waves-experience__law"><h3>${lab.law.title}</h3><p>${lab.law.description}</p><code>${lab.law.equation}</code></section>
+      <section class="waves-experience__graph"><h3>${lab.graph.title}</h3><p>${lab.graph.yLabel} / ${lab.graph.xLabel}</p></section>`;
+    this.measurement.className = "waves-experience__measurement";
+    this.graphCanvas.className = "waves-experience__graph-canvas";
+    article.querySelector(".waves-experience__graph")?.append(this.measurement, this.graphCanvas);
+    fragment.append(article);
+  }
+
+  private renderSandboxInspector(fragment: DocumentFragment, snapshot: WavesSnapshot): void {
+    const article = document.createElement("article");
+    article.innerHTML = `<p class="waves-experience__category">자유 구성</p><h2>${wavesDefinition.sandboxTitle}</h2><p>${wavesDefinition.sandboxDescription}</p><p class="waves-experience__observe">장치를 추가한 뒤 Canvas에서 끌어 원하는 위치에 놓으세요. 배치 중에는 파동이 멈춰 있어요.</p><h3>장치 팔레트</h3>`;
+    const controls = document.createElement("div"); controls.className = "waves-experience__palette";
+    palette.forEach(({ kind, label }) => {
+      const button = document.createElement("button"); button.type = "button"; button.textContent = `＋ ${label}`;
+      this.listen(button, "click", () => { this.model.addDevice(kind); this.renderInspector(); this.refreshReadout(); });
+      controls.append(button);
+    });
+    const list = document.createElement("ul"); list.className = "waves-experience__device-list";
+    snapshot.devices.forEach((item) => {
+      const row = document.createElement("li"); row.textContent = palette.find(({ kind }) => kind === item.kind)?.label ?? item.kind;
+      const remove = document.createElement("button"); remove.type = "button"; remove.textContent = "삭제";
+      this.listen(remove, "click", () => { this.model.removeDevice(item.id); this.renderInspector(); this.refreshReadout(); });
+      row.append(remove); list.append(row);
+    });
+    this.measurement.className = "waves-experience__measurement";
+    article.append(controls, list, this.measurement); fragment.append(article);
+  }
+
+  private refreshReadout(): void {
+    const snapshot = this.model.snapshot();
+    this.measurement.textContent = snapshot.measurement;
+    if (this.active !== "sandbox" && this.graphCanvas.isConnected) drawGraph(this.graphCanvas, snapshot);
+  }
+}
+
+export const wavesExperience: SubjectExperience = {
+  definition: wavesDefinition,
+  mount(hosts: SubjectHosts): SubjectController { return new WavesController(hosts); },
+};
+
+export { WAVES_LAB_IDS };
