@@ -19,6 +19,7 @@ const subjectExperienceSources = [
   "thermal/experience.ts",
   "modern/experience.ts",
 ].map((path) => readFileSync(new URL(`./subjects/${path}`, import.meta.url), "utf8"));
+const thermalExperience = subjectExperienceSources[3];
 
 describe("playground typography", () => {
   it("keeps every interface label at least 12px tall", () => {
@@ -129,5 +130,16 @@ describe("subject visual shell", () => {
   it("gives the light lab the same visible workspace toolbar contract", () => {
     expect(lightExperience).toContain('class="light-experience__toolbar world-toolbar"');
     expect(lightExperience).toContain("data-light-toolbar-reset");
+  });
+
+  it("keeps subject content on the same panel coordinates as mechanics", () => {
+    expect(styles).toMatch(/@media \(min-width: 1021px\)[\s\S]*body\s*\{[^}]*overflow:\s*hidden/);
+    expect(styles).toMatch(/@media \(min-width: 701px\) and \(max-width: 1020px\)[\s\S]*grid-template-rows:\s*max\(520px, calc\(100dvh - 125px\)\)/);
+    expect(subjectShellStyles).toMatch(/\.subject-browser \.quick-start-list\s*\{[^}]*gap:\s*6px/s);
+    expect(subjectShellStyles).toMatch(/\.em-guide\s*\{[^}]*padding:\s*0/s);
+    expect(subjectShellStyles).toMatch(/\.waves-experience__inspector article[^}]*padding:\s*0 0 24px/s);
+    expect(subjectShellStyles).toMatch(/\.light-experience__inspector\s*\{[^}]*padding:\s*24px 20px/s);
+    expect(thermalExperience).toContain("shell.clientWidth");
+    expect(thermalExperience).toContain("shell.clientHeight - toolbar.offsetHeight");
   });
 });

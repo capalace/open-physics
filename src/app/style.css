@@ -369,6 +369,7 @@ body[data-app-mode="sandbox"] .object-editor { margin-top: 0; padding-top: 0; bo
 .vector-icon::after { position: absolute; top: 8px; left: 3px; width: 11px; border-top: 2px solid #8391a6; content: ""; transform: rotate(-28deg); }
 
 @media (min-width: 1021px) and (min-height: 700px) {
+  body { overflow: hidden; }
   .app-layout { height: calc(100vh - 68px); min-height: 0; }
   .app-layout.is-focus-mode { grid-template-columns: minmax(0, 1fr); }
   .app-layout.is-focus-mode > .panel { display: none; }
@@ -393,6 +394,14 @@ body[data-app-mode="sandbox"] .object-editor { margin-top: 0; padding-top: 0; bo
   .visualization-section { grid-column: 3; }
   .visualization-section { margin-top: 0; }
   .focus-button { display: none; }
+}
+@media (min-width: 701px) and (max-width: 1020px) {
+  .topbar { height: 125px; }
+  .app-layout { grid-template-rows: max(520px, calc(100dvh - 125px)) auto; min-height: 0; }
+  .experiment-panel { min-height: 0; overflow-y: auto; }
+  .workspace { display: flex; min-height: 0; flex-direction: column; }
+  .canvas-frame { min-height: 0; flex: 1; }
+  canvas { width: 100%; height: 100%; aspect-ratio: auto; }
 }
 @media (max-width: 700px) {
   .subject-nav button { padding: 8px 10px; }

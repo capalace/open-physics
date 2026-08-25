@@ -30,7 +30,17 @@ body[data-subject]:not([data-subject="mechanics"]) :is(
 }
 
 /* Experiment selector: the mechanics browser markup and exact measurements. */
-body[data-subject]:not([data-subject="mechanics"]) .subject-browser { padding: 0; }
+body[data-subject]:not([data-subject="mechanics"]) .subject-browser {
+  padding: 0;
+  font-size: 16px;
+  line-height: normal;
+}
+
+body[data-subject]:not([data-subject="mechanics"]) .subject-browser .quick-start-list {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 6px;
+}
 
 body[data-subject]:not([data-subject="mechanics"]) .subject-browser .section-heading h2 {
   margin: 0;
@@ -165,6 +175,13 @@ body[data-subject]:not([data-subject="mechanics"]) :is(
 
 body[data-subject="light"] .light-experience__workspace { background: #f4f6fa; }
 
+body[data-subject]:not([data-subject="mechanics"]) #experiment-panel,
+body[data-subject]:not([data-subject="mechanics"]) #inspector-panel {
+  background: #ffffffd9;
+}
+
+body[data-subject]:not([data-subject="mechanics"]) #inspector-panel { padding: 24px 20px; }
+
 body[data-subject]:not([data-subject="mechanics"]) :is(
   .em-toolbar,
   .waves-experience__toolbar,
@@ -268,6 +285,18 @@ body[data-subject]:not([data-subject="mechanics"]) :is(
   .thermal-guide,
   .modern-experience__inspector
 ) { font-family: inherit; }
+
+body[data-subject="electromagnetism"] .em-guide {
+  border-bottom: 0;
+  padding: 0;
+}
+
+body[data-subject="waves"] .waves-experience__inspector article,
+body[data-subject="modern"] .modern-experience__inspector article {
+  padding: 0 0 24px;
+}
+
+body[data-subject="light"] .light-experience__inspector { padding: 24px 20px; }
 
 body[data-subject]:not([data-subject="mechanics"]) .subject-guide.lab-guide {
   display: grid;
