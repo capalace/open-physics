@@ -59,7 +59,7 @@ const createInteractiveCanvas = (): {
     style: {},
     getContext: () => ({}),
     addEventListener: (type: string, listener: (event: PointerEvent) => void) => listeners.set(type, listener),
-    getBoundingClientRect: () => ({ left: 0, top: 0, width: 960, height: 600 }),
+    getBoundingClientRect: () => ({ left: 0, top: 0, width: canvas.width, height: canvas.height }),
     setPointerCapture: () => undefined,
   } as unknown as HTMLCanvasElement;
   return {
@@ -594,6 +594,21 @@ describe("PhysicsPlayground extended mechanics", () => {
     dispatchPointer("pointermove", 653, 573);
 
     expect(startY - load.state.position.y).toBeCloseTo(200);
+  });
+
+  it("uses the full available pulley travel in a tall world", () => {
+    vi.stubGlobal("requestAnimationFrame", () => 0);
+    const { canvas, dispatchPointer } = createInteractiveCanvas();
+    const playground = new PhysicsPlayground(canvas, { width: 960, height: 800 });
+    playground.loadPreset("pulley");
+    const load = playground.simulation.allBodies[0];
+    const startY = load.state.position.y;
+
+    dispatchPointer("pointerdown", 584, 86);
+    dispatchPointer("pointerdown", 653, 323);
+    dispatchPointer("pointermove", 653, 723);
+
+    expect(startY - load.state.position.y).toBeCloseTo(400);
   });
 
   it("draws a four-strand block and tackle with detailed wheels and a pull handle", () => {

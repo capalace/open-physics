@@ -133,7 +133,6 @@ const MAX_GRAPH_SAMPLES = 150;
 const TRAJECTORY_PREVIEW_STEP = 0.08;
 const TRAJECTORY_PREVIEW_STEPS = 45;
 const SPRING_MOUNT_CLEARANCE = 8;
-const PULLEY_PULL_STROKE = 200;
 const COLORS = ["#5b7cfa", "#f27a54", "#25a77a", "#a069dc", "#e2a62b"];
 
 type ResizeHandle = "width" | "height" | "both";
@@ -905,7 +904,7 @@ export class PhysicsPlayground {
   }
 
   private createPulleyChallenge(): PlaygroundObject {
-    const fixedY = Math.min(210, this.floorY * 0.38);
+    const fixedY = Math.min(210, Math.round(this.floorY * 0.38));
     const loadX = this.canvas.width * 0.38;
     const loadStartY = this.floorY - 52;
     const pullX = this.canvas.width * 0.68;
@@ -2642,8 +2641,10 @@ export class PhysicsPlayground {
       this.applyGuidedScenePoses();
     } else if (this.challengeDrag === "pulley" && this.guidedScene?.kind === "pulley-advantage") {
       const scene = this.guidedScene;
+      const currentLift = scene.model.liftDistanceForPull(this.challengeDragStartPullDistance);
+      const remainingLift = Math.max(0, scene.maxLift - currentLift);
       const reachableStroke = Math.max(0, Math.min(
-        PULLEY_PULL_STROKE,
+        remainingLift,
         this.floorY - 28 - scene.pullStartY,
       ));
       const dy = Math.max(0, Math.min(reachableStroke, point.y - origin.y));
