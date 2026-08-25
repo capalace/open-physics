@@ -142,7 +142,7 @@ const PIXELS_PER_METER = 48;
 const PRESET_REFERENCE_WIDTH = 960;
 const FIXED_STEP = 1 / 120;
 const FLOOR_HEIGHT = 48;
-const RESTING_REBOUND_SPEED = 10;
+const RESTING_REBOUND_SPEED = PIXELS_PER_METER;
 const COLLISION_WORLD_DAMPING = 0.15;
 const MOTION_SLEEP_SPEED = 2;
 const VELOCITY_VECTOR_SCALE = 0.22;
@@ -362,6 +362,7 @@ export class PhysicsPlayground {
     this.simulation = new PhysicsSimulation({
       fields: [new UniformGravityField({ x: 0, y: this.gravity * PIXELS_PER_METER })],
       forceModifiers: [this.surfaceFriction],
+      restitutionVelocityThreshold: RESTING_REBOUND_SPEED,
     });
     this.bindPointerEvents();
     requestAnimationFrame((time) => this.frame(time));

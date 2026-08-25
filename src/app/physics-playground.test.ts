@@ -549,6 +549,65 @@ describe("PhysicsPlayground contacts", () => {
     expect(body.state.position.y).toBeCloseTo(playground.floorY - 20);
   });
 
+  it("keeps an object still while it rests on a fixed block", () => {
+    vi.stubGlobal("requestAnimationFrame", () => 0);
+    const playground = new PhysicsPlayground(createCanvas(), { width: 960, height: 600, gravity: 9.81 });
+    playground.startSandbox();
+    const object = [...playground.objects.values()][0];
+    const block = playground.addSandboxObject("block");
+    const body = playground.simulation.getBody(object.id)!;
+    const blockBody = playground.simulation.getBody(block.id)!;
+    const advance = playground as unknown as { advance(dt: number): void };
+    blockBody.state.position = { x: 480, y: 420 };
+    body.state.position = {
+      x: 480,
+      y: blockBody.state.position.y - block.height / 2 - object.radius,
+    };
+    body.state.velocity = { x: 0, y: 0 };
+
+    const verticalSpeeds: number[] = [];
+    let collisionFrames = 0;
+    for (let frame = 0; frame < 120; frame += 1) {
+      advance.advance(1 / 120);
+      verticalSpeeds.push(body.state.velocity.y);
+      if (playground.simulation.collisionEvents.length > 0) collisionFrames += 1;
+    }
+
+    expect(Math.max(...verticalSpeeds.map(Math.abs))).toBeLessThan(0.001);
+    expect(collisionFrames).toBe(0);
+    expect(body.state.position.y).toBeCloseTo(
+      blockBody.state.position.y - block.height / 2 - object.radius,
+    );
+  });
+
+  it("settles after a meaningful bounce on a fixed block", () => {
+    vi.stubGlobal("requestAnimationFrame", () => 0);
+    const playground = new PhysicsPlayground(createCanvas(), { width: 960, height: 600, gravity: 9.81 });
+    playground.startSandbox();
+    const object = [...playground.objects.values()][0];
+    const block = playground.addSandboxObject("block");
+    const body = playground.simulation.getBody(object.id)!;
+    const blockBody = playground.simulation.getBody(block.id)!;
+    const advance = playground as unknown as { advance(dt: number): void };
+    blockBody.state.position = { x: 480, y: 420 };
+    body.state.position = {
+      x: 480,
+      y: blockBody.state.position.y - block.height / 2 - object.radius,
+    };
+    body.state.velocity = { x: 0, y: 100 };
+
+    advance.advance(1 / 120);
+    expect(body.state.velocity.y).toBeLessThan(0);
+
+    const finalVerticalSpeeds: number[] = [];
+    for (let frame = 0; frame < 600; frame += 1) {
+      advance.advance(1 / 120);
+      if (frame >= 480) finalVerticalSpeeds.push(body.state.velocity.y);
+    }
+
+    expect(Math.max(...finalVerticalSpeeds.map(Math.abs))).toBeLessThan(0.001);
+  });
+
   it("still rebounds when it hits the floor with meaningful speed", () => {
     vi.stubGlobal("requestAnimationFrame", () => 0);
     const playground = new PhysicsPlayground(createCanvas(), { width: 960, height: 600, gravity: 9.81 });

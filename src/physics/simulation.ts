@@ -23,6 +23,7 @@ export interface SimulationConfig {
   constraints?: DistanceConstraint[];
   forceModifiers?: NetForceModifier[];
   solver?: Solver;
+  restitutionVelocityThreshold?: number;
 }
 
 /** Explicit simulation pipeline: forces -> integration -> constraints -> collisions -> time. */
@@ -31,7 +32,12 @@ export class PhysicsSimulation extends MultiBodyWorld {
   readonly forceModifiers: NetForceModifier[];
 
   constructor(config: SimulationConfig = {}) {
-    super(config.laws ?? [], config.solver ?? eulerSolver, config.constraints ?? []);
+    super(
+      config.laws ?? [],
+      config.solver ?? eulerSolver,
+      config.constraints ?? [],
+      config.restitutionVelocityThreshold ?? 0,
+    );
     this.fields = config.fields ?? [];
     this.forceModifiers = config.forceModifiers ?? [];
   }

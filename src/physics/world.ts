@@ -79,7 +79,7 @@ const circleBoxManifold = (
   const distance = magnitude(towardBox);
 
   if (distance > 0) {
-    if (distance >= circle.radius + tolerance) return null;
+    if (distance > circle.radius + tolerance) return null;
     return {
       normal: rotate(scale(towardBox, 1 / distance), angle),
       penetration: Math.max(0, circle.radius - distance),
@@ -124,7 +124,7 @@ const boxBoxManifold = (
   for (const axis of [...boxAxes(colliderA), ...boxAxes(colliderB)]) {
     const distance = Math.abs(delta.x * axis.x + delta.y * axis.y);
     const overlap = boxProjectionRadius(colliderA, axis) + boxProjectionRadius(colliderB, axis) - distance;
-    if (tolerance === 0 ? overlap <= 0 : overlap < -tolerance) return null;
+    if (overlap < -tolerance) return null;
     if (overlap < minimumOverlap) {
       minimumOverlap = overlap;
       minimumAxis = delta.x * axis.x + delta.y * axis.y >= 0 ? axis : scale(axis, -1);
@@ -143,7 +143,7 @@ export const collisionContact = (a: Body, b: Body, tolerance = 0): CollisionCont
     const delta = sub(b.state.position, a.state.position);
     const distance = magnitude(delta);
     const radius = colliderA.radius + colliderB.radius;
-    if (distance >= radius + tolerance) return null;
+    if (distance > radius + tolerance) return null;
     return { normal: normalize(delta), penetration: Math.max(0, radius - distance) };
   }
 
@@ -178,7 +178,12 @@ export class MultiBodyWorld {
     public readonly laws: WorldForceLaw[] = [],
     public solver: Solver = eulerSolver,
     public readonly constraints: DistanceConstraint[] = [],
-  ) {}
+    public readonly restitutionVelocityThreshold = 0,
+  ) {
+    if (!Number.isFinite(restitutionVelocityThreshold) || restitutionVelocityThreshold < 0) {
+      throw new RangeError("Restitution velocity threshold must be a non-negative finite number.");
+    }
+  }
 
   addBody(body: Body): void {
     if (body.state.mass <= 0) throw new RangeError("Mass must be greater than zero.");
@@ -318,7 +323,9 @@ export class MultiBodyWorld {
         const { normal, penetration } = manifold;
         const relativeVelocity = sub(b.state.velocity, a.state.velocity);
         const normalVelocity = relativeVelocity.x * normal.x + relativeVelocity.y * normal.y;
-        const restitution = Math.min(a.restitution ?? 1, b.restitution ?? 1);
+        const restitution = -normalVelocity < this.restitutionVelocityThreshold
+          ? 0
+          : Math.min(a.restitution ?? 1, b.restitution ?? 1);
         const inverseMassA = a.fixed ? 0 : 1 / a.state.mass;
         const inverseMassB = b.fixed ? 0 : 1 / b.state.mass;
         const totalInverseMass = inverseMassA + inverseMassB;
@@ -334,7 +341,9 @@ export class MultiBodyWorld {
           const impulse = -(1 + restitution) * normalVelocity / (inverseMassA + inverseMassB);
           if (!a.fixed) a.state.velocity = sub(a.state.velocity, scale(normal, impulse * inverseMassA));
           if (!b.fixed) b.state.velocity = add(b.state.velocity, scale(normal, impulse * inverseMassB));
-          this.collisions.push({ bodyA: a.id, bodyB: b.id, normal, impulse });
+          if (-normalVelocity >= this.restitutionVelocityThreshold) {
+            this.collisions.push({ bodyA: a.id, bodyB: b.id, normal, impulse });
+          }
         }
       }
     }
