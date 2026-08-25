@@ -92,3 +92,39 @@ export const rmsMolecularSpeed = (
   requirePositive(molarMass, "Molar mass");
   return Math.sqrt(3 * gasConstant * temperature / molarMass);
 };
+
+/** Carnot upper-bound efficiency: η = 1 - Tc/Th. */
+export const carnotEfficiency = (hotTemperature: number, coldTemperature: number): number => {
+  requirePositive(hotTemperature, "Hot temperature");
+  requirePositive(coldTemperature, "Cold temperature");
+  if (coldTemperature > hotTemperature) {
+    throw new RangeError("Cold temperature must not exceed hot temperature.");
+  }
+  return 1 - coldTemperature / hotTemperature;
+};
+
+/** Entropy change for reversible heating at constant heat capacity: ΔS = C ln(T₂/T₁). */
+export const entropyChangeForHeating = (
+  heatCapacity: number,
+  initialTemperature: number,
+  finalTemperature: number,
+): number => {
+  requirePositive(heatCapacity, "Heat capacity");
+  requirePositive(initialTemperature, "Initial temperature");
+  requirePositive(finalTemperature, "Final temperature");
+  return heatCapacity * Math.log(finalTemperature / initialTemperature);
+};
+
+/** Entropy created while two equal heat capacities reach their mean temperature. */
+export const entropyCreatedByMixing = (
+  heatCapacityEach: number,
+  firstTemperature: number,
+  secondTemperature: number,
+): number => {
+  requirePositive(heatCapacityEach, "Heat capacity");
+  requirePositive(firstTemperature, "First temperature");
+  requirePositive(secondTemperature, "Second temperature");
+  const equilibrium = (firstTemperature + secondTemperature) / 2;
+  return entropyChangeForHeating(heatCapacityEach, firstTemperature, equilibrium)
+    + entropyChangeForHeating(heatCapacityEach, secondTemperature, equilibrium);
+};
