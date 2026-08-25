@@ -481,6 +481,21 @@ describe("PhysicsPlayground extended mechanics", () => {
     expect(leftStart - left.state.position.y).toBeCloseTo(right.state.position.y - rightStart, 4);
   });
 
+  it("uses long pulley ropes for a wider travel range without touching the floor", () => {
+    vi.stubGlobal("requestAnimationFrame", () => 0);
+    const playground = new PhysicsPlayground(createCanvas(), { width: 960, height: 600 });
+    const advance = playground as unknown as { advance(dt: number): void };
+    playground.loadPreset("pulley");
+    const [left, right] = playground.simulation.allBodies;
+    const rightObject = [...playground.objects.values()][1];
+    const rightStart = right.state.position.y;
+
+    expect(left.state.position.y - 125).toBeGreaterThan(220);
+    for (let frame = 0; frame < 240; frame += 1) advance.advance(1 / 120);
+    expect(right.state.position.y - rightStart).toBeGreaterThan(110);
+    expect(right.state.position.y + rightObject.radius).toBeLessThan(playground.floorY);
+  });
+
   it("places the pulley name above the wheel instead of across its spokes", () => {
     vi.stubGlobal("requestAnimationFrame", () => 0);
     const { canvas, fillText } = createRenderingCanvas();
