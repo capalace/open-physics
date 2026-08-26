@@ -1,4 +1,5 @@
 import {
+  SUBJECT_SANDBOX_TITLE,
   validateSubjectDefinition,
   type SubjectDefinition,
   type SubjectGraphKind,
@@ -91,7 +92,7 @@ export const wavesDefinition: SubjectDefinition = {
   id: "waves",
   label: "파동",
   eyebrow: "WAVES LAB",
-  sandboxTitle: "빈 파동 실험실 만들기",
+  sandboxTitle: SUBJECT_SANDBOX_TITLE,
   sandboxDescription: "파원, 줄과 매질, 경계, 관찰자를 직접 놓아 파동 실험을 만들어요.",
   labs,
 };

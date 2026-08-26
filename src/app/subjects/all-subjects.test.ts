@@ -17,7 +17,7 @@ describe("remaining physics subject coverage", () => {
   it("provides all 38 guided labs and one sandbox entry per subject", () => {
     expect(remainingSubjects.map((subject) => subject.labs.length)).toEqual([8, 7, 8, 7, 8]);
     expect(remainingSubjects.flatMap((subject) => subject.labs)).toHaveLength(38);
-    expect(remainingSubjects.every((subject) => subject.sandboxTitle.includes("빈"))).toBe(true);
+    expect(remainingSubjects.every((subject) => subject.sandboxTitle === "빈 실험실 만들기")).toBe(true);
   });
 
   it("keeps each subject's inquiry questions and graphs distinct", () => {

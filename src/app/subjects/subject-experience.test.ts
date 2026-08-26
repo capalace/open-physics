@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  SUBJECT_SANDBOX_TITLE,
   validateSubjectDefinition,
   type SubjectDefinition,
   type SubjectLabDefinition,
@@ -28,7 +29,7 @@ const subject = (labs: readonly SubjectLabDefinition[]): SubjectDefinition => ({
   id: "waves",
   label: "파동",
   eyebrow: "WAVES LAB",
-  sandboxTitle: "빈 파동 실험실 만들기",
+  sandboxTitle: SUBJECT_SANDBOX_TITLE,
   sandboxDescription: "파원과 매질을 자유롭게 조합해요.",
   labs,
 });

@@ -1,4 +1,5 @@
 import {
+  SUBJECT_SANDBOX_TITLE,
   validateSubjectDefinition,
   type SubjectDefinition,
   type SubjectLabDefinition,
@@ -98,7 +99,7 @@ export const ELECTROMAGNETISM_SUBJECT: SubjectDefinition = {
   id: "electromagnetism",
   label: "전자기학",
   eyebrow: "ELECTROMAGNETISM LAB",
-  sandboxTitle: "빈 전자기 실험실 만들기",
+  sandboxTitle: SUBJECT_SANDBOX_TITLE,
   sandboxDescription: "전하·회로·자석·코일과 탐침을 자유롭게 조합해요.",
   labs: ELECTROMAGNETISM_LABS,
 };

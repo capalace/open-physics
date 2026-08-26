@@ -19,7 +19,7 @@ describe("waves catalog", () => {
   });
 
   it("offers an empty waves laboratory at the same catalog level", () => {
-    expect(wavesDefinition.sandboxTitle).toBe("빈 파동 실험실 만들기");
+    expect(wavesDefinition.sandboxTitle).toBe("빈 실험실 만들기");
     expect(wavesDefinition.sandboxDescription).toContain("파원");
   });
 });

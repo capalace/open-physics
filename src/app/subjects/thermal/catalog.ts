@@ -1,4 +1,4 @@
-import { validateSubjectDefinition, type SubjectDefinition, type SubjectLabDefinition } from "../subject-experience";
+import { SUBJECT_SANDBOX_TITLE, validateSubjectDefinition, type SubjectDefinition, type SubjectLabDefinition } from "../subject-experience";
 
 export const THERMAL_LAB_IDS = [
   "particles", "heat-transfer", "phase-change", "gas", "heat-energy", "heat-engine", "entropy",
@@ -12,7 +12,7 @@ export const thermalDefinition: SubjectDefinition = {
   id: "thermal",
   label: "열",
   eyebrow: "THERMAL LAB",
-  sandboxTitle: "빈 열 실험실 만들기",
+  sandboxTitle: SUBJECT_SANDBOX_TITLE,
   sandboxDescription: "입자 용기와 열원, 재료, 피스톤, 온도계를 조합해 열의 이동을 만들어요.",
   labs: [
     lab({ id: "particles", title: "온도와 입자", category: "입자", icon: "●", question: "온도를 높이면 용기 속 입자들의 속력 분포는 어떻게 달라질까요?", steps: ["불꽃 손잡이를 잡아 움직여요.", "차갑게와 뜨겁게를 번갈아 만들어요.", "입자 속력 분포를 서로 비교해요."], observe: "온도계뿐 아니라 입자 사이 간격과 움직이는 속도를 함께 보세요.", controls: ["heat-handle"], law: { title: "입자의 열운동", description: "절대온도가 높을수록 입자의 평균 운동에너지와 제곱평균제곱근 속력이 커져요.", equation: "Ē = 3kT/2, vᵣₘₛ ∝ √T" }, graph: { kind: "distribution", title: "입자 속력 분포", xLabel: "속력 (상대값)", yLabel: "입자 수 (개)", series: [{ label: "현재 입자", color: "#ef7a45" }] } }),

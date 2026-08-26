@@ -1,4 +1,4 @@
-import { validateSubjectDefinition, type SubjectDefinition, type SubjectLabDefinition } from "../subject-experience";
+import { SUBJECT_SANDBOX_TITLE, validateSubjectDefinition, type SubjectDefinition, type SubjectLabDefinition } from "../subject-experience";
 
 export const MODERN_LAB_IDS = ["relativity", "atoms", "photoelectric", "matter-waves", "quantum", "tunneling", "nuclei", "semiconductors"] as const;
 export type ModernLabId = (typeof MODERN_LAB_IDS)[number];
@@ -80,7 +80,7 @@ const labs: readonly SubjectLabDefinition[] = [
 
 export const modernDefinition: SubjectDefinition = {
   id: "modern", label: "현대물리", eyebrow: "MODERN PHYSICS LAB",
-  sandboxTitle: "빈 현대물리 실험실 만들기",
+  sandboxTitle: SUBJECT_SANDBOX_TITLE,
   sandboxDescription: "광자원, 금속, 원자, 장벽, 검출기와 핵 표본을 직접 놓아 실험을 구성해요.",
   labs,
 };

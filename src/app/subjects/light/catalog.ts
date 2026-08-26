@@ -1,4 +1,4 @@
-import { validateSubjectDefinition, type SubjectDefinition, type SubjectLabDefinition } from "../subject-experience";
+import { SUBJECT_SANDBOX_TITLE, validateSubjectDefinition, type SubjectDefinition, type SubjectLabDefinition } from "../subject-experience";
 
 export const LIGHT_LAB_IDS = [
   "propagation", "reflection", "refraction", "lenses", "prism", "diffraction", "polarization", "instruments",
@@ -11,7 +11,7 @@ export const lightDefinition: SubjectDefinition = {
   id: "light",
   label: "빛",
   eyebrow: "LIGHT LAB",
-  sandboxTitle: "빈 빛 실험실 만들기",
+  sandboxTitle: SUBJECT_SANDBOX_TITLE,
   sandboxDescription: "광원과 광학 장치를 직접 놓고 광선이 어디로 가는지 확인해요.",
   labs: [
     lab({

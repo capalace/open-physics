@@ -1,5 +1,7 @@
 export type SubjectId = "mechanics" | "electromagnetism" | "waves" | "light" | "thermal" | "modern";
 
+export const SUBJECT_SANDBOX_TITLE = "빈 실험실 만들기";
+
 export type SubjectGraphKind = "line" | "waveform" | "spectrum" | "distribution" | "pattern" | "pv";
 
 export interface SubjectGraphSeries {
@@ -63,6 +65,9 @@ export function validateSubjectDefinition(
   definition: SubjectDefinition,
   expectedLabIds: readonly string[],
 ): void {
+  if (definition.sandboxTitle !== SUBJECT_SANDBOX_TITLE) {
+    throw new RangeError(`${definition.id} must use the shared empty-lab title.`);
+  }
   if (definition.labs.length !== expectedLabIds.length) {
     throw new RangeError(`${definition.id} must define ${expectedLabIds.length} guided labs.`);
   }

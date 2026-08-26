@@ -21,7 +21,7 @@ describe("light lab catalog", () => {
   });
 
   it("advertises the empty light laboratory at the same catalog level", () => {
-    expect(lightDefinition.sandboxTitle).toBe("빈 빛 실험실 만들기");
+    expect(lightDefinition.sandboxTitle).toBe("빈 실험실 만들기");
     expect(lightDefinition.sandboxDescription).toContain("광원");
   });
 });
