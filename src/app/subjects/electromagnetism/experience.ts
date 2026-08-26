@@ -14,8 +14,9 @@ import {
 import { ElectromagnetismRenderer } from "./renderer";
 import "./style.css";
 
-const sandboxKinds: readonly [ElectromagnetismSandboxKind, string, string][] = [
-  ["charge", "⊕", "전하"],
+const sandboxKinds: readonly [ElectromagnetismSandboxKind, string, string, number?][] = [
+  ["charge", "+", "양전하", 2e-6],
+  ["charge", "−", "음전하", -2e-6],
   ["battery", "▯", "전지"],
   ["resistor", "▰", "저항"],
   ["magnet", "N", "자석"],
@@ -23,27 +24,32 @@ const sandboxKinds: readonly [ElectromagnetismSandboxKind, string, string][] = [
   ["probe", "✦", "탐침"],
 ];
 
-type ElectromagnetismLegendKind = "field" | "force" | "velocity" | "voltage" | "potential" | "current" | "connection" | "flux";
+type ElectromagnetismLegendKind = "field" | "electric-line" | "magnetic-line" | "force" | "velocity" | "voltage" | "potential" | "current" | "connection";
 export interface ElectromagnetismLegendItem { readonly kind: ElectromagnetismLegendKind; readonly label: string }
 
 export function electromagnetismLegend(mode: ElectromagnetismLabId | "sandbox"): readonly ElectromagnetismLegendItem[] {
   switch (mode) {
     case "sandbox": return [
       { kind: "field", label: "작은 화살표 = 전기장" },
+      { kind: "electric-line", label: "초록 선 = 전기력선 (+에서 −로)" },
+      { kind: "magnetic-line", label: "청록 선 = 자기력선 (N에서 S로)" },
       { kind: "connection", label: "점선 = 자동 연결" },
     ];
     case "charge": return [{ kind: "force", label: "화살표 = 전기력" }];
-    case "electric-field": return [{ kind: "field", label: "작은 화살표 = 전기장" }];
+    case "electric-field": return [
+      { kind: "field", label: "작은 화살표 = 전기장" },
+      { kind: "electric-line", label: "초록 선 = 전기력선 (+에서 −로)" },
+    ];
     case "potential": return [{ kind: "potential", label: "보라색 선 = 전위가 같은 곳" }];
     case "circuits": return [{ kind: "current", label: "움직이는 점 = 전류" }];
     case "capacitors": return [{ kind: "field", label: "판 사이 화살표 = 전기장" }];
-    case "magnetic-field": return [{ kind: "field", label: "원형 화살표 = 자기장" }];
+    case "magnetic-field": return [{ kind: "magnetic-line", label: "원형 선과 화살표 = 자기력선" }];
     case "electromagnetic-force": return [
       { kind: "velocity", label: "보라 화살표 = 속도" },
       { kind: "force", label: "주황 화살표 = 자기력" },
     ];
     case "induction": return [
-      { kind: "flux", label: "파란 점선 = 자석의 자기장" },
+      { kind: "magnetic-line", label: "청록 선 = 자기력선 (N에서 S로)" },
       { kind: "voltage", label: "화살표 = 유도 전압" },
     ];
   }
@@ -110,7 +116,7 @@ class ElectromagnetismController implements SubjectController {
           <button class="icon-button text-button" type="button" data-em-action="reset">↻ 처음으로</button>
         </div>
         <div class="em-palette creation-controls" data-em-sandbox-tools hidden>
-          ${sandboxKinds.map(([kind, icon, label]) => `<button type="button" data-em-add="${kind}"><b>${icon}</b>${label}</button>`).join("")}
+          ${sandboxKinds.map(([kind, icon, label, value]) => `<button type="button" data-em-add="${kind}"${value === undefined ? "" : ` data-em-value="${value}"`}><b>${icon}</b>${label}</button>`).join("")}
           <button type="button" data-em-action="delete">삭제</button>
         </div>
         <span class="em-run-state" data-em-run-state>멈춤</span>
@@ -140,7 +146,8 @@ class ElectromagnetismController implements SubjectController {
     this.hosts.workspace.addEventListener("click", (event) => {
       const addButton = (event.target as Element).closest<HTMLButtonElement>("[data-em-add]");
       if (addButton && this.activeMode === "sandbox") {
-        const object = this.model.addSandboxObject(addButton.dataset.emAdd as ElectromagnetismSandboxKind);
+        const requestedValue = addButton.dataset.emValue === undefined ? undefined : Number(addButton.dataset.emValue);
+        const object = this.model.addSandboxObject(addButton.dataset.emAdd as ElectromagnetismSandboxKind, requestedValue);
         this.selectedSandboxId = object.id;
         this.render();
         return;

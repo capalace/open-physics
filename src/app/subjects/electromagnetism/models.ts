@@ -30,6 +30,7 @@ export interface ElectromagnetismSandboxObject {
 }
 export interface GraphPoint { readonly x: number; readonly y: number }
 export interface FieldSample { readonly point: Vector2; readonly vector: Vector2 }
+export interface FieldLine { readonly points: readonly Vector2[] }
 export interface SandboxConnection { readonly from: string; readonly to: string; readonly kind: "circuit" | "induction" }
 export interface SandboxMetrics {
   readonly electricField: Vector2;
@@ -55,6 +56,7 @@ export interface ElectromagnetismSnapshot {
   readonly graph: readonly GraphPoint[];
   readonly graphMarker: GraphPoint | null;
   readonly fieldSamples: readonly FieldSample[];
+  readonly fieldLines: readonly FieldLine[];
   readonly probeField: Vector2;
   readonly capacitorField: number;
   readonly lorentzForce: Vector2;
@@ -171,10 +173,10 @@ export class ElectromagnetismModel {
     }
   }
 
-  addSandboxObject(kind: ElectromagnetismSandboxKind): ElectromagnetismSandboxObject {
+  addSandboxObject(kind: ElectromagnetismSandboxKind, requestedValue?: number): ElectromagnetismSandboxObject {
     if (this.mode !== "sandbox") throw new Error("Sandbox objects require sandbox mode.");
     const column = this.sandboxObjects.length % 4; const row = Math.floor(this.sandboxObjects.length / 4) % 3;
-    const object = this.makeSandboxObject(kind, { x: 0.28 + column * 0.15, y: 0.34 + row * 0.18 });
+    const object = this.makeSandboxObject(kind, { x: 0.28 + column * 0.15, y: 0.34 + row * 0.18 }, requestedValue);
     this.sandboxObjects.push(object); return object;
   }
 
@@ -202,7 +204,7 @@ export class ElectromagnetismModel {
       sign: this.sign, direction: this.direction, coilTurns: this.coilTurns, magnetSpeed: this.magnetSpeed,
       particle: { ...this.particle }, particleVelocity: { ...this.particleVelocity }, trail: this.trail.map((point) => ({ ...point })),
       measurement: result.primary, secondaryMeasurement: result.secondary, graph: this.graph(), graphMarker: this.graphMarker(result.primary.value),
-      fieldSamples: this.fieldSamples(), probeField: this.guidedProbeField(), capacitorField: this.capacitorField(), lorentzForce: this.lorentzForceVector(),
+      fieldSamples: this.fieldSamples(), fieldLines: this.fieldLines(), probeField: this.guidedProbeField(), capacitorField: this.capacitorField(), lorentzForce: this.lorentzForceVector(),
       sandboxObjects: this.sandboxObjects.map((object) => ({ ...object, position: { ...object.position } })),
       sandboxConnections: sandbox.connections, sandboxMetrics: sandbox.metrics, sandboxGraph: sandbox.graph,
     };
@@ -273,7 +275,10 @@ export class ElectromagnetismModel {
     return [{ position: { x: 0.35, y: 0.42 }, charge: this.sign * this.level * 2e-6 }, { position: { x: 0.35, y: 0.66 }, charge: -this.sign * this.level * 2e-6 }];
   }
   private electricFieldAt(point: Vector2, charges: readonly { position: Vector2; charge: number }[]): Vector2 {
-    const target = normalizedToWorld(point); let x = 0; let y = 0;
+    return this.electricFieldAtWorld(normalizedToWorld(point), charges);
+  }
+  private electricFieldAtWorld(target: Vector2, charges: readonly { position: Vector2; charge: number }[]): Vector2 {
+    let x = 0; let y = 0;
     for (const source of charges) {
       const sourceWorld = normalizedToWorld(source.position);
       if (Math.hypot(target.x - sourceWorld.x, target.y - sourceWorld.y) < 0.03) continue;
@@ -285,12 +290,49 @@ export class ElectromagnetismModel {
   private fieldSamples(): FieldSample[] {
     if (this.mode !== "electric-field" && this.mode !== "sandbox") return [];
     const charges = this.mode === "electric-field" ? this.guidedCharges() : this.sandboxChargeSources();
-    const columns = 12; const rows = 8;
+    const columns = 18; const rows = 12;
     return Array.from({ length: columns * rows }, (_, index) => {
       const column = index % columns; const row = Math.floor(index / columns);
       const point = { x: 0.1 + column * 0.8 / (columns - 1), y: 0.12 + row * 0.76 / (rows - 1) };
       return { point, vector: this.electricFieldAt(point, charges) };
     });
+  }
+  private fieldLines(): FieldLine[] {
+    if (this.mode !== "electric-field" && this.mode !== "sandbox") return [];
+    const charges = this.mode === "electric-field" ? this.guidedCharges() : this.sandboxChargeSources();
+    if (charges.length === 0) return [];
+    const positiveSources = charges.filter((source) => source.charge > 0);
+    const seedSources = positiveSources.length > 0 ? positiveSources : charges.filter((source) => source.charge < 0);
+    const seedsPerSource = charges.length > 4 ? 8 : 14;
+    const stepLength = 0.018;
+    const boundary = { left: 0.035, right: ELECTROMAGNETISM_WORLD.width - 0.035, top: 0.035, bottom: ELECTROMAGNETISM_WORLD.height - 0.035 };
+    const lines: FieldLine[] = [];
+
+    for (const source of seedSources) {
+      const sourceWorld = normalizedToWorld(source.position);
+      const integrationDirection = source.charge > 0 ? 1 : -1;
+      for (let seed = 0; seed < seedsPerSource; seed += 1) {
+        const angle = seed * Math.PI * 2 / seedsPerSource;
+        let point = { x: sourceWorld.x + Math.cos(angle) * 0.055, y: sourceWorld.y + Math.sin(angle) * 0.055 };
+        const worldPoints: Vector2[] = [{ ...point }];
+        for (let iteration = 0; iteration < 180; iteration += 1) {
+          const field = this.electricFieldAtWorld(point, charges);
+          const magnitude = Math.hypot(field.x, field.y);
+          if (!Number.isFinite(magnitude) || magnitude < 1e-12) break;
+          point = {
+            x: point.x + field.x / magnitude * stepLength * integrationDirection,
+            y: point.y + field.y / magnitude * stepLength * integrationDirection,
+          };
+          worldPoints.push({ ...point });
+          const reachedOppositePole = charges.some((target) => target.charge * source.charge < 0
+            && Math.hypot(point.x - normalizedToWorld(target.position).x, point.y - normalizedToWorld(target.position).y) < 0.065);
+          if (reachedOppositePole || point.x < boundary.left || point.x > boundary.right || point.y < boundary.top || point.y > boundary.bottom) break;
+        }
+        if (source.charge < 0) worldPoints.reverse();
+        if (worldPoints.length > 6) lines.push({ points: worldPoints.map(worldToNormalized) });
+      }
+    }
+    return lines;
   }
   private capacitorField(): number {
     if (this.mode !== "capacitors") return 0;
@@ -370,9 +412,10 @@ export class ElectromagnetismModel {
     const probe = this.sandboxObjects.find((object) => object.kind === "probe");
     return probe ? { x: normalizedToWorld(probe.position).x, y: Math.hypot(state.metrics.electricField.x, state.metrics.electricField.y) } : null;
   }
-  private makeSandboxObject(kind: ElectromagnetismSandboxKind, position: Vector2): ElectromagnetismSandboxObject {
+  private makeSandboxObject(kind: ElectromagnetismSandboxKind, position: Vector2, requestedValue?: number): ElectromagnetismSandboxObject {
     this.sandboxSequence += 1; const sameKind = this.sandboxObjects.filter((object) => object.kind === kind).length;
-    const value = kind === "charge" ? (sameKind % 2 === 0 ? 2e-6 : -2e-6) : kind === "battery" ? 9 : kind === "resistor" ? 10 : kind === "coil" ? 80 : 1;
+    const defaultValue = kind === "charge" ? (sameKind % 2 === 0 ? 2e-6 : -2e-6) : kind === "battery" ? 9 : kind === "resistor" ? 10 : kind === "coil" ? 80 : 1;
+    const value = requestedValue === undefined || !Number.isFinite(requestedValue) ? defaultValue : requestedValue;
     return { id: `${kind}-${this.sandboxSequence}`, kind, position, value };
   }
 }

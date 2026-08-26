@@ -6,6 +6,7 @@ import {
   INDUCTION_COIL,
   type ElectromagnetismSandboxObject,
   type ElectromagnetismSnapshot,
+  type FieldLine,
 } from "./models";
 
 const palette = {
@@ -15,6 +16,7 @@ const palette = {
   positive: "#e05c3f",
   negative: "#5b7cfa",
   field: "#25a77a",
+  magnetic: "#2b9bb5",
   purple: "#a069dc",
   gold: "#f2b84b",
 };
@@ -130,6 +132,7 @@ export class ElectromagnetismRenderer {
   private fieldLab(ctx: CanvasRenderingContext2D, s: ElectromagnetismSnapshot, w: number, h: number, time: number): void {
     const positive = this.pixel({ x: 0.35, y: 0.42 }, w, h);
     const negative = this.pixel({ x: 0.35, y: 0.66 }, w, h);
+    this.electricFieldLines(ctx, s.fieldLines, w, h, time);
     const maxField = Math.max(...s.fieldSamples.map((sample) => Math.hypot(sample.vector.x, sample.vector.y)), 1);
     for (const sample of s.fieldSamples) {
       const magnitude = Math.hypot(sample.vector.x, sample.vector.y);
@@ -233,7 +236,7 @@ export class ElectromagnetismRenderer {
   private magneticLab(ctx: CanvasRenderingContext2D, s: ElectromagnetismSnapshot, w: number, h: number, time: number): void {
     const wire = this.pixel({ x: 0.44, y: 0.5 }, w, h);
     const scale = electromagnetismViewport(w, h).scale;
-    for (const radiusMeters of [0.14, 0.27, 0.4, 0.55]) {
+    for (const radiusMeters of [0.11, 0.2, 0.3, 0.41, 0.53, 0.66]) {
       const radius = radiusMeters * scale;
       this.magneticRing(ctx, wire, radius, s.direction, time, 1 - radiusMeters * 0.65);
     }
@@ -263,6 +266,7 @@ export class ElectromagnetismRenderer {
     const coil = this.pixel(INDUCTION_COIL, w, h); const coilX = coil.x;
     const voltage = s.measurement.value;
     const inductionStrength = Math.min(1, Math.abs(voltage) / 12);
+    this.barMagnetFieldLines(ctx, this.pixel(s.probe, w, h), time, 70, 0.4 + inductionStrength * 0.6);
     this.fluxLines(ctx, this.pixel(s.probe, w, h), coil, time, voltage, 0.25 + inductionStrength * 0.75);
     ctx.shadowColor = voltage >= 0 ? palette.positive : palette.negative;
     ctx.shadowBlur = inductionStrength * 32;
@@ -272,9 +276,7 @@ export class ElectromagnetismRenderer {
     }
     ctx.shadowBlur = 0;
     const magnet = this.pixel(s.probe, w, h);
-    ctx.fillStyle = palette.positive; ctx.fillRect(magnet.x - 70, magnet.y - 28, 70, 56);
-    ctx.fillStyle = palette.negative; ctx.fillRect(magnet.x, magnet.y - 28, 70, 56);
-    ctx.fillStyle = "#fff"; ctx.font = "700 20px system-ui"; ctx.textAlign = "center"; ctx.fillText("N", magnet.x - 35, magnet.y + 7); ctx.fillText("S", magnet.x + 35, magnet.y + 7);
+    this.barMagnet(ctx, magnet, 70, 28);
     this.probe(ctx, { x: magnet.x, y: magnet.y + 44 }, palette.purple, "자석을 빠르게 끌기");
     this.arrow(ctx, { x: coilX + 120, y: coil.y }, { x: voltage, y: 0 }, voltage >= 0 ? palette.positive : palette.negative, `${voltage.toFixed(2)} V`, Math.min(100, Math.abs(voltage) * 5));
     this.inductionMeter(ctx, coilX + 190, coil.y, voltage);
@@ -288,10 +290,14 @@ export class ElectromagnetismRenderer {
       ctx.fillText("위 팔레트에서 전하·회로·자석·코일을 추가해 보세요.", w / 2, h / 2);
     }
     const byId = new Map(s.sandboxObjects.map((object) => [object.id, object]));
+    for (const magnet of s.sandboxObjects.filter((object) => object.kind === "magnet")) {
+      this.barMagnetFieldLines(ctx, this.pixel(magnet.position, w, h), time, 48, 0.72);
+    }
     for (const connection of s.sandboxConnections) {
       const from = byId.get(connection.from); const to = byId.get(connection.to);
       if (from && to) this.animatedConnection(ctx, this.pixel(from.position, w, h), this.pixel(to.position, w, h), connection.kind, time, connection.kind === "circuit" ? s.sandboxMetrics.current : s.sandboxMetrics.inducedVoltage);
     }
+    this.electricFieldLines(ctx, s.fieldLines, w, h, time);
     const maxField = Math.max(...s.fieldSamples.map((sample) => Math.hypot(sample.vector.x, sample.vector.y)), 1);
     for (const sample of s.fieldSamples) {
       const magnitude = Math.hypot(sample.vector.x, sample.vector.y);
@@ -306,10 +312,13 @@ export class ElectromagnetismRenderer {
 
   private sandboxObject(ctx: CanvasRenderingContext2D, object: ElectromagnetismSandboxObject, w: number, h: number): void {
     const point = this.pixel(object.position, w, h);
-    if (object.kind === "charge") this.charge(ctx, point, object.value >= 0 ? 1 : -1, "전하");
+    if (object.kind === "charge") {
+      const positive = object.value >= 0;
+      this.charge(ctx, point, positive ? 1 : -1, positive ? "양전하 (+)" : "음전하 (−)");
+    }
     else if (object.kind === "battery") this.block(ctx, point, "전지", palette.positive);
     else if (object.kind === "resistor") this.block(ctx, point, "저항", palette.purple);
-    else if (object.kind === "magnet") this.block(ctx, point, "N  S", palette.negative);
+    else if (object.kind === "magnet") { this.barMagnet(ctx, point, 48, 27); this.label(ctx, point.x, point.y + 48, "자석"); }
     else if (object.kind === "coil") { ctx.strokeStyle = palette.gold; ctx.lineWidth = 5; ctx.beginPath(); ctx.arc(point.x, point.y, 34, 0, Math.PI * 2); ctx.stroke(); this.label(ctx, point.x, point.y + 58, "코일"); }
     else this.probe(ctx, point, palette.field, "탐침");
   }
@@ -422,12 +431,66 @@ export class ElectromagnetismRenderer {
     ctx.lineDashOffset = direction * time * -24;
     ctx.beginPath(); ctx.arc(center.x, center.y, radius, 0, TAU); ctx.stroke();
     ctx.setLineDash([]);
-    for (let marker = 0; marker < 3; marker += 1) {
-      const angle = direction * time * 0.8 + marker * TAU / 3 + radius * 0.013;
+    for (let marker = 0; marker < 6; marker += 1) {
+      const angle = direction * time * 0.8 + marker * TAU / 6 + radius * 0.013;
       const point = { x: center.x + Math.cos(angle) * radius, y: center.y + Math.sin(angle) * radius };
-      this.arrow(ctx, point, { x: -Math.sin(angle) * direction, y: Math.cos(angle) * direction }, palette.field, "", 16 + strength * 8);
+      this.arrow(ctx, point, { x: -Math.sin(angle) * direction, y: Math.cos(angle) * direction }, palette.magnetic, "", 14 + strength * 6);
     }
     ctx.restore();
+  }
+
+  private electricFieldLines(ctx: CanvasRenderingContext2D, lines: readonly FieldLine[], w: number, h: number, time: number): void {
+    ctx.save();
+    ctx.strokeStyle = "rgba(37,167,122,.42)";
+    ctx.lineWidth = 1.7;
+    for (const [lineIndex, line] of lines.entries()) {
+      if (line.points.length < 2) continue;
+      const pixels = line.points.map((point) => this.pixel(point, w, h));
+      ctx.beginPath();
+      pixels.forEach((point, index) => { if (index === 0) ctx.moveTo(point.x, point.y); else ctx.lineTo(point.x, point.y); });
+      ctx.stroke();
+      for (const ratio of [0.34, 0.68]) {
+        const index = Math.min(pixels.length - 2, Math.max(0, Math.floor((pixels.length - 1) * ratio)));
+        const point = pixels[index]; const next = pixels[index + 1];
+        this.arrow(ctx, point, { x: next.x - point.x, y: next.y - point.y }, palette.field, "", 11);
+      }
+      const pulseIndex = Math.min(pixels.length - 1, Math.floor(wrappedPhase(time * 0.24 + lineIndex / Math.max(1, lines.length)) * pixels.length));
+      const pulse = pixels[pulseIndex];
+      ctx.fillStyle = palette.field; ctx.beginPath(); ctx.arc(pulse.x, pulse.y, 2.7, 0, TAU); ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  private barMagnetFieldLines(ctx: CanvasRenderingContext2D, center: Vector2, time: number, halfWidth: number, strength: number): void {
+    ctx.save();
+    ctx.strokeStyle = this.withAlpha(palette.magnetic, 0.28 + strength * 0.38);
+    ctx.lineWidth = 1.5 + strength;
+    ctx.setLineDash([9, 7]);
+    ctx.lineDashOffset = -time * 20;
+    for (const offset of [30, 48, 70, 94]) {
+      const spread = offset * (halfWidth / 48);
+      for (const direction of [-1, 1]) {
+        ctx.beginPath();
+        ctx.moveTo(center.x - halfWidth, center.y);
+        ctx.bezierCurveTo(center.x - halfWidth - spread * 0.5, center.y + direction * spread, center.x + halfWidth + spread * 0.5, center.y + direction * spread, center.x + halfWidth, center.y);
+        ctx.stroke();
+        this.arrow(ctx, { x: center.x - 5, y: center.y + direction * spread * 0.75 }, { x: 1, y: 0 }, palette.magnetic, "", 14);
+      }
+    }
+    ctx.restore();
+  }
+
+  private barMagnet(ctx: CanvasRenderingContext2D, center: Vector2, halfWidth: number, halfHeight: number): void {
+    ctx.save();
+    ctx.beginPath(); ctx.roundRect(center.x - halfWidth, center.y - halfHeight, halfWidth * 2, halfHeight * 2, 9); ctx.clip();
+    ctx.fillStyle = palette.positive; ctx.fillRect(center.x - halfWidth, center.y - halfHeight, halfWidth, halfHeight * 2);
+    ctx.fillStyle = palette.negative; ctx.fillRect(center.x, center.y - halfHeight, halfWidth, halfHeight * 2);
+    ctx.restore();
+    ctx.strokeStyle = "rgba(34,50,74,.48)"; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.roundRect(center.x - halfWidth, center.y - halfHeight, halfWidth * 2, halfHeight * 2, 9); ctx.stroke();
+    ctx.fillStyle = "#fff"; ctx.font = "800 20px system-ui"; ctx.textAlign = "center";
+    ctx.fillText("N", center.x - halfWidth / 2, center.y + 7);
+    ctx.fillText("S", center.x + halfWidth / 2, center.y + 7);
   }
 
   private fluxLines(ctx: CanvasRenderingContext2D, magnet: Vector2, coil: Vector2, time: number, voltage: number, strength: number): void {

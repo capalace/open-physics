@@ -161,7 +161,7 @@ describe("ElectromagnetismModel", () => {
   it("connects sandbox charges and probes to field and potential calculations", () => {
     const model = new ElectromagnetismModel("sandbox");
     const initial = model.snapshot();
-    expect(initial.fieldSamples).toHaveLength(96);
+    expect(initial.fieldSamples).toHaveLength(216);
     expect(initial.measurement.label).toBe("탐침 전기장");
     expect(initial.measurement.value).toBeGreaterThan(0);
     expect(initial.secondaryMeasurement?.label).toBe("탐침 전위");
@@ -169,6 +169,23 @@ describe("ElectromagnetismModel", () => {
     model.moveSandboxObject(probe.id, { x: 0.9, y: 0.85 });
     expect(model.snapshot().measurement.value).toBeLessThan(initial.measurement.value);
     expect(model.snapshot().graphMarker?.y).toBeCloseTo(model.snapshot().measurement.value);
+  });
+
+  it("builds dense electric-field arrows and finite field lines from positive to negative charge", () => {
+    const model = new ElectromagnetismModel("electric-field");
+    const snapshot = model.snapshot();
+
+    expect(snapshot.fieldSamples).toHaveLength(216);
+    expect(snapshot.fieldLines.length).toBeGreaterThanOrEqual(12);
+    expect(snapshot.fieldLines.every((line) => line.points.length > 6)).toBe(true);
+    expect(snapshot.fieldLines.flatMap((line) => line.points).every((point) => Number.isFinite(point.x) && Number.isFinite(point.y))).toBe(true);
+    const positive = snapshot.sign === 1 ? { x: 0.35, y: 0.42 } : { x: 0.35, y: 0.66 };
+    const negative = snapshot.sign === 1 ? { x: 0.35, y: 0.66 } : { x: 0.35, y: 0.42 };
+    expect(snapshot.fieldLines.some((line) => {
+      const start = line.points[0]; const end = line.points[line.points.length - 1];
+      return Math.hypot(start.x - positive.x, start.y - positive.y) < 0.05
+        && Math.hypot(end.x - negative.x, end.y - negative.y) < 0.08;
+    })).toBe(true);
   });
 
   it("connects nearby sandbox batteries and resistors into an Ohm-law circuit", () => {
@@ -182,6 +199,12 @@ describe("ElectromagnetismModel", () => {
     expect(model.snapshot().graphMarker).toEqual({ x: 10, y: 0.9 });
     model.moveSandboxObject(resistor.id, { x: 0.95, y: 0.9 });
     expect(model.snapshot().sandboxMetrics.current).toBe(0);
+  });
+
+  it("creates the charge sign selected by the separate sandbox tools", () => {
+    const model = new ElectromagnetismModel("sandbox");
+    expect(model.addSandboxObject("charge", 2e-6).value).toBeGreaterThan(0);
+    expect(model.addSandboxObject("charge", -2e-6).value).toBeLessThan(0);
   });
 
   it("uses sandbox magnet and coil distance changes for induction", () => {
