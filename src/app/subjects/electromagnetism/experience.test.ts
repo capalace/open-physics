@@ -27,4 +27,12 @@ describe("electromagnetism canvas legend", () => {
     expect(experienceSource).not.toContain("전자기학 · 직접 조작");
     expect(styles).not.toContain(".em-canvas-frame > span");
   });
+
+  it("keeps inspector typography on the mechanics 12–14px scale", () => {
+    expect(styles).toMatch(/\.em-readout h3[^}]*font-size:\s*13px/s);
+    expect(styles).toMatch(/\.em-controls h3[^}]*font-size:\s*13px/s);
+    expect(styles).toMatch(/\.em-readout output[^}]*font-size:\s*13px/s);
+    expect(styles).toMatch(/\.em-controls button[^}]*font-size:\s*13px/s);
+    expect(styles).toMatch(/\.em-graph > div > strong[^}]*font-size:\s*14px/s);
+  });
 });
