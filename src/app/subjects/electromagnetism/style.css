@@ -44,8 +44,9 @@
 .subject-electromagnetism .em-legend-mark--voltage { color: #e05c3f; }
 .subject-electromagnetism .em-legend-mark--velocity { color: var(--em-purple); }
 .subject-electromagnetism .em-legend-mark--connection::before { top: 3px; border-top-style: dashed; border-top-color: #718096; }
+.subject-electromagnetism .em-legend-mark--flux::before { top: 3px; border-top-style: dashed; border-top-color: var(--em-blue); }
 .subject-electromagnetism .em-legend-mark--current::before { top: 1px; left: 5px; width: 7px; height: 7px; border: 0; border-radius: 50%; background: #e05c3f; }
-.subject-electromagnetism .em-legend-mark--value::before { top: -5px; left: 4px; width: auto; border: 0; color: #5b7cfa; font-size: 13px; font-weight: 900; content: "V"; }
+.subject-electromagnetism .em-legend-mark--potential::before { border-top-color: var(--em-purple); }
 .subject-electromagnetism .em-eyebrow { color: var(--em-purple); font-size: 12px; font-weight: 900; letter-spacing: .08em; }
 .subject-electromagnetism .em-question { color: #4d5c72; font-size: 16px; line-height: 1.55; }
 .subject-electromagnetism .em-steps,

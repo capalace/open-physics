@@ -23,7 +23,7 @@ const sandboxKinds: readonly [ElectromagnetismSandboxKind, string, string][] = [
   ["probe", "✦", "탐침"],
 ];
 
-type ElectromagnetismLegendKind = "field" | "force" | "velocity" | "voltage" | "value" | "current" | "connection";
+type ElectromagnetismLegendKind = "field" | "force" | "velocity" | "voltage" | "potential" | "current" | "connection" | "flux";
 export interface ElectromagnetismLegendItem { readonly kind: ElectromagnetismLegendKind; readonly label: string }
 
 export function electromagnetismLegend(mode: ElectromagnetismLabId | "sandbox"): readonly ElectromagnetismLegendItem[] {
@@ -34,7 +34,7 @@ export function electromagnetismLegend(mode: ElectromagnetismLabId | "sandbox"):
     ];
     case "charge": return [{ kind: "force", label: "화살표 = 전기력" }];
     case "electric-field": return [{ kind: "field", label: "작은 화살표 = 전기장" }];
-    case "potential": return [{ kind: "value", label: "전위는 숫자로 표시" }];
+    case "potential": return [{ kind: "potential", label: "보라색 선 = 전위가 같은 곳" }];
     case "circuits": return [{ kind: "current", label: "움직이는 점 = 전류" }];
     case "capacitors": return [{ kind: "field", label: "판 사이 화살표 = 전기장" }];
     case "magnetic-field": return [{ kind: "field", label: "원형 화살표 = 자기장" }];
@@ -42,7 +42,10 @@ export function electromagnetismLegend(mode: ElectromagnetismLabId | "sandbox"):
       { kind: "velocity", label: "보라 화살표 = 속도" },
       { kind: "force", label: "주황 화살표 = 자기력" },
     ];
-    case "induction": return [{ kind: "voltage", label: "화살표 = 유도 전압" }];
+    case "induction": return [
+      { kind: "flux", label: "파란 점선 = 자석의 자기장" },
+      { kind: "voltage", label: "화살표 = 유도 전압" },
+    ];
   }
 }
 
@@ -53,6 +56,7 @@ class ElectromagnetismController implements SubjectController {
   private readonly renderer: ElectromagnetismRenderer;
   private frame = 0;
   private previousFrameTime = 0;
+  private visualTime = 0;
   private dragging = false;
   private draggedSandboxId: string | null = null;
   private selectedSandboxId: string | null = null;
@@ -256,7 +260,7 @@ class ElectromagnetismController implements SubjectController {
 
   private render(): void {
     const snapshot = this.model.snapshot();
-    this.renderer.render(snapshot);
+    this.renderer.render(snapshot, this.visualTime);
     const play = this.require<HTMLButtonElement>(this.hosts.workspace, '[data-em-action="play"]');
     play.textContent = snapshot.running ? "Ⅱ 일시정지" : "▶ 실행";
     this.require<HTMLElement>(this.hosts.workspace, "[data-em-run-state]").textContent = snapshot.running ? "실행 중" : "멈춤";
@@ -312,11 +316,13 @@ class ElectromagnetismController implements SubjectController {
   }
 
   private animate = (time: number): void => {
+    this.visualTime = time / 1000;
     const dt = this.previousFrameTime === 0 ? 1 / 60 : Math.min(1 / 30, (time - this.previousFrameTime) / 1000);
     this.previousFrameTime = time;
     const wasRunning = this.model.snapshot().running;
     this.model.step(dt);
     if (wasRunning) this.render();
+    else this.renderer.render(this.model.snapshot(), this.visualTime);
     this.frame = requestAnimationFrame(this.animate);
   };
 

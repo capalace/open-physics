@@ -14,7 +14,8 @@ describe("electromagnetism canvas legend", () => {
 
     expect(legends.every((items) => items.length > 0)).toBe(true);
     expect(electromagnetismLegend("sandbox").map((item) => item.label)).toContain("작은 화살표 = 전기장");
-    expect(electromagnetismLegend("potential").map((item) => item.label)).toEqual(["전위는 숫자로 표시"]);
+    expect(electromagnetismLegend("potential").map((item) => item.label)).toEqual(["보라색 선 = 전위가 같은 곳"]);
+    expect(electromagnetismLegend("induction").map((item) => item.label)).toContain("파란 점선 = 자석의 자기장");
     expect(electromagnetismLegend("electromagnetic-force").map((item) => item.label)).toEqual([
       "보라 화살표 = 속도",
       "주황 화살표 = 자기력",
