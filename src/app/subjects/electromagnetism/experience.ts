@@ -111,7 +111,7 @@ class ElectromagnetismController implements SubjectController {
         </div>
         <span class="em-run-state" data-em-run-state>멈춤</span>
       </div>
-      <div class="em-canvas-frame"><canvas data-em-canvas width="960" height="600" aria-label="전자기학 2D 실험 공간"></canvas><div class="em-canvas-legend" data-em-canvas-legend></div><span>전자기학 · 직접 조작</span></div>`;
+      <div class="em-canvas-frame"><canvas data-em-canvas width="960" height="600" aria-label="전자기학 2D 실험 공간"></canvas><div class="canvas-legend em-canvas-legend" data-em-canvas-legend></div></div>`;
     this.hosts.inspectorPanel.innerHTML = `
       <section class="em-guide" data-em-guide></section>
       <section class="em-readout">
