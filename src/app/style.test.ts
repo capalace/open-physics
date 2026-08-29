@@ -5,10 +5,28 @@ import { readFileSync } from "node:fs";
 
 const styles = readFileSync(new URL("./style.css", import.meta.url), "utf8");
 const markup = readFileSync(new URL("../../index.html", import.meta.url), "utf8");
+const subjectStyles = ["electromagnetism", "waves", "light", "thermal", "modern"]
+  .map((subject) => readFileSync(new URL(`./subjects/${subject}/style.css`, import.meta.url), "utf8"))
+  .join("\n");
+const subjectShellStyles = readFileSync(new URL("./subjects/style.css", import.meta.url), "utf8");
+const lightStyles = readFileSync(new URL("./subjects/light/style.css", import.meta.url), "utf8");
+const thermalStyles = readFileSync(new URL("./subjects/thermal/style.css", import.meta.url), "utf8");
+const bootstrap = readFileSync(new URL("./main.ts", import.meta.url), "utf8");
+const mechanicsBootstrap = readFileSync(new URL("./mechanics-main.ts", import.meta.url), "utf8");
+const lightExperience = readFileSync(new URL("./subjects/light/experience.ts", import.meta.url), "utf8");
+const subjectUi = readFileSync(new URL("./subjects/subject-ui.ts", import.meta.url), "utf8");
+const subjectExperienceSources = [
+  "electromagnetism/experience.ts",
+  "waves/experience.ts",
+  "light/experience.ts",
+  "thermal/experience.ts",
+  "modern/experience.ts",
+].map((path) => readFileSync(new URL(`./subjects/${path}`, import.meta.url), "utf8"));
+const thermalExperience = subjectExperienceSources[3];
 
 describe("playground typography", () => {
   it("keeps every interface label at least 12px tall", () => {
-    const fontSizes = [...styles.matchAll(/font-size:\s*([0-9.]+)px/g)]
+    const fontSizes = [...`${styles}\n${subjectStyles}`.matchAll(/font-size:\s*([0-9.]+)px/g)]
       .map((match) => Number(match[1]));
 
     expect(fontSizes.length).toBeGreaterThan(0);
@@ -41,6 +59,8 @@ describe("sandbox object palette", () => {
       .map((match) => match[1]);
 
     expect(objectKinds).toEqual(["ball", "box", "block", "anchor"]);
+    expect(markup).toContain('<span class="palette-label">물체</span>');
+    expect(markup).not.toContain('<span class="palette-label">추가</span>');
   });
 
   it("offers reusable mechanics apparatus in the sandbox", () => {
@@ -70,5 +90,104 @@ describe("mechanics lab graph", () => {
     expect(markup).toContain('id="lab-graph"');
     expect(markup).toContain('id="lab-graph-canvas"');
     expect(markup).toContain('aria-label="실험 결과 그래프"');
+  });
+});
+
+describe("subject visual shell", () => {
+  it("keeps the initial lab blank until the selected subject is mounted", () => {
+    expect(markup).toContain('data-app-ready="false"');
+    expect(markup).not.toMatch(/class="is-active"[^>]+data-subject/);
+    expect(markup).toContain('<link rel="stylesheet" href="/src/app/subjects/style.css" />');
+    expect(styles).toMatch(/body\[data-app-ready="false"\]\s+\.app-layout\s*\{[^}]*visibility:\s*hidden/s);
+    expect(bootstrap).toContain('document.body.dataset.appReady = "true"');
+  });
+
+  it("uses the mechanics surface contract for every subject selector and toolbar", () => {
+    expect(subjectShellStyles).toContain("--subject-card-background: #fafbfd;");
+    expect(subjectShellStyles).toContain("--subject-toolbar-background: #ffffff;");
+    expect(subjectShellStyles.match(/--subject-accent:/g)).toHaveLength(1);
+    expect(subjectUi).toContain('class="subject-browser ${options.rootClass}"');
+    expect(subjectUi).toContain("quick-start-list");
+    expect(subjectUi).toContain("preset-icon");
+
+    for (const source of subjectExperienceSources) {
+      expect(source).toContain("subjectBrowserMarkup");
+      expect(source).toContain("world-toolbar");
+      expect(source).toContain("transport-controls");
+      expect(source).toContain("toolbar-divider");
+      expect(source).toContain("run-indicator");
+    }
+
+    for (const selector of [
+      ".em-lab-button",
+      ".waves-experience__lab",
+      ".light-experience__list button",
+      ".thermal-lab-list button",
+      ".modern-experience__lab",
+    ]) expect(subjectShellStyles).toContain(selector);
+
+    for (const toolbar of [
+      ".em-toolbar",
+      ".waves-experience__toolbar",
+      ".light-experience__toolbar",
+      ".thermal-toolbar",
+      ".modern-experience__toolbar",
+    ]) expect(subjectShellStyles).toContain(toolbar);
+  });
+
+  it("uses one vocabulary for the toolbar run state", () => {
+    expect(markup).toContain('data-running="false">멈춤</div>');
+    expect(mechanicsBootstrap).toContain('snapshot.paused ? "멈춤" : "실행 중"');
+    expect(mechanicsBootstrap).not.toContain('snapshot.paused ? "대기"');
+
+    for (const source of subjectExperienceSources) {
+      expect(source).toContain("멈춤");
+      expect(source).not.toContain("빛 경로 표시");
+    }
+  });
+
+  it("gives the light lab the same visible workspace toolbar contract", () => {
+    expect(lightExperience).toContain('class="light-experience__toolbar world-toolbar"');
+    expect(lightExperience).toContain("data-light-toolbar-reset");
+  });
+
+  it("keeps subject content on the same panel coordinates as mechanics", () => {
+    expect(styles).toMatch(/@media \(min-width: 1021px\)[\s\S]*body\s*\{[^}]*overflow:\s*hidden/);
+    expect(styles).toMatch(/@media \(min-width: 701px\) and \(max-width: 1020px\)[\s\S]*grid-template-rows:\s*max\(520px, calc\(100dvh - 125px\)\)/);
+    expect(subjectShellStyles).toMatch(/\.subject-browser \.quick-start-list\s*\{[^}]*gap:\s*6px/s);
+    expect(subjectShellStyles).toMatch(/\.em-guide\s*\{[^}]*padding:\s*0/s);
+    expect(subjectShellStyles).toMatch(/\.waves-experience__inspector article[^}]*padding:\s*0 0 24px/s);
+    expect(subjectShellStyles).toMatch(/\.light-experience__inspector\s*\{[^}]*padding:\s*24px 20px/s);
+    expect(thermalExperience).toContain("shell.clientWidth");
+    expect(thermalExperience).toContain("shell.clientHeight - toolbar.offsetHeight");
+  });
+
+  it("keeps experiment card copy left-aligned in every subject", () => {
+    expect(styles).toMatch(/\.quick-start > span:last-child\s*\{[^}]*text-align:\s*left/s);
+    expect(subjectShellStyles).toMatch(/\.subject-browser \.quick-start > span:last-child\s*\{[^}]*text-align:\s*left/s);
+    expect(lightStyles).not.toContain(".light-experience__list button > span");
+    expect(lightStyles).toContain(".light-experience__list .preset-icon");
+    expect(thermalStyles).not.toContain(".thermal-lab-list button span");
+    expect(thermalStyles).toContain(".thermal-lab-list .preset-icon");
+  });
+
+  it("keeps every routed lab palette in the left settings panel", () => {
+    expect(subjectExperienceSources[0]).toContain('class="em-settings-shell"');
+    expect(subjectExperienceSources[0]).toContain('class="em-palette" data-em-sandbox-tools');
+    expect(subjectExperienceSources[0]).toContain('data-em-controls');
+
+    subjectExperienceSources.slice(1).forEach((source) => {
+      expect(source).toContain("subjectSettingsHeaderMarkup");
+      expect(source).toContain("data-subject-settings-tools");
+      expect(source).toContain("SubjectRouteSession");
+    });
+    expect(subjectShellStyles).toContain('.subject-settings-tools');
+    expect(subjectShellStyles).toContain('body[data-subject-screen="selection"] .app-layout');
+  });
+
+  it("installs the same focus-mode control for non-mechanics subjects", () => {
+    expect(bootstrap).toContain("installSubjectFocusMode");
+    expect(bootstrap).toContain("⛶ 크게 보기");
+    expect(bootstrap).toContain("is-focus-mode");
   });
 });

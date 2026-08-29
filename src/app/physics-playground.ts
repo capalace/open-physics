@@ -107,7 +107,38 @@ export interface PlaygroundSnapshot {
     springEnergy: number;
     appliedForce: number;
   } | null;
+  forceDiagram: PlaygroundForceDiagram | null;
   graph: PlaygroundGraph | null;
+  comparison: PlaygroundTrialComparison | null;
+  collision: {
+    readonly occurred: boolean;
+    readonly velocityA: number;
+    readonly velocityB: number;
+  } | null;
+}
+
+export interface PlaygroundTrialComparison {
+  readonly condition: string;
+  readonly values: readonly {
+    readonly label: string;
+    readonly value: number;
+    readonly unit: string;
+  }[];
+}
+
+export interface PlaygroundForceVector {
+  readonly label: string;
+  readonly vector: Vector2;
+  readonly magnitude: number;
+  readonly direction: string;
+  readonly color: string;
+}
+
+export interface PlaygroundForceDiagram {
+  readonly objectLabel: string;
+  readonly forces: readonly PlaygroundForceVector[];
+  readonly net: PlaygroundForceVector;
+  readonly balanced: boolean;
 }
 
 export interface PlaygroundGraph {
@@ -141,7 +172,7 @@ export interface SelectedObjectUpdate {
 const PIXELS_PER_METER = 48;
 const PRESET_REFERENCE_WIDTH = 960;
 const FIXED_STEP = 1 / 120;
-const FLOOR_HEIGHT = 48;
+const FLOOR_HEIGHT = 76;
 const RESTING_REBOUND_SPEED = PIXELS_PER_METER;
 const COLLISION_WORLD_DAMPING = 0.15;
 const MOTION_SLEEP_SPEED = 2;
@@ -169,6 +200,22 @@ const TRAJECTORY_PREVIEW_STEP = 0.08;
 const TRAJECTORY_PREVIEW_STEPS = 45;
 const SPRING_MOUNT_CLEARANCE = 8;
 const COLORS = ["#5b7cfa", "#f27a54", "#25a77a", "#a069dc", "#e2a62b"];
+const MATERIAL_LABELS: Readonly<Record<PlaygroundMaterial, string>> = {
+  rubber: "고무",
+  wood: "나무",
+  steel: "금속",
+  clay: "점토",
+};
+
+export function mechanicsForceDirection(vector: Vector2): string {
+  const magnitude = Math.hypot(vector.x, vector.y);
+  if (magnitude < 0.05) return "힘이 균형을 이뤄요";
+  const horizontal = Math.abs(vector.x) / magnitude;
+  const vertical = Math.abs(vector.y) / magnitude;
+  if (horizontal < 0.35) return vector.y < 0 ? "위쪽" : "아래쪽";
+  if (vertical < 0.35) return vector.x < 0 ? "왼쪽" : "오른쪽";
+  return `${vector.y < 0 ? "위" : "아래"}${vector.x < 0 ? "왼쪽" : "오른쪽"}`;
+}
 
 type ResizeHandle = "width" | "height" | "both";
 
@@ -345,6 +392,8 @@ export class PhysicsPlayground {
   private challengeScene: GuidedMechanicsScene | null = null;
   private orbitExperiment: OrbitExperiment | null = null;
   private impulseFlash = 0;
+  private directManipulationAutoPlay = true;
+  private collisionResult: { velocityA: number; velocityB: number } | null = null;
 
   constructor(canvas: HTMLCanvasElement, options: PlaygroundOptions = {}) {
     this.canvas = canvas;
@@ -377,6 +426,10 @@ export class PhysicsPlayground {
   get floorY(): number { return this.canvas.height - FLOOR_HEIGHT; }
 
   toggle(): void { this.paused = !this.paused; }
+
+  setDirectManipulationAutoPlay(enabled: boolean): void {
+    this.directManipulationAutoPlay = enabled;
+  }
 
   addObject(): PlaygroundObject {
     return this.addSandboxObject("ball");
@@ -619,6 +672,7 @@ export class PhysicsPlayground {
     this.labMode = true;
     this.resetGraph();
     this.currentPreset = preset;
+    this.collisionResult = null;
     this.accumulator = 0;
     this.trailTick = 0;
     this.selectedId = null;
@@ -933,6 +987,9 @@ export class PhysicsPlayground {
     }
     const ropeStart = this.ropeStartId ? this.objects.get(this.ropeStartId) : undefined;
     const observation = selected ? this.selectedObservation(selected.id) : null;
+    const forceDiagram = selected ? this.forceDiagramFor(selected.id) : null;
+    const collisionObjects = this.labMode && this.currentPreset === "collision" ? [...this.objects.values()].slice(0, 2) : [];
+    const collisionBodies = collisionObjects.map((object) => this.simulation.getBody(object.id));
     const graph = this.labMode
       ? {
         ...GRAPH_SPECS[this.currentPreset],
@@ -957,8 +1014,45 @@ export class PhysicsPlayground {
       appliedForceIds: [...this.forceLaws.keys()],
       environment: { water: Boolean(this.sandboxWater), gravitySourceCount: this.gravitySources.size },
       observation,
+      forceDiagram,
       graph,
+      comparison: this.currentComparison(),
+      collision: collisionBodies.length === 2 && collisionBodies[0] && collisionBodies[1]
+        ? {
+          occurred: Boolean(this.collisionResult),
+          velocityA: this.collisionResult?.velocityA ?? collisionBodies[0].state.velocity.x / PIXELS_PER_METER,
+          velocityB: this.collisionResult?.velocityB ?? collisionBodies[1].state.velocity.x / PIXELS_PER_METER,
+        }
+        : null,
     };
+  }
+
+  private currentComparison(): PlaygroundTrialComparison | null {
+    if (!this.labMode) return null;
+    const firstObject = this.objects.values().next().value as PlaygroundObject | undefined;
+    if (this.currentPreset === "friction" && firstObject && this.frictionLaw) {
+      const body = this.simulation.getBody(firstObject.id);
+      if (!body) return null;
+      return {
+        condition: `${MATERIAL_LABELS[firstObject.material]} · ${body.state.mass.toFixed(1)} kg`,
+        values: [{
+          label: "움직이기 시작하는 힘",
+          value: this.frictionLaw.maximumStaticForce(body.state) / PIXELS_PER_METER,
+          unit: "N",
+        }],
+      };
+    }
+    if (this.currentPreset === "pulley" && this.guidedScene?.kind === "pulley-advantage") {
+      const model = this.guidedScene.model;
+      return {
+        condition: `${model.supportStrands}줄 · 짐 ${model.loadMass.toFixed(0)} kg`,
+        values: [
+          { label: "필요한 힘", value: model.requiredForce, unit: "N" },
+          { label: "1 m 올릴 때 당기는 줄", value: model.supportStrands, unit: "m" },
+        ],
+      };
+    }
+    return null;
   }
 
   clearTrails(): void {
@@ -1098,6 +1192,88 @@ export class PhysicsPlayground {
     };
   }
 
+  private forceDiagramFor(id: string): PlaygroundForceDiagram | null {
+    const object = this.objects.get(id);
+    const body = this.simulation.getBody(id);
+    if (!object || !body || object.gravitySource || object.anchor) return null;
+
+    const components: Array<{ label: string; vector: Vector2; color: string }> = [];
+    const addComponent = (label: string, vector: Vector2, color: string): void => {
+      if (Math.hypot(vector.x, vector.y) < 0.01) return;
+      const existing = components.find((component) => component.label === label);
+      if (existing) {
+        existing.vector.x += vector.x;
+        existing.vector.y += vector.y;
+      } else {
+        components.push({ label, vector: { ...vector }, color });
+      }
+    };
+
+    for (const force of this.simulation.forceBreakdown(id, FIXED_STEP)) {
+      const vector = { x: force.vector.x / PIXELS_PER_METER, y: force.vector.y / PIXELS_PER_METER };
+      const source = force.source ?? "";
+      if (this.frictionLaw?.bodyId === id && source === this.frictionLaw.id) {
+        const applied = { x: this.frictionLaw.appliedForce / PIXELS_PER_METER, y: 0 };
+        addComponent("주는 힘", applied, "#e05c3f");
+        addComponent("마찰력", { x: vector.x - applied.x, y: vector.y }, "#5b7cfa");
+      } else if (source.startsWith("field.gravity")) {
+        addComponent("중력", vector, "#e2a62b");
+      } else if (source.startsWith("spring.anchor")) {
+        addComponent("용수철 힘", vector, "#a069dc");
+      } else if (source.startsWith("force.constant")) {
+        addComponent("주는 힘", vector, "#e05c3f");
+      } else if (source.startsWith("fluid.buoyancy")) {
+        addComponent("부력·물의 저항", vector, "#2b9bb5");
+      } else if (source === "friction.surface.contact") {
+        addComponent("마찰력", vector, "#5b7cfa");
+      }
+    }
+
+    const guided = this.guidedSceneForBody(id);
+    if (guided) {
+      const current = components.reduce(
+        (sum, component) => ({ x: sum.x + component.vector.x, y: sum.y + component.vector.y }),
+        { x: 0, y: 0 },
+      );
+      const target = {
+        x: body.state.mass * body.state.acceleration.x / PIXELS_PER_METER,
+        y: body.state.mass * body.state.acceleration.y / PIXELS_PER_METER,
+      };
+      const label = guided.kind === "constraints"
+        ? (guided.ropeId === id ? "줄의 장력" : "막대가 미는 힘")
+        : guided.kind === "pulley-advantage" ? "줄이 당기는 힘" : "지렛대가 미는 힘";
+      addComponent(label, { x: target.x - current.x, y: target.y - current.y }, "#25a77a");
+    } else if (this.isRestingOnFloor(object, body)) {
+      const verticalForce = components.reduce((sum, component) => sum + component.vector.y, 0);
+      if (verticalForce > 0) addComponent("수직항력", { x: 0, y: -verticalForce }, "#25a77a");
+    }
+
+    const netVector = components.reduce(
+      (sum, component) => ({ x: sum.x + component.vector.x, y: sum.y + component.vector.y }),
+      { x: 0, y: 0 },
+    );
+    const toVector = (label: string, vector: Vector2, color: string): PlaygroundForceVector => ({
+      label,
+      vector: { ...vector },
+      magnitude: Math.hypot(vector.x, vector.y),
+      direction: mechanicsForceDirection(vector),
+      color,
+    });
+    return {
+      objectLabel: object.label,
+      forces: components.map((component) => toVector(component.label, component.vector, component.color)),
+      net: toVector("알짜힘", netVector, "#17243b"),
+      balanced: Math.hypot(netVector.x, netVector.y) < 0.05,
+    };
+  }
+
+  private isRestingOnFloor(object: PlaygroundObject, body: Body): boolean {
+    const bottom = body.state.position.y + this.objectHalfExtents(object).y;
+    return !body.fixed
+      && Math.abs(bottom - this.floorY) <= 2.5
+      && body.state.velocity.y >= -0.05 * PIXELS_PER_METER;
+  }
+
   private springForBody(id: string): AnchoredSpringLaw | null {
     if (this.springLaw?.bodyId === id) return this.springLaw;
     return this.sandboxSpringLaws.get(id) ?? null;
@@ -1180,10 +1356,10 @@ export class PhysicsPlayground {
 
   private createPulleyChallenge(): PlaygroundObject {
     const fixedY = this.labMode
-      ? Math.min(210, Math.round(this.floorY * 0.38))
+      ? Math.min(183, Math.round(this.floorY * 0.38))
       : Math.min(190, Math.round(this.floorY * 0.32));
     const loadX = this.canvas.width * (this.labMode ? 0.38 : 0.7);
-    const loadStartY = this.floorY - 52;
+    const loadStartY = this.floorY - 51;
     const pullX = this.canvas.width * (this.labMode ? 0.68 : 0.88);
     const load = this.addBox(loadX, loadStartY, 82, 82, {
       label: "들어 올릴 짐",
@@ -1569,6 +1745,17 @@ export class PhysicsPlayground {
       if (body) springPreviousPositions.set(law.bodyId, { ...body.state.position });
     }
     this.simulation.step(dt);
+    if (this.labMode && this.currentPreset === "collision" && !this.collisionResult && this.simulation.collisionEvents.length > 0) {
+      const objects = [...this.objects.values()].slice(0, 2);
+      const bodyA = objects[0] ? this.simulation.getBody(objects[0].id) : undefined;
+      const bodyB = objects[1] ? this.simulation.getBody(objects[1].id) : undefined;
+      if (bodyA && bodyB) {
+        this.collisionResult = {
+          velocityA: bodyA.state.velocity.x / PIXELS_PER_METER,
+          velocityB: bodyB.state.velocity.x / PIXELS_PER_METER,
+        };
+      }
+    }
     this.advanceGuidedScene(dt);
     for (const law of this.activeSpringLaws()) {
       this.resolveSpringMount(law, springPreviousPositions.get(law.bodyId) ?? null);
@@ -1742,6 +1929,7 @@ export class PhysicsPlayground {
     this.drawTrajectoryPreview();
     for (const object of this.objects.values()) this.drawObject(object);
     this.drawAppliedForces();
+    if (this.labMode && this.visualization.vectors) this.drawSelectedForceVectors();
     if (this.currentPreset === "collision") this.drawMomentumVisualization();
     if (this.currentPreset === "spring") this.drawEnergyVisualization();
     if (!this.labMode && this.impulseFlash > 0) this.drawSandboxImpulseFeedback();
@@ -1859,6 +2047,24 @@ export class PhysicsPlayground {
       ctx.textAlign = "center";
       ctx.fillText(`힘 ${magnitude.toFixed(1)} N`, handle.x, handle.y - 18);
       ctx.restore();
+    }
+  }
+
+  private drawSelectedForceVectors(): void {
+    if (!this.selectedId) return;
+    const object = this.objects.get(this.selectedId);
+    const diagram = this.forceDiagramFor(this.selectedId);
+    if (!object || !diagram) return;
+    for (const force of diagram.forces) {
+      this.drawArrow(
+        object.x + 12,
+        object.y,
+        force.vector,
+        5.2,
+        force.color,
+        `${force.label} ${force.magnitude.toFixed(1)} N`,
+        this.floorY - 10,
+      );
     }
   }
 
@@ -2490,7 +2696,7 @@ export class PhysicsPlayground {
     ground.addColorStop(0, "#dce7e1");
     ground.addColorStop(1, "#cbdad3");
     ctx.fillStyle = ground;
-    ctx.fillRect(0, this.floorY, canvas.width, 48);
+    ctx.fillRect(0, this.floorY, canvas.width, canvas.height - this.floorY);
     ctx.fillStyle = "#9cb7aa";
     ctx.fillRect(0, this.floorY, canvas.width, 3);
     ctx.save();
@@ -2519,7 +2725,7 @@ export class PhysicsPlayground {
     }
     ctx.fillStyle = "#856116";
     ctx.font = "700 14px Inter, system-ui, sans-serif";
-    ctx.fillText("마찰이 있는 바닥", 18, this.floorY + 29);
+    ctx.fillText("마찰이 있는 바닥", 18, this.floorY - 14);
     ctx.restore();
   }
 
@@ -2867,7 +3073,14 @@ export class PhysicsPlayground {
         && this.frictionLaw?.bodyId !== object.id
         && (!body.fixed || this.isGuidedBody(object.id))
       ) {
-        this.drawArrow(object.x, object.y, body.state.acceleration, 0.14, "#e05c3f", "가속도");
+        this.drawArrow(
+          object.x + (this.labMode ? -12 : 0),
+          object.y,
+          body.state.acceleration,
+          0.14,
+          "#e05c3f",
+          "가속도",
+        );
       }
       if (this.isResizableBlock(object, body)) this.drawResizeHandles(object);
     }
@@ -3024,7 +3237,15 @@ export class PhysicsPlayground {
     };
   }
 
-  private drawArrow(originX: number, originY: number, vector: Vector2, factor: number, color: string, label: string): void {
+  private drawArrow(
+    originX: number,
+    originY: number,
+    vector: Vector2,
+    factor: number,
+    color: string,
+    label: string,
+    downwardLimit?: number,
+  ): void {
     let x = vector.x * factor;
     let y = vector.y * factor;
     const length = Math.hypot(x, y);
@@ -3035,6 +3256,12 @@ export class PhysicsPlayground {
     } else if (length > MAX_VELOCITY_VECTOR_LENGTH) {
       x *= MAX_VELOCITY_VECTOR_LENGTH / length;
       y *= MAX_VELOCITY_VECTOR_LENGTH / length;
+    }
+    if (downwardLimit !== undefined && y > 0 && originY + y > downwardLimit) {
+      const availableLength = Math.max(3, downwardLimit - originY);
+      const scale = availableLength / y;
+      x *= scale;
+      y = availableLength;
     }
     const endX = originX + x;
     const endY = originY + y;
@@ -3428,7 +3655,9 @@ export class PhysicsPlayground {
       this.challengeDragStartPullDistance = 0;
       this.challengeScene = null;
       this.canvas.style.cursor = "grab";
-      if (autoPlay && (launchesVelocity || releasesSpring || releasesGuided || releasesForce)) this.paused = false;
+      if (autoPlay && this.directManipulationAutoPlay && (launchesVelocity || releasesSpring || releasesGuided || releasesForce)) {
+        this.paused = false;
+      }
     };
     this.canvas.addEventListener("pointerup", (event) => release(event, true));
     this.canvas.addEventListener("pointercancel", (event) => release(event, false));

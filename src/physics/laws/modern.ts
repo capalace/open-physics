@@ -96,3 +96,48 @@ export const decayConstantFromHalfLife = (halfLife: number): number => {
 /** Nuclear binding-energy equivalent: E = Δmc². */
 export const massDefectEnergy = (massDefect: number, lightSpeed: number): number =>
   massDefect * lightSpeed ** 2;
+
+/** Normalized Gaussian probability density. */
+export const gaussianProbabilityDensity = (position: number, center: number, spread: number): number => {
+  requirePositive(spread, "Spread");
+  const offset = position - center;
+  return Math.exp(-(offset ** 2) / (2 * spread ** 2)) / (spread * Math.sqrt(2 * Math.PI));
+};
+
+/** Probability density for a stationary state in a one-dimensional infinite well. */
+export const infiniteWellProbabilityDensity = (
+  position: number,
+  length: number,
+  quantumNumber: number,
+): number => {
+  requirePositive(length, "Well length");
+  requirePositive(quantumNumber, "Quantum number");
+  if (position < 0 || position > length) return 0;
+  return 2 / length * Math.sin(quantumNumber * Math.PI * position / length) ** 2;
+};
+
+/** Low-energy rectangular barrier approximation: T ≈ exp(-2κa). */
+export const rectangularBarrierTransmission = (
+  particleEnergy: number,
+  barrierHeight: number,
+  barrierWidth: number,
+  decayCoefficient = 5.123,
+): number => {
+  requirePositive(particleEnergy, "Particle energy");
+  requirePositive(barrierHeight, "Barrier height");
+  requirePositive(barrierWidth, "Barrier width");
+  requirePositive(decayCoefficient, "Decay coefficient");
+  if (particleEnergy >= barrierHeight) return 1;
+  return Math.exp(-2 * decayCoefficient * barrierWidth * Math.sqrt(barrierHeight - particleEnergy));
+};
+
+/** Ideal diode equation: I = Iₛ(exp(V/Vₜ)-1). */
+export const idealDiodeCurrent = (
+  saturationCurrent: number,
+  voltage: number,
+  thermalVoltage: number,
+): number => {
+  requirePositive(saturationCurrent, "Saturation current");
+  requirePositive(thermalVoltage, "Thermal voltage");
+  return saturationCurrent * (Math.exp(voltage / thermalVoltage) - 1);
+};

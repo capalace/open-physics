@@ -37,6 +37,32 @@ export const travelingWave = (
   phase = 0,
 ): number => amplitude * Math.sin(waveNumberValue * x - angularFrequency * time + phase);
 
+/** Linear superposition: y_total = Σy_i. */
+export const superposeWaves = (...displacements: readonly number[]): number =>
+  displacements.reduce((total, displacement) => total + displacement, 0);
+
+/** Two equal, opposite traveling waves: y = 2A sin(kx) cos(ωt). */
+export const standingWave = (
+  amplitude: number,
+  waveNumberValue: number,
+  angularFrequency: number,
+  x: number,
+  time: number,
+): number => 2 * amplitude * Math.sin(waveNumberValue * x) * Math.cos(angularFrequency * time);
+
+/** Normalized steady-state amplitude of a damped driven oscillator. */
+export const resonanceResponse = (
+  driveFrequency: number,
+  naturalFrequency: number,
+  dampingRatio: number,
+): number => {
+  requirePositive(driveFrequency, "Drive frequency");
+  requirePositive(naturalFrequency, "Natural frequency");
+  requirePositive(dampingRatio, "Damping ratio");
+  const ratio = driveFrequency / naturalFrequency;
+  return 1 / Math.sqrt((1 - ratio ** 2) ** 2 + (2 * dampingRatio * ratio) ** 2);
+};
+
 /** Intensity is proportional to amplitude squared. */
 export const relativeIntensity = (amplitude: number): number => amplitude ** 2;
 

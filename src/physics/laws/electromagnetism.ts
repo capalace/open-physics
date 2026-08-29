@@ -25,6 +25,21 @@ export const pointChargeElectricField = (
   return coulombConstant * Math.abs(charge) / distance ** 2;
 };
 
+/** Electric field vector at a point from one point charge. */
+export const pointChargeElectricFieldVector = (
+  charge: number,
+  source: Vector2,
+  point: Vector2,
+  coulombConstant = 8.9875517923e9,
+): Vector2 => {
+  const dx = point.x - source.x;
+  const dy = point.y - source.y;
+  const distance = Math.hypot(dx, dy);
+  requirePositive(distance, "Distance");
+  const fieldScale = coulombConstant * charge / distance ** 3;
+  return { x: dx * fieldScale, y: dy * fieldScale };
+};
+
 /** Electric force from field: F = qE. */
 export const electricForce = (charge: number, field: number): number =>
   charge * field;
@@ -82,6 +97,18 @@ export const capacitance = (charge: number, voltage: number): number => {
 export const capacitorEnergy = (capacitanceValue: number, voltage: number): number =>
   0.5 * capacitanceValue * voltage ** 2;
 
+/** Parallel plate capacitance: C = εA/d. */
+export const parallelPlateCapacitance = (
+  permittivity: number,
+  area: number,
+  separation: number,
+): number => {
+  requirePositive(permittivity, "Permittivity");
+  requirePositive(area, "Area");
+  requirePositive(separation, "Separation");
+  return permittivity * area / separation;
+};
+
 /** Magnetic force on a moving charge: F = qvB sinθ. */
 export const magneticForceMagnitude = (
   charge: number,
@@ -97,6 +124,17 @@ export const currentWireMagneticForce = (
   length: number,
   angleRadians: number,
 ): number => Math.abs(magneticField * current * length * Math.sin(angleRadians));
+
+/** Magnetic field around a long straight wire: B = μI/(2πr). */
+export const magneticFieldAroundWire = (
+  current: number,
+  distance: number,
+  permeability = 4 * Math.PI * 1e-7,
+): number => {
+  requirePositive(distance, "Distance");
+  requirePositive(permeability, "Permeability");
+  return permeability * current / (2 * Math.PI * distance);
+};
 
 /** Faraday's law: ε = -N ΔΦ/Δt. */
 export const inducedEmf = (

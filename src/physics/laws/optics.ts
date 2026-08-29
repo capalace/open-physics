@@ -1,110 +1,152 @@
-/** Foundational optics models for the 2D physics environment. */
+/** Small, unit-aware optics relations used by the light subject experience. */
 
-function requirePositive(value: number, name: string): void {
-  if (value <= 0) throw new RangeError(`${name} must be greater than zero.`);
-}
+const requirePositive = (value: number, name: string): void => {
+  if (!Number.isFinite(value) || value <= 0) throw new RangeError(`${name} must be greater than zero.`);
+};
 
-/** Law of reflection: θi = θr. */
+const clampUnit = (value: number): number => Math.max(-1, Math.min(1, value));
+
+/** Direction angle after specular reflection around a surface-normal angle. */
+export const reflectedAngle = (incidentAngle: number, normalAngle: number): number =>
+  2 * normalAngle - incidentAngle + Math.PI;
+
+/** Law-of-reflection angle magnitude retained for physics-law consumers. */
 export const reflectionAngle = (incidentAngle: number): number => incidentAngle;
 
-/** Snell's law: n1 sin θ1 = n2 sin θ2. */
-export const refractionAngle = (
-  n1: number,
-  n2: number,
-  incidentAngle: number,
-): number => {
-  requirePositive(n1, "Refractive index 1");
-  requirePositive(n2, "Refractive index 2");
-  const value = (n1 / n2) * Math.sin(incidentAngle);
-  if (Math.abs(value) > 1) throw new RangeError("Total internal reflection: no refracted ray.");
-  return Math.asin(value);
+/** Snell's law. Returns null when total internal reflection occurs. */
+export const refractedAngle = (
+  incidentFromNormal: number,
+  refractiveIndex1: number,
+  refractiveIndex2: number,
+): number | null => {
+  requirePositive(refractiveIndex1, "First refractive index");
+  requirePositive(refractiveIndex2, "Second refractive index");
+  const sine = refractiveIndex1 * Math.sin(incidentFromNormal) / refractiveIndex2;
+  return Math.abs(sine) > 1 ? null : Math.asin(clampUnit(sine));
 };
 
-/** Critical angle for total internal reflection: sin θc = n2/n1, n1 > n2. */
-export const criticalAngle = (n1: number, n2: number): number => {
-  requirePositive(n1, "Refractive index 1");
-  requirePositive(n2, "Refractive index 2");
-  if (n1 <= n2) throw new RangeError("Critical angle requires n1 > n2.");
-  return Math.asin(n2 / n1);
+/** Snell's law variant that reports total internal reflection as an invalid refracted ray. */
+export const refractionAngle = (n1: number, n2: number, incidentAngle: number): number => {
+  const result = refractedAngle(incidentAngle, n1, n2);
+  if (result === null) throw new RangeError("Total internal reflection: no refracted ray.");
+  return result;
 };
 
-/** Thin lens equation: 1/f = 1/do + 1/di. */
+export const criticalAngle = (refractiveIndex1: number, refractiveIndex2: number): number => {
+  requirePositive(refractiveIndex1, "First refractive index");
+  requirePositive(refractiveIndex2, "Second refractive index");
+  if (refractiveIndex1 <= refractiveIndex2) throw new RangeError("Critical angle requires n1 > n2.");
+  return Math.asin(refractiveIndex2 / refractiveIndex1);
+};
+
+/** Thin-lens equation with positive real-object and converging-lens convention. */
+export const lensImageDistance = (focalLength: number, objectDistance: number): number => {
+  if (!Number.isFinite(focalLength) || focalLength === 0) throw new RangeError("Focal length must be non-zero.");
+  requirePositive(objectDistance, "Object distance");
+  const denominator = 1 / focalLength - 1 / objectDistance;
+  return Math.abs(denominator) < 1e-12 ? Number.POSITIVE_INFINITY : 1 / denominator;
+};
+
+/** Signed thin-lens / spherical-mirror relation retained for virtual-object models. */
 export const imageDistance = (focalLength: number, objectDistance: number): number => {
   if (focalLength === 0 || objectDistance === 0) {
     throw new RangeError("Focal length and object distance must be non-zero.");
   }
   const denominator = 1 / focalLength - 1 / objectDistance;
-  if (denominator === 0) return Infinity;
-  return 1 / denominator;
+  return denominator === 0 ? Number.POSITIVE_INFINITY : 1 / denominator;
 };
 
-/** Magnification: m = -di/do. */
-export const lensMagnification = (imageDistanceValue: number, objectDistance: number): number => {
-  if (objectDistance === 0) throw new RangeError("Object distance must be non-zero.");
-  return -imageDistanceValue / objectDistance;
-};
-
-/** Mirror equation: 1/f = 1/do + 1/di. */
 export const mirrorImageDistance = imageDistance;
-
-/** Spherical mirror focal length: f = R/2. */
 export const focalLengthFromRadius = (radius: number): number => radius / 2;
 
-/** Refractive index: n = c/v. */
-export const refractiveIndex = (lightSpeedInVacuum: number, lightSpeedInMedium: number): number => {
-  requirePositive(lightSpeedInVacuum, "Vacuum light speed");
-  requirePositive(lightSpeedInMedium, "Medium light speed");
-  return lightSpeedInVacuum / lightSpeedInMedium;
+export const lensMagnification = (imageDistance: number, objectDistance: number): number => {
+  if (objectDistance === 0) throw new RangeError("Object distance must be non-zero.");
+  return -imageDistance / objectDistance;
 };
 
-/** Speed of light in a medium: v = c/n. */
+export const refractiveIndex = (lightSpeedInVacuum: number, lightSpeedInMediumValue: number): number => {
+  requirePositive(lightSpeedInVacuum, "Vacuum light speed");
+  requirePositive(lightSpeedInMediumValue, "Medium light speed");
+  return lightSpeedInVacuum / lightSpeedInMediumValue;
+};
+
 export const lightSpeedInMedium = (vacuumSpeed: number, index: number): number => {
   requirePositive(vacuumSpeed, "Vacuum light speed");
   requirePositive(index, "Refractive index");
   return vacuumSpeed / index;
 };
 
-/** Double-slit constructive condition: d sin θ = mλ. */
-export const doubleSlitBrightAngle = (
-  slitSeparation: number,
-  wavelength: number,
-  order: number,
-): number => {
-  requirePositive(slitSeparation, "Slit separation");
-  requirePositive(wavelength, "Wavelength");
-  const value = order * wavelength / slitSeparation;
-  if (Math.abs(value) > 1) throw new RangeError("No far-field maximum exists for this order.");
-  return Math.asin(value);
+/** Approximate minimum-deviation relation for a thin prism. */
+export const prismDeviation = (refractiveIndex: number, apexAngle: number): number => {
+  requirePositive(refractiveIndex, "Refractive index");
+  requirePositive(apexAngle, "Apex angle");
+  return (refractiveIndex - 1) * apexAngle;
 };
 
-/** Double-slit destructive condition: d sin θ = (m + 1/2)λ. */
-export const doubleSlitDarkAngle = (
-  slitSeparation: number,
-  wavelength: number,
-  order: number,
-): number => {
-  requirePositive(slitSeparation, "Slit separation");
-  requirePositive(wavelength, "Wavelength");
-  const value = (order + 0.5) * wavelength / slitSeparation;
-  if (Math.abs(value) > 1) throw new RangeError("No far-field minimum exists for this order.");
-  return Math.asin(value);
-};
+const sinc = (value: number): number => Math.abs(value) < 1e-12 ? 1 : Math.sin(value) / value;
 
-/** Single-slit minima: a sin θ = mλ, m = 1,2,... */
-export const singleSlitMinimumAngle = (
+/** Normalized Fraunhofer double-slit intensity including a single-slit envelope. */
+export const doubleSlitIntensity = (
+  angle: number,
+  wavelength: number,
+  slitSeparation: number,
   slitWidth: number,
-  wavelength: number,
-  order: number,
 ): number => {
+  requirePositive(wavelength, "Wavelength");
+  requirePositive(slitSeparation, "Slit separation");
+  requirePositive(slitWidth, "Slit width");
+  const phase = Math.PI * slitSeparation * Math.sin(angle) / wavelength;
+  const envelopePhase = Math.PI * slitWidth * Math.sin(angle) / wavelength;
+  return Math.cos(phase) ** 2 * sinc(envelopePhase) ** 2;
+};
+
+export const doubleSlitBrightAngle = (slitSeparation: number, wavelength: number, order: number): number => {
+  requirePositive(slitSeparation, "Slit separation");
+  requirePositive(wavelength, "Wavelength");
+  const sine = order * wavelength / slitSeparation;
+  if (Math.abs(sine) > 1) throw new RangeError("No far-field maximum exists for this order.");
+  return Math.asin(sine);
+};
+
+export const doubleSlitDarkAngle = (slitSeparation: number, wavelength: number, order: number): number => {
+  requirePositive(slitSeparation, "Slit separation");
+  requirePositive(wavelength, "Wavelength");
+  const sine = (order + 0.5) * wavelength / slitSeparation;
+  if (Math.abs(sine) > 1) throw new RangeError("No far-field minimum exists for this order.");
+  return Math.asin(sine);
+};
+
+/** Normalized single-slit Fraunhofer diffraction intensity. */
+export const singleSlitIntensity = (angle: number, wavelength: number, slitWidth: number): number => {
+  requirePositive(wavelength, "Wavelength");
+  requirePositive(slitWidth, "Slit width");
+  return sinc(Math.PI * slitWidth * Math.sin(angle) / wavelength) ** 2;
+};
+
+export const singleSlitMinimumAngle = (slitWidth: number, wavelength: number, order: number): number => {
   requirePositive(slitWidth, "Slit width");
   requirePositive(wavelength, "Wavelength");
   requirePositive(order, "Order");
-  const value = order * wavelength / slitWidth;
-  if (Math.abs(value) > 1) throw new RangeError("No far-field minimum exists for this order.");
-  return Math.asin(value);
+  const sine = order * wavelength / slitWidth;
+  if (Math.abs(sine) > 1) throw new RangeError("No far-field minimum exists for this order.");
+  return Math.asin(sine);
 };
 
-/** Photon energy: E = hf = hc/λ. */
+/** Malus's law for ideal linear polarizers. */
+export const polarizedIntensity = (initialIntensity: number, relativeAngle: number): number => {
+  if (!Number.isFinite(initialIntensity) || initialIntensity < 0) {
+    throw new RangeError("Initial intensity must be non-negative.");
+  }
+  return initialIntensity * Math.cos(relativeAngle) ** 2;
+};
+
+/** Angular magnification of an astronomical telescope. */
+export const telescopeMagnification = (objectiveFocalLength: number, eyepieceFocalLength: number): number => {
+  requirePositive(objectiveFocalLength, "Objective focal length");
+  requirePositive(eyepieceFocalLength, "Eyepiece focal length");
+  return -objectiveFocalLength / eyepieceFocalLength;
+};
+
 export const photonEnergyFromFrequency = (frequency: number, planckConstant: number): number =>
   planckConstant * frequency;
 

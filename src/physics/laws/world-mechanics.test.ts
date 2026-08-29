@@ -223,6 +223,9 @@ describe("SurfaceContactFrictionModifier", () => {
     simulation.refreshAccelerations();
 
     expect(simulation.getBody("target")?.state.acceleration.x).toBe(0);
+    const breakdown = simulation.forceBreakdown("target", 0.1);
+    expect(breakdown.map((force) => force.source)).toEqual(["push", "friction.surface.contact"]);
+    expect(breakdown.reduce((sum, force) => sum + force.vector.x, 0)).toBe(0);
   });
 });
 
