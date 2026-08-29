@@ -48,6 +48,7 @@ export interface SandboxCurrent { readonly objectId: string; readonly current: n
 export type SandboxTerminal = "a" | "b" | "c" | "d";
 export const sandboxTerminals = (kind: ElectromagnetismSandboxKind): readonly SandboxTerminal[] => kind === "transformer" ? ["a", "b", "c", "d"] : ["a", "b"];
 export interface SandboxWireEndpoint { readonly objectId: string; readonly terminal: SandboxTerminal }
+export type SandboxWireTargetState = "available" | "active" | "same-object" | "duplicate";
 export type SandboxWireConnection = {
   readonly from: string;
   readonly to: string;
@@ -56,6 +57,20 @@ export type SandboxWireConnection = {
   readonly toTerminal: SandboxTerminal;
 };
 export type SandboxConnection = SandboxWireConnection | { readonly from: string; readonly to: string; readonly kind: "induction" };
+
+export const sandboxWireTargetState = (
+  start: SandboxWireEndpoint,
+  target: SandboxWireEndpoint,
+  connections: readonly SandboxConnection[],
+): SandboxWireTargetState => {
+  if (start.objectId === target.objectId && start.terminal === target.terminal) return "active";
+  if (start.objectId === target.objectId) return "same-object";
+  const duplicate = connections.some((connection) => connection.kind === "wire" && (
+    (connection.from === start.objectId && connection.fromTerminal === start.terminal && connection.to === target.objectId && connection.toTerminal === target.terminal)
+    || (connection.from === target.objectId && connection.fromTerminal === target.terminal && connection.to === start.objectId && connection.toTerminal === start.terminal)
+  ));
+  return duplicate ? "duplicate" : "available";
+};
 export type SandboxBatteryArrangement = "none" | "single" | "series" | "parallel" | "mixed";
 export interface SandboxMetrics {
   readonly electricField: Vector2;

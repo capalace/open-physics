@@ -18,6 +18,7 @@ import {
   sandboxBulbBrightness,
   sandboxBulbPower,
   sandboxVelocityHandle,
+  sandboxWireTargetState,
   type ElectromagnetismMode,
   type ElectromagnetismSandboxObject,
   type ElectromagnetismSandboxKind,
@@ -50,6 +51,8 @@ export interface ElectromagnetismTrialSummary {
   readonly condition: string;
   readonly values: readonly { readonly label: string; readonly value: number; readonly unit: string }[];
 }
+
+type WireFeedbackTone = "guide" | "success" | "error";
 
 export function circuitTrialSummary(snapshot: ElectromagnetismSnapshot): ElectromagnetismTrialSummary | null {
   if (snapshot.mode !== "circuits") return null;
@@ -196,6 +199,8 @@ class ElectromagnetismController implements SubjectController {
   private selectedSandboxId: string | null = null;
   private wiring = false;
   private wireStart: SandboxWireEndpoint | null = null;
+  private wireFeedback = "";
+  private wireFeedbackTone: WireFeedbackTone = "guide";
   private sandboxDragMoved = false;
   private previousPointerTime = 0;
   private activeMode: ElectromagnetismLabId | "sandbox" = "sandbox";
@@ -264,7 +269,7 @@ class ElectromagnetismController implements SubjectController {
       <div class="em-tool-group" data-tone="${group.tone}">
         <span class="palette-label" title="${group.hint}">${group.label}</span>
         <div>${group.tools.map(([kind, icon, label, value]) => `<button type="button" data-em-add="${kind}"${isElectromagnetismWireConnectable(kind) ? " data-em-connectable" : ""}${value === undefined ? "" : ` data-em-value="${value}"`}><b>${icon}</b>${label}</button>`).join("")}</div>
-        ${group.tone === "circuit" ? `<button class="em-wire-tool" type="button" data-em-action="wire" data-em-wire title="회로 부품의 동그란 접점 두 개를 차례로 선택"><b>⌁</b>전선 연결</button>` : ""}
+        ${group.tone === "circuit" ? `<button class="em-wire-tool" type="button" data-em-action="wire" data-em-wire title="회로 부품의 동그란 접점 두 개를 차례로 선택"><b>⌁</b>전선 연결</button><p class="em-wire-status" data-em-wire-status role="status" aria-live="polite" hidden></p>` : ""}
       </div>`).join("");
     this.hosts.experimentPanel.innerHTML = `
       <div class="em-settings-shell" data-em-settings-shell>
@@ -323,12 +328,19 @@ class ElectromagnetismController implements SubjectController {
         const requestedValue = addButton.dataset.emValue === undefined ? undefined : Number(addButton.dataset.emValue);
         const object = this.model.addSandboxObject(addButton.dataset.emAdd as ElectromagnetismSandboxKind, requestedValue);
         this.selectedSandboxId = object.id;
-        this.wiring = false; this.wireStart = null;
+        this.wiring = false; this.wireStart = null; this.wireFeedback = "";
         this.render();
         return;
       }
       const action = (event.target as Element).closest<HTMLButtonElement>("[data-em-action]")?.dataset.emAction;
-      if (action === "wire") { this.wiring = !this.wiring; this.wireStart = null; }
+      if (action === "wire") {
+        if (this.wiring) this.finishWiring("전선 연결을 취소했어요.", "guide");
+        else {
+          this.wiring = true;
+          this.wireStart = null;
+          this.setWireFeedback("1/2 · 연결을 시작할 첫 번째 접점을 누르세요.");
+        }
+      }
       else if (action === "delete" && this.selectedSandboxId) {
         this.model.removeSandboxObject(this.selectedSandboxId); this.selectedSandboxId = null;
       }
@@ -353,7 +365,7 @@ class ElectromagnetismController implements SubjectController {
       const action = (event.target as Element).closest<HTMLButtonElement>("[data-em-action]")?.dataset.emAction;
       if (action === "play") this.model.toggle();
       else if (action === "step") { this.model.setRunning(true); this.model.step(1 / 60); this.model.setRunning(false); }
-      else if (action === "reset") { this.model.reset(); this.peakVoltage = 0; this.selectedSandboxId = null; this.velocityDragId = null; this.wiring = false; this.wireStart = null; }
+      else if (action === "reset") { this.model.reset(); this.peakVoltage = 0; this.selectedSandboxId = null; this.velocityDragId = null; this.wiring = false; this.wireStart = null; this.wireFeedback = ""; }
       this.render();
     }, { signal: this.eventScope.signal });
     this.hosts.experimentPanel.addEventListener("click", (event) => {
@@ -412,12 +424,24 @@ class ElectromagnetismController implements SubjectController {
         }
         const object = this.model.hitSandboxObject(point);
         if (this.wiring) {
-          const terminal = this.renderer.hitSandboxTerminal(event.clientX, event.clientY, this.model.snapshot().sandboxObjects);
-          if (terminal && this.wireStart && (terminal.objectId !== this.wireStart.objectId || terminal.terminal !== this.wireStart.terminal)) {
-            if (this.model.connectSandboxObjects(this.wireStart.objectId, terminal.objectId, this.wireStart.terminal, terminal.terminal)) {
-              this.wireStart = null;
-            }
-          } else if (terminal) this.wireStart = terminal;
+          const snapshot = this.model.snapshot();
+          const terminal = this.renderer.hitSandboxTerminal(event.clientX, event.clientY, snapshot.sandboxObjects);
+          if (!terminal) {
+            this.setWireFeedback(object && !isElectromagnetismWireConnectable(object.kind)
+              ? `${sandboxKindLabel[object.kind]}은 전선에 연결할 수 없어요.`
+              : "장치의 동그란 접점을 정확히 눌러 주세요.", "error");
+          } else if (!this.wireStart) {
+            this.wireStart = terminal;
+            this.setWireFeedback("2/2 · 파란색으로 빛나는 다른 장치의 접점을 누르세요.");
+          } else {
+            const targetState = sandboxWireTargetState(this.wireStart, terminal, snapshot.sandboxConnections);
+            if (targetState === "active") this.setWireFeedback("이미 고른 접점이에요. 다른 장치의 파란 접점을 누르세요.", "error");
+            else if (targetState === "same-object") this.setWireFeedback("같은 장치 안의 접점끼리는 연결할 수 없어요.", "error");
+            else if (targetState === "duplicate") this.setWireFeedback("이미 연결된 두 접점이에요. 다른 접점을 골라 주세요.", "error");
+            else if (this.model.connectSandboxObjects(this.wireStart.objectId, terminal.objectId, this.wireStart.terminal, terminal.terminal)) {
+              this.finishWiring("전선이 연결됐어요.", "success");
+            } else this.setWireFeedback("이 접점들은 연결할 수 없어요.", "error");
+          }
           this.selectedSandboxId = terminal?.objectId ?? object?.id ?? this.selectedSandboxId;
           this.dragging = false;
           this.render();
@@ -472,6 +496,22 @@ class ElectromagnetismController implements SubjectController {
     };
     this.canvas.addEventListener("pointerup", endDrag, { signal: this.eventScope.signal });
     this.canvas.addEventListener("pointercancel", endDrag, { signal: this.eventScope.signal });
+    window.addEventListener("keydown", (event) => {
+      if (event.key !== "Escape" || !this.wiring) return;
+      this.finishWiring("전선 연결을 취소했어요.", "guide");
+      this.render();
+    }, { signal: this.eventScope.signal });
+  }
+
+  private setWireFeedback(message: string, tone: WireFeedbackTone = "guide"): void {
+    this.wireFeedback = message;
+    this.wireFeedbackTone = tone;
+  }
+
+  private finishWiring(message: string, tone: WireFeedbackTone): void {
+    this.wiring = false;
+    this.wireStart = null;
+    this.setWireFeedback(message, tone);
   }
 
   private activate(mode: ElectromagnetismLabId | "sandbox"): void {
@@ -485,7 +525,7 @@ class ElectromagnetismController implements SubjectController {
     this.pinnedCircuitTrial = null;
     this.selectedSandboxId = null;
     this.velocityDragId = null;
-    this.wiring = false; this.wireStart = null;
+    this.wiring = false; this.wireStart = null; this.wireFeedback = "";
     this.require<HTMLElement>(this.hosts.experimentPanel, "[data-em-settings-title]").textContent = mode === "sandbox" ? "실험실 도구" : "바꿔 볼 조건";
     this.require<HTMLElement>(this.hosts.experimentPanel, "[data-em-sandbox-tools]").hidden = mode !== "sandbox";
     const interactionTip = this.require<HTMLElement>(this.hosts.workspace, "[data-em-interaction-tip]");
@@ -576,7 +616,13 @@ class ElectromagnetismController implements SubjectController {
     if (wire) {
       wire.classList.toggle("is-active", this.wiring);
       wire.setAttribute("aria-pressed", String(this.wiring));
-      wire.textContent = this.wireStart ? "둘째 접점 선택" : this.wiring ? "✓ 전선 연결 중" : "〰 전선";
+      wire.textContent = this.wiring ? "연결 취소 (Esc)" : "〰 전선 연결";
+    }
+    const wireStatus = this.hosts.experimentPanel.querySelector<HTMLElement>("[data-em-wire-status]");
+    if (wireStatus) {
+      wireStatus.hidden = !this.wireFeedback;
+      wireStatus.textContent = this.wireFeedback;
+      wireStatus.dataset.tone = this.wireFeedbackTone;
     }
     const deleteButton = this.hosts.experimentPanel.querySelector<HTMLButtonElement>('[data-em-action="delete"]');
     if (deleteButton) deleteButton.disabled = !this.selectedSandboxId;
@@ -590,7 +636,7 @@ class ElectromagnetismController implements SubjectController {
     step.title = play.title;
     play.textContent = snapshot.running ? "Ⅱ 일시정지" : "▶ 실행";
     const runState = this.require<HTMLElement>(this.hosts.workspace, "[data-em-run-state]");
-    runState.textContent = this.wiring ? "회로 부품의 동그란 접점 2개 선택" : directPrompt || (!timeDriven ? "조작 즉시 반응" : snapshot.running ? "실행 중" : "멈춤");
+    runState.textContent = this.wiring ? (this.wireStart ? "2/2 · 두 번째 접점 선택" : "1/2 · 첫 번째 접점 선택") : directPrompt || (!timeDriven ? "조작 즉시 반응" : snapshot.running ? "실행 중" : "멈춤");
     runState.dataset.running = String(snapshot.running && !this.wiring);
     const selectedControlValue = (control: string): number | string | null => {
       if (control === "level") return snapshot.level;

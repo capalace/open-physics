@@ -9,7 +9,7 @@ import {
   electromagnetismResultDirection,
   nextElectromagnetismPeakVoltage,
 } from "./experience";
-import { ElectromagnetismModel } from "./models";
+import { ElectromagnetismModel, sandboxWireTargetState, type SandboxWireConnection } from "./models";
 
 const experienceSource = readFileSync(new URL("./experience.ts", import.meta.url), "utf8");
 const rendererSource = readFileSync(new URL("./renderer.ts", import.meta.url), "utf8");
@@ -82,6 +82,23 @@ describe("electromagnetism canvas legend", () => {
     expect(experienceSource).toContain('capacitor: "양쪽 접점에 전선을 연결하면 충전되고');
     expect(experienceSource).toContain('group.tone === "circuit"');
     expect(experienceSource).toContain("connectSandboxObjects");
+  });
+
+  it("guides wire connections through two clear, cancellable endpoint steps", () => {
+    const start = { objectId: "battery-1", terminal: "a" } as const;
+    const duplicate: SandboxWireConnection = { from: "battery-1", fromTerminal: "a", to: "bulb-2", toTerminal: "b", kind: "wire" };
+
+    expect(sandboxWireTargetState(start, start, [])).toBe("active");
+    expect(sandboxWireTargetState(start, { objectId: "battery-1", terminal: "b" }, [])).toBe("same-object");
+    expect(sandboxWireTargetState(start, { objectId: "bulb-2", terminal: "b" }, [duplicate])).toBe("duplicate");
+    expect(sandboxWireTargetState(start, { objectId: "bulb-2", terminal: "a" }, [duplicate])).toBe("available");
+    expect(experienceSource).toContain("1/2 · 연결을 시작할 첫 번째 접점");
+    expect(experienceSource).toContain("2/2 · 파란색으로 빛나는 다른 장치의 접점");
+    expect(experienceSource).toContain('event.key !== "Escape"');
+    expect(experienceSource).toContain('this.finishWiring("전선이 연결됐어요.", "success")');
+    expect(experienceSource).toContain("같은 장치 안의 접점끼리는 연결할 수 없어요.");
+    expect(rendererSource).toContain('const state = !wiring ? "idle"');
+    expect(styles).toContain('.em-wire-status[data-tone="error"]');
   });
 
   it("disables inert transport controls for experiments driven only by direct dragging", () => {

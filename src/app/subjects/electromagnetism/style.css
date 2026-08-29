@@ -32,6 +32,9 @@ body[data-subject="electromagnetism"][data-subject-screen="selection"] .em-selec
 .subject-electromagnetism .em-tool-group button { justify-content: flex-start; min-width: 0; padding-inline: 8px; font-size: 12px; }
 .subject-electromagnetism .em-wire-tool,
 .subject-electromagnetism .em-palette > .danger-button { width: 100%; justify-content: center !important; }
+.subject-electromagnetism .em-wire-status { margin: 0; border-radius: 8px; padding: 8px 10px; background: #edf2ff; color: #3656b5; font-size: 12px; font-weight: 800; line-height: 1.4; }
+.subject-electromagnetism .em-wire-status[data-tone="success"] { background: #e9f7f1; color: #197153; }
+.subject-electromagnetism .em-wire-status[data-tone="error"] { background: #fff0ec; color: #a7442d; }
 
 .subject-electromagnetism .em-browser,
 .subject-electromagnetism .em-guide,

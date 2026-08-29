@@ -14,6 +14,7 @@ import {
   sandboxBulbPower,
   sandboxTerminals,
   sandboxVelocityHandle,
+  sandboxWireTargetState,
   type ElectromagnetismSandboxObject,
   type ElectromagnetismSnapshot,
   type FieldLine,
@@ -528,7 +529,11 @@ export class ElectromagnetismRenderer {
     }
     for (const object of s.sandboxObjects.filter((candidate) => candidate.kind !== "field-region")) this.sandboxObject(ctx, object, w, h, currentById.get(object.id) ?? 0, object.id === selectedId, time);
     for (const object of s.sandboxObjects.filter((candidate) => isElectromagnetismWireConnectable(candidate.kind))) {
-      for (const terminal of sandboxTerminals(object.kind)) this.sandboxTerminal(ctx, object, terminal, w, h, wiring, wireStart?.objectId === object.id && wireStart.terminal === terminal);
+      for (const terminal of sandboxTerminals(object.kind)) {
+        const endpoint = { objectId: object.id, terminal };
+        const state = !wiring ? "idle" : wireStart ? sandboxWireTargetState(wireStart, endpoint, s.sandboxConnections) : "available";
+        this.sandboxTerminal(ctx, object, terminal, w, h, state);
+      }
     }
     for (const force of s.sandboxForces) {
       const object = byId.get(force.objectId); if (!object) continue;
@@ -901,11 +906,23 @@ export class ElectromagnetismRenderer {
     return { x: center.x + side * 42, y: center.y };
   }
 
-  private sandboxTerminal(ctx: CanvasRenderingContext2D, object: ElectromagnetismSandboxObject, terminal: SandboxTerminal, w: number, h: number, wiring: boolean, active: boolean): void {
+  private sandboxTerminal(ctx: CanvasRenderingContext2D, object: ElectromagnetismSandboxObject, terminal: SandboxTerminal, w: number, h: number, state: "idle" | "available" | "active" | "same-object" | "duplicate"): void {
     const point = this.sandboxTerminalPoint(object, terminal, w, h);
-    ctx.save(); ctx.fillStyle = active ? palette.negative : "#fff"; ctx.strokeStyle = wiring ? palette.negative : palette.ink; ctx.lineWidth = wiring ? 3 : 2;
-    ctx.shadowColor = palette.negative; ctx.shadowBlur = active ? 16 : wiring ? 7 : 0;
-    ctx.beginPath(); ctx.arc(point.x, point.y, wiring ? 7 : 5, 0, TAU); ctx.fill(); ctx.stroke(); ctx.restore();
+    const unavailable = state === "same-object" || state === "duplicate";
+    const active = state === "active";
+    const available = state === "available";
+    ctx.save();
+    ctx.fillStyle = active ? palette.positive : available ? "#edf2ff" : unavailable ? "#edf0f4" : "#fff";
+    ctx.strokeStyle = active ? palette.positive : available ? palette.negative : unavailable ? "#9aa6b5" : palette.ink;
+    ctx.lineWidth = active || available ? 3 : 2;
+    ctx.shadowColor = active ? palette.positive : palette.negative;
+    ctx.shadowBlur = active ? 16 : available ? 9 : 0;
+    ctx.globalAlpha = unavailable ? 0.6 : 1;
+    ctx.beginPath(); ctx.arc(point.x, point.y, active || available ? 7 : 5, 0, TAU); ctx.fill(); ctx.stroke();
+    if (unavailable) {
+      ctx.beginPath(); ctx.moveTo(point.x - 4, point.y - 4); ctx.lineTo(point.x + 4, point.y + 4); ctx.stroke();
+    }
+    ctx.restore();
   }
 
   private batterySymbol(ctx: CanvasRenderingContext2D, point: Vector2, voltage: number, direction: 1 | -1, selected: boolean): void {
