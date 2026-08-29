@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   SUBJECT_SANDBOX_TITLE,
+  subjectRouteFromUrl,
+  subjectRouteUrl,
   validateSubjectDefinition,
   type SubjectDefinition,
   type SubjectLabDefinition,
@@ -47,5 +49,27 @@ describe("subject experience contract", () => {
       .toThrow("must define 2 guided labs");
     expect(() => validateSubjectDefinition(subject([lab("source"), lab("source")]), ["source", "sound"]))
       .toThrow("guided lab ids must match");
+  });
+
+  it("maps subject selection and dedicated lab screens to canonical URLs", () => {
+    const definition = subject([lab("source"), lab("interference")]);
+    const selectionUrl = subjectRouteUrl(new URL("https://example.test/open-physics/?subject=light&lab=lens"), definition, { screen: "selection" });
+    const labUrl = subjectRouteUrl(selectionUrl, definition, { screen: "lab", labId: "interference" });
+
+    expect(selectionUrl.search).toBe("?subject=waves");
+    expect(labUrl.search).toBe("?subject=waves&lab=interference");
+    expect(subjectRouteFromUrl(selectionUrl, definition)).toEqual({ screen: "selection" });
+    expect(subjectRouteFromUrl(labUrl, definition)).toEqual({ screen: "lab", labId: "interference" });
+    expect(subjectRouteFromUrl(new URL("https://example.test/?subject=waves&lab=missing"), definition)).toEqual({ screen: "selection" });
+    expect(subjectRouteFromUrl(new URL("https://example.test/?subject=waves&lab=sandbox"), definition)).toEqual({ screen: "lab", labId: "sandbox" });
+  });
+
+  it("keeps mechanics routes on the root subject URL", () => {
+    const definition = { id: "mechanics" as const, labs: [{ id: "free-fall" }] };
+    const labUrl = subjectRouteUrl(new URL("https://example.test/open-physics/?subject=waves"), definition, { screen: "lab", labId: "free-fall" });
+    const selectionUrl = subjectRouteUrl(labUrl, definition, { screen: "selection" });
+
+    expect(labUrl.search).toBe("?lab=free-fall");
+    expect(selectionUrl.search).toBe("");
   });
 });

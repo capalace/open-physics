@@ -17,14 +17,22 @@ export interface SubjectGraphDefinition {
   readonly series: readonly SubjectGraphSeries[];
 }
 
+export interface PhysicsTermDefinition {
+  readonly name: string;
+  readonly description: string;
+}
+
 export interface SubjectLabDefinition {
   readonly id: string;
   readonly title: string;
+  readonly selectionTitle?: string;
+  readonly selectionDescription?: string;
   readonly category: string;
   readonly icon: string;
   readonly question: string;
   readonly steps: readonly [string, string, string];
   readonly observe: string;
+  readonly terms?: readonly PhysicsTermDefinition[];
   readonly controls: readonly string[];
   readonly law: {
     readonly title: string;
@@ -52,6 +60,95 @@ export interface SubjectHosts {
 export interface SubjectController {
   resize(): void;
   unmount(): void;
+}
+
+export type SubjectRoute =
+  | { readonly screen: "selection" }
+  | { readonly screen: "lab"; readonly labId: string };
+
+export type SubjectRouteSource = "initial" | "navigation" | "history";
+
+type SubjectRouteDefinition = {
+  readonly id: SubjectId;
+  readonly labs: readonly { readonly id: string }[];
+};
+
+/** Parses a subject's URL state without leaking browser history concerns into physics models. */
+export function subjectRouteFromUrl(url: URL, definition: SubjectRouteDefinition): SubjectRoute {
+  const requestedLab = url.searchParams.get("lab");
+  if (!requestedLab) return { screen: "selection" };
+  if (requestedLab === "sandbox" || definition.labs.some((lab) => lab.id === requestedLab)) {
+    return { screen: "lab", labId: requestedLab };
+  }
+  return { screen: "selection" };
+}
+
+/** Builds canonical, static-host-safe URLs for selection and dedicated lab screens. */
+export function subjectRouteUrl(currentUrl: URL, definition: SubjectRouteDefinition, route: SubjectRoute): URL {
+  const next = new URL(currentUrl);
+  if (definition.id === "mechanics") next.searchParams.delete("subject");
+  else next.searchParams.set("subject", definition.id);
+  if (route.screen === "lab") next.searchParams.set("lab", route.labId);
+  else next.searchParams.delete("lab");
+  return next;
+}
+
+interface SubjectRouteSessionOptions {
+  readonly definition: SubjectRouteDefinition;
+  readonly onRoute: (route: SubjectRoute, source: SubjectRouteSource) => void;
+}
+
+/** Owns browser history for a subject while keeping routing out of its physics model. */
+export class SubjectRouteSession {
+  private started = false;
+
+  constructor(private readonly options: SubjectRouteSessionOptions) {}
+
+  start(): void {
+    if (this.started) return;
+    this.started = true;
+    window.addEventListener("popstate", this.handlePopState);
+    this.sync("initial");
+  }
+
+  openLab(labId: string): void {
+    const route: SubjectRoute = { screen: "lab", labId };
+    const url = subjectRouteUrl(new URL(window.location.href), this.options.definition, route);
+    window.history.pushState({ ...window.history.state, openPhysicsLabRoute: this.options.definition.id }, "", url);
+    this.options.onRoute(route, "navigation");
+  }
+
+  returnToSelection(): void {
+    if (window.history.state?.openPhysicsLabRoute === this.options.definition.id) {
+      window.history.back();
+      return;
+    }
+    const route: SubjectRoute = { screen: "selection" };
+    const url = subjectRouteUrl(new URL(window.location.href), this.options.definition, route);
+    window.history.replaceState(window.history.state, "", url);
+    this.options.onRoute(route, "history");
+  }
+
+  dispose(): void {
+    if (!this.started) return;
+    this.started = false;
+    window.removeEventListener("popstate", this.handlePopState);
+  }
+
+  private readonly handlePopState = (): void => this.sync("history");
+
+  private sync(source: SubjectRouteSource): void {
+    const currentUrl = new URL(window.location.href);
+    const route = subjectRouteFromUrl(currentUrl, this.options.definition);
+    if (route.screen === "selection" && currentUrl.searchParams.has("lab")) {
+      window.history.replaceState(
+        window.history.state,
+        "",
+        subjectRouteUrl(currentUrl, this.options.definition, route),
+      );
+    }
+    this.options.onRoute(route, source);
+  }
 }
 
 /** Deep module seam used by the app shell to activate one complete physics subject. */

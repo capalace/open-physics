@@ -12,6 +12,106 @@ body[data-subject]:not([data-subject="mechanics"]) {
   --subject-line: #e1e6ee;
 }
 
+/* Routed subject screens: selection uses the full content width; labs restore three roles. */
+body[data-subject-screen="selection"] .app-layout {
+  display: block;
+  overflow: auto;
+}
+
+body[data-subject-screen="selection"] :is(#experiment-panel, #inspector-panel) { display: none; }
+
+body[data-subject-screen="selection"] .workspace {
+  min-height: 100%;
+  overflow: auto;
+  padding: clamp(24px, 4vw, 56px);
+  background: #f4f6fa;
+}
+
+.subject-selection-screen {
+  width: min(1120px, 100%);
+  margin: 0 auto;
+}
+
+.subject-selection-intro { margin-bottom: 26px; }
+.subject-selection-intro .eyebrow { color: var(--subject-accent, #365eea); font-size: 13px; font-weight: 850; }
+.subject-selection-intro h1 { margin: 6px 0 8px; color: #26324a; font-size: clamp(28px, 3vw, 40px); line-height: 1.15; }
+.subject-selection-intro p { max-width: 680px; margin: 0; color: #68758a; font-size: 16px; line-height: 1.6; }
+
+.subject-selection-screen .quick-start-list {
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  gap: 10px !important;
+}
+
+.subject-selection-screen .topic-label { grid-column: 1 / -1; margin-top: 10px; }
+.subject-selection-screen .quick-start { min-height: 76px !important; padding: 11px 13px !important; }
+.subject-selection-screen .quick-start strong,
+.subject-selection-screen .quick-start small {
+  overflow: visible !important;
+  text-overflow: clip !important;
+  white-space: normal !important;
+}
+
+.subject-lab-screen { min-height: 100%; }
+.subject-settings-header { margin-bottom: 18px; }
+.subject-settings-header > div { margin-top: 18px; }
+.subject-settings-header .eyebrow { color: var(--subject-accent, #365eea); font-size: 12px; font-weight: 850; }
+.subject-settings-header h2 { margin: 4px 0 0; color: #354259; font-size: 20px; }
+.subject-back-button {
+  width: 100%;
+  min-height: 42px;
+  border: 1px solid #d9e1ec;
+  border-radius: 10px;
+  background: #fff;
+  color: #45536a;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 800;
+  text-align: left;
+  cursor: pointer;
+}
+
+.subject-settings-tools {
+  display: grid;
+  gap: 8px;
+}
+
+.subject-settings-tools .palette-label { display: block; margin: 12px 0 2px; color: #66758b; font-size: 12px; font-weight: 850; }
+.subject-settings-tools button { min-height: 42px; }
+
+body[data-subject="mechanics"][data-app-mode="sandbox"] #experiment-panel .creation-controls.subject-settings-tools,
+body[data-subject="mechanics"] #experiment-panel .creation-controls.subject-settings-tools {
+  display: grid;
+  order: initial;
+  flex: none;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px;
+  width: 100%;
+  border: 0;
+  padding: 0 0 18px;
+}
+
+body[data-subject="mechanics"] #experiment-panel .creation-controls.subject-settings-tools .palette-label {
+  grid-column: 1 / -1;
+  margin-top: 8px;
+}
+
+body[data-subject="mechanics"] #experiment-panel .creation-controls.subject-settings-tools .palette-divider { display: none; }
+body[data-subject="mechanics"] #experiment-panel .creation-controls.subject-settings-tools button {
+  width: 100%;
+  min-width: 0;
+  height: 42px;
+  justify-content: flex-start;
+}
+
+body[data-subject="mechanics"] #experiment-panel .creation-controls.subject-settings-tools .danger-button {
+  grid-column: 1 / -1;
+  margin-left: 0;
+}
+
+@media (max-width: 760px) {
+  .subject-selection-screen .quick-start-list { grid-template-columns: minmax(0, 1fr) !important; }
+}
+
 body[data-subject]:not([data-subject="mechanics"]) :is(
   .subject-electromagnetism,
   .waves-experience__experiments,
@@ -219,6 +319,10 @@ body[data-subject]:not([data-subject="mechanics"]) .world-toolbar.is-sandbox .cr
   border: 0;
   border-top: 1px solid #e5eaf1;
   padding: 7px 4px 1px;
+}
+
+body[data-subject]:not([data-subject="mechanics"]) .world-toolbar.is-sandbox .creation-controls .danger-button {
+  margin-left: auto;
 }
 
 body[data-subject]:not([data-subject="mechanics"]) :is(

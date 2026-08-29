@@ -12,6 +12,7 @@ const subjectShellStyles = readFileSync(new URL("./subjects/style.css", import.m
 const lightStyles = readFileSync(new URL("./subjects/light/style.css", import.meta.url), "utf8");
 const thermalStyles = readFileSync(new URL("./subjects/thermal/style.css", import.meta.url), "utf8");
 const bootstrap = readFileSync(new URL("./main.ts", import.meta.url), "utf8");
+const mechanicsBootstrap = readFileSync(new URL("./mechanics-main.ts", import.meta.url), "utf8");
 const lightExperience = readFileSync(new URL("./subjects/light/experience.ts", import.meta.url), "utf8");
 const subjectUi = readFileSync(new URL("./subjects/subject-ui.ts", import.meta.url), "utf8");
 const subjectExperienceSources = [
@@ -58,6 +59,8 @@ describe("sandbox object palette", () => {
       .map((match) => match[1]);
 
     expect(objectKinds).toEqual(["ball", "box", "block", "anchor"]);
+    expect(markup).toContain('<span class="palette-label">물체</span>');
+    expect(markup).not.toContain('<span class="palette-label">추가</span>');
   });
 
   it("offers reusable mechanics apparatus in the sandbox", () => {
@@ -110,6 +113,9 @@ describe("subject visual shell", () => {
     for (const source of subjectExperienceSources) {
       expect(source).toContain("subjectBrowserMarkup");
       expect(source).toContain("world-toolbar");
+      expect(source).toContain("transport-controls");
+      expect(source).toContain("toolbar-divider");
+      expect(source).toContain("run-indicator");
     }
 
     for (const selector of [
@@ -127,6 +133,17 @@ describe("subject visual shell", () => {
       ".thermal-toolbar",
       ".modern-experience__toolbar",
     ]) expect(subjectShellStyles).toContain(toolbar);
+  });
+
+  it("uses one vocabulary for the toolbar run state", () => {
+    expect(markup).toContain('data-running="false">멈춤</div>');
+    expect(mechanicsBootstrap).toContain('snapshot.paused ? "멈춤" : "실행 중"');
+    expect(mechanicsBootstrap).not.toContain('snapshot.paused ? "대기"');
+
+    for (const source of subjectExperienceSources) {
+      expect(source).toContain("멈춤");
+      expect(source).not.toContain("빛 경로 표시");
+    }
   });
 
   it("gives the light lab the same visible workspace toolbar contract", () => {
@@ -154,18 +171,23 @@ describe("subject visual shell", () => {
     expect(thermalStyles).toContain(".thermal-lab-list .preset-icon");
   });
 
-  it("puts every empty-lab creation palette in the visible workspace toolbar", () => {
-    const paletteClasses = [
-      "em-palette creation-controls",
-      "waves-experience__palette creation-controls",
-      "light-experience__palette creation-controls",
-      "thermal-palette creation-controls",
-      "modern-experience__palette creation-controls",
-    ];
+  it("keeps every routed lab palette in the left settings panel", () => {
+    expect(subjectExperienceSources[0]).toContain('class="em-settings-shell"');
+    expect(subjectExperienceSources[0]).toContain('class="em-palette" data-em-sandbox-tools');
+    expect(subjectExperienceSources[0]).toContain('data-em-controls');
 
-    subjectExperienceSources.forEach((source, index) => {
-      expect(source).toContain(paletteClasses[index]);
+    subjectExperienceSources.slice(1).forEach((source) => {
+      expect(source).toContain("subjectSettingsHeaderMarkup");
+      expect(source).toContain("data-subject-settings-tools");
+      expect(source).toContain("SubjectRouteSession");
     });
-    expect(subjectShellStyles).toMatch(/\.world-toolbar\.is-sandbox \.creation-controls\s*\{/);
+    expect(subjectShellStyles).toContain('.subject-settings-tools');
+    expect(subjectShellStyles).toContain('body[data-subject-screen="selection"] .app-layout');
+  });
+
+  it("installs the same focus-mode control for non-mechanics subjects", () => {
+    expect(bootstrap).toContain("installSubjectFocusMode");
+    expect(bootstrap).toContain("⛶ 크게 보기");
+    expect(bootstrap).toContain("is-focus-mode");
   });
 });

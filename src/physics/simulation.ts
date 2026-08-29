@@ -63,6 +63,38 @@ export class PhysicsSimulation extends MultiBodyWorld {
     }
   }
 
+  /** Returns the same force components used by the integrator, including modifier deltas. */
+  forceBreakdown(bodyId: string, dt = 1 / 60): readonly Force[] {
+    const body = this.getBody(bodyId) as SimulatedBody | undefined;
+    if (!body) return [];
+    const context: PhysicsContext = { time: this.currentTime, dt };
+    let vector: Vector2 = { x: 0, y: 0 };
+    const components: Force[] = [];
+    for (const law of this.laws) {
+      const force = law.forceOnBody(body, this.allBodies, context);
+      components.push({ vector: { ...force.vector }, source: force.source ?? law.id });
+      vector = add(vector, force.vector);
+    }
+    for (const field of this.fields) {
+      const force = field.forceAt(body.state as BodyState & { charge?: number }, context);
+      components.push({ vector: { ...force.vector }, source: force.source ?? field.id });
+      vector = add(vector, force.vector);
+    }
+    let combined: Force = { vector, source: "simulation-net" };
+    for (const modifier of this.forceModifiers) {
+      const next = modifier.modifyForce(body, this.allBodies as readonly SimulatedBody[], combined, context);
+      components.push({
+        vector: {
+          x: next.vector.x - combined.vector.x,
+          y: next.vector.y - combined.vector.y,
+        },
+        source: modifier.id,
+      });
+      combined = next;
+    }
+    return components;
+  }
+
   step(dt: number): void {
     if (dt <= 0) throw new RangeError("Time step must be greater than zero.");
     const context: PhysicsContext = { time: this.currentTime, dt };
@@ -85,14 +117,14 @@ export class PhysicsSimulation extends MultiBodyWorld {
   }
 
   private totalForce(body: SimulatedBody, context: PhysicsContext): Force {
-    let vector: Vector2 = { x: 0, y: 0 };
-    for (const law of this.laws) vector = add(vector, law.forceOnBody(body, this.allBodies, context).vector);
-    for (const field of this.fields) vector = add(vector, field.forceAt(body.state as BodyState & { charge?: number }, context).vector);
-    let force: Force = { vector, source: "simulation-net" };
-    for (const modifier of this.forceModifiers) {
-      force = modifier.modifyForce(body, this.allBodies as readonly SimulatedBody[], force, context);
-    }
-    return force;
+    const components = this.forceBreakdown(body.id, context.dt);
+    return {
+      vector: components.reduce(
+        (sum, force) => add(sum, force.vector),
+        { x: 0, y: 0 },
+      ),
+      source: "simulation-net",
+    };
   }
 
   get collisionEvents(): readonly CollisionEvent[] { return this.collisions; }

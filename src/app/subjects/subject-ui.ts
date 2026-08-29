@@ -1,4 +1,22 @@
-import type { SubjectDefinition, SubjectLabDefinition } from "./subject-experience";
+import type { PhysicsTermDefinition, SubjectDefinition, SubjectLabDefinition } from "./subject-experience";
+
+export function subjectSelectionMarkup(definition: SubjectDefinition, browserMarkup: string): string {
+  return `<div class="subject-selection-screen" data-subject-selection-screen>
+    <div class="subject-selection-intro">
+      <span class="eyebrow">${definition.eyebrow}</span>
+      <h1>어떤 실험을 해볼까요?</h1>
+      <p>실험을 고르면 조작 화면으로 이동합니다. 브라우저 뒤로가기로 이 화면에 돌아올 수 있어요.</p>
+    </div>
+    ${browserMarkup}
+  </div>`;
+}
+
+export function subjectSettingsHeaderMarkup(): string {
+  return `<div class="subject-settings-header">
+    <button class="subject-back-button" type="button" data-subject-back>← 실험 선택</button>
+    <div><span class="eyebrow">실험 설정</span><h2 data-subject-settings-title>바꿔 볼 조건</h2></div>
+  </div>`;
+}
 
 export interface SubjectBrowserOptions {
   readonly rootClass: string;
@@ -13,6 +31,14 @@ const escapeHtml = (value: string): string => value
   .replaceAll("<", "&lt;")
   .replaceAll(">", "&gt;")
   .replaceAll('"', "&quot;");
+
+export function termGlossaryMarkup(terms: readonly PhysicsTermDefinition[]): string {
+  if (terms.length === 0) return "";
+  return `<details class="term-glossary">
+    <summary><span>용어 알아보기</span><small>${terms.length}개</small></summary>
+    <dl>${terms.map((term) => `<div><dt>${escapeHtml(term.name)}</dt><dd>${escapeHtml(term.description)}</dd></div>`).join("")}</dl>
+  </details>`;
+}
 
 /** Builds the single experiment-browser layout shared by every subject. */
 export function subjectBrowserMarkup(
@@ -40,7 +66,7 @@ export function subjectBrowserMarkup(
           ${definition.labs.filter((lab) => lab.category === category).map((lab) => `
             <button class="${buttonClass}" type="button" ${options.choiceAttribute}="${escapeHtml(lab.id)}">
               <span class="preset-icon blue">${escapeHtml(lab.icon)}</span>
-              <span><strong>${escapeHtml(lab.title)}</strong><small>${escapeHtml(lab.question)}</small></span>
+              <span><strong>${escapeHtml(lab.selectionTitle ?? lab.title)}</strong><small>${escapeHtml(lab.selectionDescription ?? lab.question)}</small></span>
             </button>
           `).join("")}
         `).join("")}
@@ -60,6 +86,7 @@ export function subjectGuideMarkup(lab: SubjectLabDefinition): string {
         <ol>${lab.steps.map((step) => `<li>${escapeHtml(step)}</li>`).join("")}</ol>
       </div>
       <div class="lab-observation"><strong>눈여겨볼 것</strong><p>${escapeHtml(lab.observe)}</p></div>
+      ${termGlossaryMarkup(lab.terms ?? [])}
       <div class="lab-law">
         <span>연결되는 법칙</span>
         <strong>${escapeHtml(lab.law.title)}</strong>

@@ -1,5 +1,5 @@
-import type { SubjectController, SubjectExperience, SubjectHosts } from "../subject-experience";
-import { subjectBrowserMarkup, subjectGuideMarkup, subjectSandboxGuideMarkup } from "../subject-ui";
+import { SubjectRouteSession, type SubjectController, type SubjectExperience, type SubjectHosts, type SubjectRoute } from "../subject-experience";
+import { subjectBrowserMarkup, subjectGuideMarkup, subjectSandboxGuideMarkup, subjectSelectionMarkup, subjectSettingsHeaderMarkup } from "../subject-ui";
 import { thermalDefinition, thermalLab, type ThermalLabId } from "./catalog";
 import { ThermalWorld, type ThermalSceneId, type ThermalTool } from "./models";
 import { renderThermalGraph, ThermalRenderer } from "./renderer";
@@ -27,22 +27,26 @@ export class ThermalExperienceController implements SubjectController {
   private animation = 0;
   private previousTime = 0;
   private disposed = false;
+  private readonly routeSession: SubjectRouteSession;
 
   constructor(private readonly hosts: SubjectHosts) {
-    hosts.workspace.innerHTML = `<section class="thermal-experience"><div class="thermal-toolbar world-toolbar" aria-label="열 실험 실행"><button class="primary-button" type="button" data-action="play">⏸ 멈춤</button><button class="icon-button text-button" type="button" data-action="step">한 단계</button><button class="icon-button text-button" type="button" data-action="reset">↻ 처음으로</button><div class="thermal-palette creation-controls" hidden></div></div><canvas class="thermal-canvas" aria-label="열 실험 장면"></canvas></section>`;
-    hosts.experimentPanel.innerHTML = `${subjectBrowserMarkup(thermalDefinition, {
+    hosts.workspace.innerHTML = `<section class="thermal-experience subject-lab-screen" data-subject-lab-screen hidden><div class="thermal-toolbar world-toolbar" aria-label="열 실험 실행"><div class="transport-controls"><button class="primary-button" type="button" data-action="play">▶ 실행</button><button class="icon-button text-button" type="button" data-action="step">한 단계</button><button class="icon-button text-button" type="button" data-action="reset">↻ 처음으로</button></div><div class="toolbar-divider"></div><span class="run-indicator" data-running="false">멈춤</span></div><canvas class="thermal-canvas" aria-label="열 실험 장면"></canvas></section>`;
+    const browser = subjectBrowserMarkup(thermalDefinition, {
       rootClass: "thermal-panel",
       listClass: "thermal-lab-list",
       buttonClass: "thermal-lab-button",
       choiceAttribute: "data-scene",
-    })}`;
+    });
+    hosts.workspace.insertAdjacentHTML("afterbegin", subjectSelectionMarkup(thermalDefinition, browser));
+    hosts.experimentPanel.innerHTML = `${subjectSettingsHeaderMarkup()}<div class="thermal-palette subject-settings-tools" data-subject-settings-tools hidden></div>`;
     hosts.inspectorPanel.innerHTML = `<article class="thermal-guide"></article><section class="thermal-graph-card"><h3></h3><p class="thermal-current" aria-live="polite"></p><canvas class="thermal-graph" aria-label="열 실험 그래프"></canvas><div class="thermal-legend"></div></section>`;
     const canvas = hosts.workspace.querySelector<HTMLCanvasElement>(".thermal-canvas")!;
     this.graphCanvas = hosts.inspectorPanel.querySelector<HTMLCanvasElement>(".thermal-graph")!;
     this.renderer = new ThermalRenderer(this.world, canvas, () => this.refresh());
+    this.routeSession = new SubjectRouteSession({ definition: thermalDefinition, onRoute: (route) => this.applyRoute(route) });
     this.bind();
-    this.refreshPanels();
-    this.resize();
+    hosts.experimentPanel.querySelector<HTMLElement>("[data-subject-back]")!.addEventListener("click", () => this.routeSession.returnToSelection());
+    this.routeSession.start();
     this.animation = requestAnimationFrame((time) => this.frame(time));
   }
 
@@ -59,25 +63,22 @@ export class ThermalExperienceController implements SubjectController {
     this.disposed = true;
     cancelAnimationFrame(this.animation);
     this.renderer.destroy();
+    this.routeSession.dispose();
     this.hosts.workspace.innerHTML = "";
     this.hosts.experimentPanel.innerHTML = "";
     this.hosts.inspectorPanel.innerHTML = "";
+    delete document.body.dataset.subjectScreen;
   }
 
   activate(scene: ThermalSceneId): void {
     this.world.reset(scene);
-    this.hosts.experimentPanel.querySelectorAll<HTMLElement>("[data-scene]").forEach((button) => {
-      const active = button.dataset.scene === scene;
-      button.classList.toggle("is-active", active);
-      button.setAttribute("aria-pressed", String(active));
-    });
     this.refreshPanels();
     this.refresh();
   }
 
   private bind(): void {
-    this.hosts.experimentPanel.querySelectorAll<HTMLElement>("[data-scene]").forEach((button) =>
-      button.addEventListener("click", () => this.activate(button.dataset.scene as ThermalSceneId)));
+    this.hosts.workspace.querySelectorAll<HTMLElement>("[data-scene]").forEach((button) =>
+      button.addEventListener("click", () => this.routeSession.openLab(button.dataset.scene as ThermalSceneId)));
     this.hosts.workspace.querySelector("[data-action=play]")!.addEventListener("click", () => { this.world.toggle(); this.refresh(); });
     this.hosts.workspace.querySelector("[data-action=step]")!.addEventListener("click", () => { const wasRunning = this.world.running; this.world.play(); this.world.step(1 / 15); if (!wasRunning) this.world.pause(); this.refresh(); });
     this.hosts.workspace.querySelector("[data-action=reset]")!.addEventListener("click", () => this.activate(this.world.scene));
@@ -85,13 +86,9 @@ export class ThermalExperienceController implements SubjectController {
 
   private refreshPanels(): void {
     const guide = this.hosts.inspectorPanel.querySelector<HTMLElement>(".thermal-guide")!;
-    const paletteHost = this.hosts.workspace.querySelector<HTMLElement>(".thermal-palette")!;
+    const paletteHost = this.hosts.experimentPanel.querySelector<HTMLElement>(".thermal-palette")!;
     this.hosts.workspace.querySelector(".world-toolbar")?.classList.toggle("is-sandbox", this.world.scene === "sandbox");
-    this.hosts.experimentPanel.querySelectorAll<HTMLElement>("[data-scene]").forEach((button) => {
-      const active = button.dataset.scene === this.world.scene;
-      button.classList.toggle("is-active", active);
-      button.setAttribute("aria-pressed", String(active));
-    });
+    this.hosts.experimentPanel.querySelector<HTMLElement>("[data-subject-settings-title]")!.textContent = this.world.scene === "sandbox" ? "실험실 도구" : "바꿔 볼 조건";
     if (this.world.scene === "sandbox") {
       guide.innerHTML = subjectSandboxGuideMarkup(
         thermalDefinition,
@@ -99,9 +96,10 @@ export class ThermalExperienceController implements SubjectController {
         "장면의 입자 운동과 온도·압력 측정이 함께 달라지는지 보세요.",
       );
       paletteHost.hidden = false;
-      paletteHost.innerHTML = `<span class="palette-label">추가</span>${palette.map((item) => `<button type="button" data-tool="${item.type}">＋ ${item.label}</button>`).join("")}<button type="button" data-remove>마지막 장치 지우기</button>`;
-      paletteHost.querySelectorAll<HTMLButtonElement>("[data-tool]").forEach((button) => button.addEventListener("click", () => { this.world.addObject(button.dataset.tool as ThermalTool, 0.45 + (this.world.snapshot().objects.length % 4) * 0.1, 0.48); this.refresh(); }));
-      paletteHost.querySelector<HTMLButtonElement>("[data-remove]")!.addEventListener("click", () => { const removable = [...this.world.snapshot().objects].reverse().find((object) => !object.protected); if (removable) this.world.removeObject(removable.id); this.refresh(); });
+      const removable = [...this.world.snapshot().objects].reverse().find((object) => !object.protected);
+      paletteHost.innerHTML = `<span class="palette-label">추가</span>${palette.map((item) => `<button type="button" data-tool="${item.type}">＋ ${item.label}</button>`).join("")}<button class="danger-button" type="button" data-remove ${removable ? "" : "disabled"}>삭제</button>`;
+      paletteHost.querySelectorAll<HTMLButtonElement>("[data-tool]").forEach((button) => button.addEventListener("click", () => { this.world.addObject(button.dataset.tool as ThermalTool, 0.45 + (this.world.snapshot().objects.length % 4) * 0.1, 0.48); this.refreshPanels(); this.refresh(); }));
+      paletteHost.querySelector<HTMLButtonElement>("[data-remove]")!.addEventListener("click", () => { const target = [...this.world.snapshot().objects].reverse().find((object) => !object.protected); if (target) this.world.removeObject(target.id); this.refreshPanels(); this.refresh(); });
       const card = this.hosts.inspectorPanel.querySelector<HTMLElement>(".thermal-graph-card")!;
       card.hidden = false;
       card.querySelector("h3")!.textContent = sandboxGraph.title;
@@ -115,6 +113,23 @@ export class ThermalExperienceController implements SubjectController {
     card.hidden = false;
     card.querySelector("h3")!.textContent = lab.graph.title;
     card.querySelector<HTMLElement>(".thermal-legend")!.innerHTML = lab.graph.series.map((series) => `<span><i style="background:${series.color}"></i>${series.label}</span>`).join("");
+  }
+
+  private applyRoute(route: SubjectRoute): void {
+    const selection = this.hosts.workspace.querySelector<HTMLElement>("[data-subject-selection-screen]")!;
+    const lab = this.hosts.workspace.querySelector<HTMLElement>("[data-subject-lab-screen]")!;
+    if (route.screen === "selection") {
+      this.world.pause();
+      document.body.dataset.subjectScreen = "selection";
+      selection.hidden = false;
+      lab.hidden = true;
+      return;
+    }
+    document.body.dataset.subjectScreen = "lab";
+    selection.hidden = true;
+    lab.hidden = false;
+    this.activate(route.labId as ThermalSceneId);
+    this.resize();
   }
 
   private frame(time: number): void {
@@ -131,7 +146,9 @@ export class ThermalExperienceController implements SubjectController {
   private refresh(): void {
     this.renderer.render();
     const button = this.hosts.workspace.querySelector<HTMLButtonElement>("[data-action=play]");
-    if (button) button.textContent = this.world.running ? "⏸ 멈춤" : "▶ 실행";
+    if (button) { button.textContent = this.world.running ? "Ⅱ 일시정지" : "▶ 실행"; button.dataset.running = String(this.world.running); }
+    const run = this.hosts.workspace.querySelector<HTMLElement>(".run-indicator");
+    if (run) { run.textContent = this.world.running ? "실행 중" : "멈춤"; run.dataset.running = String(this.world.running); }
     const snapshot = this.world.snapshot();
     if (this.world.scene !== "sandbox") {
       renderThermalGraph(this.graphCanvas, snapshot, thermalLab(this.world.scene).graph);

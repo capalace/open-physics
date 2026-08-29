@@ -48,16 +48,20 @@ describe("physics subject shell", () => {
     expect(styles).toContain('body:not([data-subject="mechanics"]) .inspector-panel { display: block; }');
   });
 
-  it("opens every subject on its empty laboratory", () => {
-    expect(mechanicsEntry).toContain('activateSandbox();');
+  it("opens every subject on its routed experiment selector", () => {
+    expect(mechanicsEntry).toContain("SubjectRouteSession");
+    expect(mechanicsEntry).toContain("setupMechanicsScreens();");
     expect(mechanicsEntry).not.toContain('activateLab("free-fall", "initial");');
-    expect(subjectEntries.electromagnetism).toContain('this.activate("sandbox");');
+    expect(subjectEntries.electromagnetism).toContain("SubjectRouteSession");
+    expect(subjectEntries.electromagnetism).toContain("this.showSelection();");
+    expect(subjectEntries.electromagnetism).not.toContain('this.activate("sandbox");');
     expect(subjectEntries.waves).toContain('private active: WavesLabId | "sandbox" = "sandbox";');
-    expect(subjectEntries.waves).toContain('this.activate("sandbox");');
     expect(subjectEntries.light).toContain('new LightLabModel("sandbox")');
-    expect(subjectEntries.light).toContain('this.activate("sandbox");');
     expect(subjectEntries.thermal).toContain('new ThermalWorld("sandbox")');
     expect(subjectEntries.modern).toContain('private active: ModernLabId | "sandbox" = "sandbox";');
-    expect(subjectEntries.modern).toContain('this.activate("sandbox");');
+    for (const source of Object.values(subjectEntries)) {
+      expect(source).toContain("SubjectRouteSession");
+      expect(source).toMatch(/subjectSelectionMarkup|data-em-selection-screen/);
+    }
   });
 });

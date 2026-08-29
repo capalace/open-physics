@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { PhysicsPlayground } from "./physics-playground";
+import { mechanicsForceDirection, PhysicsPlayground } from "./physics-playground";
 
 const createCanvas = (): HTMLCanvasElement => ({
   width: 0,
@@ -529,6 +529,65 @@ describe("PhysicsPlayground object creation", () => {
   });
 });
 
+describe("PhysicsPlayground force diagrams", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("shows gravity and its downward net force during free fall", () => {
+    vi.stubGlobal("requestAnimationFrame", () => 0);
+    const playground = new PhysicsPlayground(createCanvas(), { width: 960, height: 600 });
+    playground.loadPreset("free-fall");
+
+    const diagram = playground.snapshot().forceDiagram!;
+
+    expect(diagram.objectLabel).toBe("무거운 공");
+    expect(diagram.forces.map((force) => force.label)).toEqual(["중력"]);
+    expect(diagram.net.magnitude).toBeCloseTo(3 * 9.81);
+    expect(diagram.net.direction).toBe("아래쪽");
+    expect(diagram.balanced).toBe(false);
+  });
+
+  it("keeps the ground and downward force labels above the bottom overlay", () => {
+    vi.stubGlobal("requestAnimationFrame", () => 0);
+    const { canvas, fillText } = createRenderingCanvas();
+    const playground = new PhysicsPlayground(canvas, { width: 960, height: 600 });
+    playground.loadPreset("friction");
+    const renderer = playground as unknown as { render(): void };
+
+    renderer.render();
+
+    expect(canvas.height - playground.floorY).toBeGreaterThanOrEqual(76);
+    const floorLabel = fillText.mock.calls.find(([label]) => label === "마찰이 있는 바닥");
+    const gravityLabel = fillText.mock.calls.find(([label]) => String(label).startsWith("중력 "));
+    expect(floorLabel?.[2]).toBeLessThan(playground.floorY - 8);
+    expect(gravityLabel?.[2]).toBeLessThan(playground.floorY - 8);
+  });
+
+  it("separates applied force, friction, weight, and normal force on a pushed box", () => {
+    vi.stubGlobal("requestAnimationFrame", () => 0);
+    const playground = new PhysicsPlayground(createCanvas(), { width: 960, height: 600 });
+    playground.loadPreset("friction");
+    const controller = playground as unknown as {
+      frictionLaw: { setAppliedForce(force: number): void };
+    };
+    controller.frictionLaw.setAppliedForce(100 * 48);
+    playground.simulation.refreshAccelerations();
+
+    const diagram = playground.snapshot().forceDiagram!;
+    const labels = diagram.forces.map((force) => force.label);
+
+    expect(labels).toEqual(expect.arrayContaining(["주는 힘", "마찰력", "중력", "수직항력"]));
+    expect(diagram.net.direction).toBe("오른쪽");
+    expect(diagram.net.magnitude).toBeGreaterThan(70);
+  });
+
+  it("uses child-friendly eight-way direction labels", () => {
+    expect(mechanicsForceDirection({ x: 0, y: -10 })).toBe("위쪽");
+    expect(mechanicsForceDirection({ x: 10, y: 0 })).toBe("오른쪽");
+    expect(mechanicsForceDirection({ x: -10, y: 10 })).toBe("아래왼쪽");
+    expect(mechanicsForceDirection({ x: 0, y: 0 })).toBe("힘이 균형을 이뤄요");
+  });
+});
+
 describe("PhysicsPlayground contacts", () => {
   afterEach(() => vi.unstubAllGlobals());
 
@@ -861,12 +920,14 @@ describe("PhysicsPlayground extended mechanics", () => {
     const playground = new PhysicsPlayground(canvas, { width: 960, height: 600 });
     playground.loadPreset("friction");
     const body = playground.simulation.allBodies[0];
+    const controller = playground as unknown as { frictionHandlePoint(): { x: number; y: number } };
+    const handle = controller.frictionHandlePoint();
 
-    dispatchPointer("pointerdown", 456, 518);
-    dispatchPointer("pointermove", 475, 518);
+    dispatchPointer("pointerdown", handle.x, handle.y);
+    dispatchPointer("pointermove", handle.x + 19, handle.y);
     expect(body.state.acceleration.x).toBeCloseTo(0);
 
-    dispatchPointer("pointermove", 530, 518);
+    dispatchPointer("pointermove", handle.x + 74, handle.y);
     expect(body.state.acceleration.x).toBeGreaterThan(0);
     const values = playground.snapshot().graph!.samples.at(-1)!.values;
     expect(values[0]).toBeGreaterThan(values[1]);
@@ -884,6 +945,40 @@ describe("PhysicsPlayground extended mechanics", () => {
     const clayLimit = playground.snapshot().graph!.samples.at(-1)!.values[1];
     expect(clayLimit).toBeGreaterThan(woodLimit);
     expect(body.state.acceleration.x).toBeCloseTo(0);
+  });
+
+  it("summarizes stable friction and pulley results for side-by-side comparison", () => {
+    vi.stubGlobal("requestAnimationFrame", () => 0);
+    const playground = new PhysicsPlayground(createCanvas(), { width: 960, height: 600 });
+
+    playground.loadPreset("friction");
+    const friction = playground.snapshot().comparison;
+    expect(friction?.condition).toContain("나무");
+    expect(friction?.values[0]).toMatchObject({ label: "움직이기 시작하는 힘", unit: "N" });
+
+    playground.loadPreset("pulley");
+    const pulley = playground.snapshot().comparison;
+    expect(pulley?.condition).toContain("1줄");
+    expect(pulley?.values.map((value) => value.label)).toEqual(["필요한 힘", "1 m 올릴 때 당기는 줄"]);
+  });
+
+  it("exposes post-collision horizontal velocities to the prediction comparison", () => {
+    vi.stubGlobal("requestAnimationFrame", () => 0);
+    const { canvas } = createRenderingCanvas();
+    const playground = new PhysicsPlayground(canvas, { width: 960, height: 600 });
+    playground.loadPreset("collision");
+
+    expect(playground.snapshot().collision).toMatchObject({ occurred: false });
+    let collided = false;
+    for (let frame = 0; frame < 360 && !collided; frame += 1) {
+      playground.paused = true;
+      playground.stepOnce();
+      collided = playground.snapshot().collision?.occurred ?? false;
+    }
+
+    expect(collided).toBe(true);
+    expect(playground.snapshot().collision?.velocityA).toEqual(expect.any(Number));
+    expect(playground.snapshot().collision?.velocityB).toEqual(expect.any(Number));
   });
 
   it("draws the spring as a densely sampled smooth coil", () => {
@@ -1017,12 +1112,14 @@ describe("PhysicsPlayground extended mechanics", () => {
     const oneStrandForce = playground.snapshot().graph!.samples.at(-1)!.values[1];
     const controller = playground as unknown as {
       guidedScene: { kind: string; pullDistance: number };
+      pulleyHandlePoint(scene: object): { x: number; y: number };
     };
 
     dispatchPointer("pointerdown", 584, 86);
     const fourStrandForce = playground.snapshot().graph!.samples.at(-1)!.values[1];
-    dispatchPointer("pointerdown", 653, 323);
-    dispatchPointer("pointermove", 653, 523);
+    const handle = controller.pulleyHandlePoint(controller.guidedScene);
+    dispatchPointer("pointerdown", handle.x, handle.y);
+    dispatchPointer("pointermove", handle.x, handle.y + 200);
 
     expect(fourStrandForce).toBeCloseTo(oneStrandForce / 4);
     expect(startY - load.state.position.y).toBeCloseTo(200);
@@ -1036,19 +1133,29 @@ describe("PhysicsPlayground extended mechanics", () => {
     hardPlayground.loadPreset("pulley");
     const hardLoad = hardPlayground.simulation.allBodies[0];
     const hardStartY = hardLoad.state.position.y;
+    const hardController = hardPlayground as unknown as {
+      guidedScene: object;
+      pulleyHandlePoint(scene: object): { x: number; y: number };
+    };
+    const hardHandle = hardController.pulleyHandlePoint(hardController.guidedScene);
 
-    oneStrand.dispatchPointer("pointerdown", 653, 323);
-    oneStrand.dispatchPointer("pointermove", 653, 523);
+    oneStrand.dispatchPointer("pointerdown", hardHandle.x, hardHandle.y);
+    oneStrand.dispatchPointer("pointermove", hardHandle.x, hardHandle.y + 200);
 
     const fourStrands = createInteractiveCanvas();
     const easyPlayground = new PhysicsPlayground(fourStrands.canvas, { width: 960, height: 600 });
     easyPlayground.loadPreset("pulley");
     const easyLoad = easyPlayground.simulation.allBodies[0];
     const easyStartY = easyLoad.state.position.y;
+    const easyController = easyPlayground as unknown as {
+      guidedScene: object;
+      pulleyHandlePoint(scene: object): { x: number; y: number };
+    };
 
     fourStrands.dispatchPointer("pointerdown", 584, 86);
-    fourStrands.dispatchPointer("pointerdown", 653, 323);
-    fourStrands.dispatchPointer("pointermove", 653, 523);
+    const easyHandle = easyController.pulleyHandlePoint(easyController.guidedScene);
+    fourStrands.dispatchPointer("pointerdown", easyHandle.x, easyHandle.y);
+    fourStrands.dispatchPointer("pointermove", easyHandle.x, easyHandle.y + 200);
 
     expect(hardStartY - hardLoad.state.position.y).toBeCloseTo(50);
     expect(easyStartY - easyLoad.state.position.y).toBeCloseTo(200);
@@ -1067,18 +1174,20 @@ describe("PhysicsPlayground extended mechanics", () => {
     };
 
     dispatchPointer("pointerdown", 584, 86);
-    dispatchPointer("pointerdown", 653, 323);
-    dispatchPointer("pointermove", 653, 523);
-    dispatchPointer("pointerup", 653, 523);
+    const firstHandle = controller.pulleyHandlePoint(controller.guidedScene);
+    dispatchPointer("pointerdown", firstHandle.x, firstHandle.y);
+    dispatchPointer("pointermove", firstHandle.x, firstHandle.y + 200);
+    dispatchPointer("pointerup", firstHandle.x, firstHandle.y + 200);
 
-    expect(controller.pulleyHandlePoint(controller.guidedScene).y).toBeCloseTo(523);
+    const secondHandle = controller.pulleyHandlePoint(controller.guidedScene);
+    expect(secondHandle.y).toBeCloseTo(firstHandle.y + 200);
 
-    dispatchPointer("pointerdown", 653, 523);
-    dispatchPointer("pointermove", 653, 623);
-    dispatchPointer("pointerup", 653, 623);
+    dispatchPointer("pointerdown", secondHandle.x, secondHandle.y);
+    dispatchPointer("pointermove", secondHandle.x, secondHandle.y + 100);
+    dispatchPointer("pointerup", secondHandle.x, secondHandle.y + 100);
 
     expect(startY - load.state.position.y).toBeCloseTo(300);
-    expect(controller.pulleyHandlePoint(controller.guidedScene).y).toBeCloseTo(623);
+    expect(controller.pulleyHandlePoint(controller.guidedScene).y).toBeCloseTo(firstHandle.y + 300);
   });
 
   it("stops a full pulley pull at the safe lifting height", () => {
@@ -1088,10 +1197,15 @@ describe("PhysicsPlayground extended mechanics", () => {
     playground.loadPreset("pulley");
     const load = playground.simulation.allBodies[0];
     const startY = load.state.position.y;
+    const controller = playground as unknown as {
+      guidedScene: object;
+      pulleyHandlePoint(scene: object): { x: number; y: number };
+    };
 
     dispatchPointer("pointerdown", 584, 86);
-    dispatchPointer("pointerdown", 653, 323);
-    dispatchPointer("pointermove", 653, 573);
+    const handle = controller.pulleyHandlePoint(controller.guidedScene);
+    dispatchPointer("pointerdown", handle.x, handle.y);
+    dispatchPointer("pointermove", handle.x, handle.y + 250);
 
     expect(startY - load.state.position.y).toBeCloseTo(200);
   });
@@ -1103,10 +1217,15 @@ describe("PhysicsPlayground extended mechanics", () => {
     playground.loadPreset("pulley");
     const load = playground.simulation.allBodies[0];
     const startY = load.state.position.y;
+    const controller = playground as unknown as {
+      guidedScene: object;
+      pulleyHandlePoint(scene: object): { x: number; y: number };
+    };
 
     dispatchPointer("pointerdown", 584, 86);
-    dispatchPointer("pointerdown", 653, 323);
-    dispatchPointer("pointermove", 653, 723);
+    const handle = controller.pulleyHandlePoint(controller.guidedScene);
+    dispatchPointer("pointerdown", handle.x, handle.y);
+    dispatchPointer("pointermove", handle.x, handle.y + 450);
 
     expect(startY - load.state.position.y).toBeCloseTo(400);
   });
@@ -1337,6 +1456,23 @@ describe("PhysicsPlayground velocity control", () => {
     playground.paused = true;
     playground.reset(true);
     expect(playground.paused).toBe(false);
+  });
+
+  it("can keep direct velocity editing paused for a prediction step", () => {
+    vi.stubGlobal("requestAnimationFrame", () => 0);
+    const { canvas, dispatchPointer } = createInteractiveCanvas();
+    const playground = new PhysicsPlayground(canvas, { width: 960, height: 600 });
+    playground.loadPreset("collision");
+    playground.setDirectManipulationAutoPlay(false);
+    const first = [...playground.objects.values()][0];
+    playground.select(first.id);
+    const handle = { x: first.x + 64, y: first.y };
+
+    dispatchPointer("pointerdown", handle.x, handle.y);
+    dispatchPointer("pointermove", handle.x + 20, handle.y);
+    dispatchPointer("pointerup", handle.x + 20, handle.y);
+
+    expect(playground.paused).toBe(true);
   });
 
   it("starts the spring when its object is released after dragging", () => {
