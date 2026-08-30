@@ -2059,10 +2059,18 @@ export class PhysicsPlayground {
       ctx.beginPath();
       ctx.arc(handle.x, handle.y, 11, 0, Math.PI * 2);
       ctx.fill();
-      ctx.fillStyle = "#9f3d2b";
       ctx.font = "800 14px Inter, system-ui, sans-serif";
       ctx.textAlign = "center";
-      ctx.fillText(`힘 ${magnitude.toFixed(1)} N`, handle.x, handle.y - 18);
+      const label = `힘 ${magnitude.toFixed(1)} N`;
+      const labelWidth = ctx.measureText(label).width;
+      const labelX = Math.max(labelWidth / 2 + 8, Math.min(this.canvas.width - labelWidth / 2 - 8, handle.x));
+      const desiredLabelY = handle.y - 18 < 18 ? handle.y + 31 : handle.y - 18;
+      const labelY = Math.max(18, Math.min(this.floorY - 8, desiredLabelY));
+      ctx.fillStyle = "#ffffffeb";
+      this.roundRect(labelX - labelWidth / 2 - 6, labelY - 15, labelWidth + 12, 20, 7);
+      ctx.fill();
+      ctx.fillStyle = "#9f3d2b";
+      ctx.fillText(label, labelX, labelY);
       ctx.restore();
     }
   }
@@ -3110,6 +3118,8 @@ export class PhysicsPlayground {
           0.14,
           "#e05c3f",
           "가속도",
+          undefined,
+          !this.labMode && this.forceLaws.has(object.id),
         );
       }
       if (this.isResizableBlock(object, body)) this.drawResizeHandles(object);
@@ -3221,7 +3231,16 @@ export class PhysicsPlayground {
     ctx.fillStyle = "#7257d5";
     ctx.font = "700 14px Inter, system-ui, sans-serif";
     const label = idle ? "여기서 끌어 보세요" : `속도 · ${this.displayAngle(velocity)}°`;
-    ctx.fillText(label, endX + 11, endY - 10);
+    const labelWidth = ctx.measureText(label).width;
+    const labelX = Math.max(labelWidth / 2 + 8, Math.min(this.canvas.width - labelWidth / 2 - 8, endX));
+    const desiredLabelY = endY - 10 < 18 ? endY + 29 : endY - 10;
+    const labelY = Math.max(18, Math.min(this.floorY - 8, desiredLabelY));
+    ctx.textAlign = "center";
+    ctx.fillStyle = "#ffffffeb";
+    this.roundRect(labelX - labelWidth / 2 - 6, labelY - 15, labelWidth + 12, 20, 7);
+    ctx.fill();
+    ctx.fillStyle = "#7257d5";
+    ctx.fillText(label, labelX, labelY);
     ctx.restore();
   }
 
@@ -3275,6 +3294,7 @@ export class PhysicsPlayground {
     color: string,
     label: string,
     downwardLimit?: number,
+    preferLabelBefore = false,
   ): void {
     let x = vector.x * factor;
     let y = vector.y * factor;
@@ -3293,6 +3313,7 @@ export class PhysicsPlayground {
       x *= scale;
       y = availableLength;
     }
+    ({ x, y } = this.fitVectorInsideCanvas({ x: originX, y: originY }, { x, y }, 12));
     const endX = originX + x;
     const endY = originY + y;
     const angle = Math.atan2(y, x);
@@ -3314,18 +3335,16 @@ export class PhysicsPlayground {
     ctx.fill();
     ctx.font = "700 14px Inter, system-ui, sans-serif";
     const mostlyVertical = Math.abs(y) >= Math.abs(x);
-    const labelX = mostlyVertical ? originX + 46 : originX + x * 0.5;
-    const labelY = mostlyVertical ? originY + y * 0.5 + 5 : originY + y * 0.5 - 16;
-    ctx.textAlign = mostlyVertical ? "left" : "center";
     const labelWidth = ctx.measureText(label).width;
+    const desiredLabelX = preferLabelBefore
+      ? originX - labelWidth / 2 - 14
+      : mostlyVertical ? originX + 46 : originX + x * 0.5;
+    const desiredLabelY = mostlyVertical ? originY + y * 0.5 + 5 : originY + y * 0.5 - 16;
+    const labelX = Math.max(labelWidth / 2 + 8, Math.min(this.canvas.width - labelWidth / 2 - 8, desiredLabelX));
+    const labelY = Math.max(18, Math.min(this.floorY - 8, desiredLabelY));
+    ctx.textAlign = "center";
     ctx.fillStyle = "#ffffffeb";
-    this.roundRect(
-      mostlyVertical ? labelX - 6 : labelX - labelWidth / 2 - 6,
-      labelY - 15,
-      labelWidth + 12,
-      20,
-      7,
-    );
+    this.roundRect(labelX - labelWidth / 2 - 6, labelY - 15, labelWidth + 12, 20, 7);
     ctx.fill();
     ctx.fillStyle = color;
     ctx.fillText(label, labelX, labelY);
@@ -3716,10 +3735,27 @@ export class PhysicsPlayground {
   }
 
   private forceHandlePoint(law: ConstantBodyForceLaw, origin: Vector2): Vector2 {
+    const vector = this.fitVectorInsideCanvas(origin, {
+      x: law.vector.x * FORCE_VECTOR_SCALE,
+      y: law.vector.y * FORCE_VECTOR_SCALE,
+    }, 14);
     return {
-      x: origin.x + law.vector.x * FORCE_VECTOR_SCALE,
-      y: origin.y + law.vector.y * FORCE_VECTOR_SCALE,
+      x: origin.x + vector.x,
+      y: origin.y + vector.y,
     };
+  }
+
+  private fitVectorInsideCanvas(origin: Vector2, vector: Vector2, margin: number): Vector2 {
+    let scale = 1;
+    const right = this.canvas.width - margin - origin.x;
+    const left = margin - origin.x;
+    const bottom = this.floorY - margin - origin.y;
+    const top = margin - origin.y;
+    if (vector.x > 0) scale = Math.min(scale, Math.max(0, right / vector.x));
+    if (vector.x < 0) scale = Math.min(scale, Math.max(0, left / vector.x));
+    if (vector.y > 0) scale = Math.min(scale, Math.max(0, bottom / vector.y));
+    if (vector.y < 0) scale = Math.min(scale, Math.max(0, top / vector.y));
+    return { x: vector.x * scale, y: vector.y * scale };
   }
 
   private hitForceHandle(point: Vector2): PlaygroundObject | null {

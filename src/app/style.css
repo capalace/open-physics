@@ -518,9 +518,15 @@ body[data-app-mode="sandbox"] .object-editor { margin-top: 0; padding-top: 0; bo
   .focus-button { display: inline-flex; margin-left: auto; }
   body[data-subject-screen="lab"] .app-layout.is-focus-mode > .panel { display: none; }
   body[data-subject-screen="lab"] .app-layout.is-focus-mode .workspace { min-height: calc(100dvh - 54px); }
-  body[data-subject="mechanics"][data-subject-screen="lab"] .canvas-frame { min-height: min(56dvh, 420px); }
+  body[data-subject="mechanics"][data-subject-screen="lab"] .canvas-frame {
+    height: min(56dvh, 420px);
+    min-height: 0;
+  }
   body[data-subject="mechanics"][data-subject-screen="lab"] .canvas-frame > canvas { height: 100%; aspect-ratio: auto; }
-  body[data-subject="mechanics"][data-subject-screen="lab"] .app-layout.is-focus-mode .canvas-frame { min-height: calc(100dvh - 130px); }
+  body[data-subject="mechanics"][data-subject-screen="lab"] .app-layout.is-focus-mode .canvas-frame {
+    height: calc(100dvh - 130px);
+    min-height: 0;
+  }
   .mechanics-interaction-tip,
   .mechanics-setting-feedback { width: max-content; max-width: calc(100% - 28px); padding: 8px 10px; font-size: 12px; }
   .inspector-panel { display: block; }
@@ -528,5 +534,17 @@ body[data-app-mode="sandbox"] .object-editor { margin-top: 0; padding-top: 0; bo
   .mobile-settings-drawer, .mobile-tools-drawer { display: block; border: 1px solid var(--line); border-radius: 12px; padding: 0 12px; background: #fff; box-shadow: 0 4px 14px #22304a0a; }
   .mobile-settings-drawer > summary, .mobile-tools-drawer > summary { display: flex; min-height: 46px; align-items: center; color: #536078; cursor: pointer; font-size: 14px; font-weight: 800; }
   .mobile-settings-drawer[open] > summary, .mobile-tools-drawer[open] > summary { border-bottom: 1px solid var(--line); }
+  .mobile-settings-drawer[open], .mobile-tools-drawer[open] {
+    position: fixed;
+    z-index: 40;
+    right: 8px;
+    bottom: max(8px, env(safe-area-inset-bottom));
+    left: 8px;
+    max-height: calc(100dvh - 70px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    border-color: #cbd6e7;
+    box-shadow: 0 18px 60px #1d294052;
+  }
   .mobile-tools-drawer .creation-controls.subject-settings-tools { padding-top: 12px; }
 }

@@ -68,9 +68,13 @@ describe("physics subject shell", () => {
   it("gives the mobile playground more room and an explicit focus control", () => {
     expect(styles).toMatch(/@media \(max-width: 700px\)[\s\S]*\.workspace\s*\{[^}]*padding:\s*8px/s);
     expect(styles).toMatch(/@media \(max-width: 700px\)[\s\S]*\.focus-button\s*\{[^}]*display:\s*inline-flex/s);
-    expect(styles).toMatch(/\.app-layout\.is-focus-mode \.canvas-frame\s*\{[^}]*min-height:\s*calc\(100dvh - 130px\)/s);
+    expect(styles).toMatch(/\.app-layout\.is-focus-mode \.canvas-frame\s*\{[^}]*height:\s*calc\(100dvh - 130px\)/s);
+    expect(styles).toMatch(/body\[data-subject="mechanics"\]\[data-subject-screen="lab"\] \.canvas-frame\s*\{[^}]*height:\s*min\(56dvh, 420px\)/s);
+    expect(styles).toMatch(/\.mobile-settings-drawer\[open\], \.mobile-tools-drawer\[open\]\s*\{[^}]*position:\s*fixed;[^}]*max-height:\s*calc\(100dvh - 70px\);[^}]*overflow-y:\s*auto/s);
     expect(styles).toMatch(/\.mechanics-interaction-tip,[\s\S]*max-width:\s*calc\(100% - 28px\)/s);
     expect(mechanicsEntry).toContain("window.innerWidth > 700 && window.innerWidth <= 940");
+    expect(mechanicsEntry).toContain("if (mobileQuery.matches && mobileTools.open) mobileSettings.open = false");
+    expect(mechanicsEntry).toContain("if (mobileQuery.matches && mobileSettings.open) mobileTools.open = false");
   });
 
   it("opens every subject on its routed experiment selector", () => {

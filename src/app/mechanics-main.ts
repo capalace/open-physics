@@ -465,6 +465,12 @@ function setupMechanicsScreens(): void {
   const mobileQuery = window.matchMedia("(max-width: 700px)");
   mobileTools.open = !mobileQuery.matches;
   mobileSettings.open = !mobileQuery.matches;
+  mobileTools.addEventListener("toggle", () => {
+    if (mobileQuery.matches && mobileTools.open) mobileSettings.open = false;
+  });
+  mobileSettings.addEventListener("toggle", () => {
+    if (mobileQuery.matches && mobileSettings.open) mobileTools.open = false;
+  });
   mobileQuery.addEventListener("change", (event) => { mobileTools.open = !event.matches; mobileSettings.open = !event.matches; });
   experimentPanel.replaceChildren(settingsHeader, mobileTools, mobileSettings);
   inspectorPanel.setAttribute("aria-label", "실험 설명과 관찰 결과");
