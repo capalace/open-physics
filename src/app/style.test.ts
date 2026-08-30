@@ -9,6 +9,7 @@ const subjectStyles = ["electromagnetism", "waves", "light", "thermal", "modern"
   .map((subject) => readFileSync(new URL(`./subjects/${subject}/style.css`, import.meta.url), "utf8"))
   .join("\n");
 const subjectShellStyles = readFileSync(new URL("./subjects/style.css", import.meta.url), "utf8");
+const electromagnetismStyles = readFileSync(new URL("./subjects/electromagnetism/style.css", import.meta.url), "utf8");
 const lightStyles = readFileSync(new URL("./subjects/light/style.css", import.meta.url), "utf8");
 const thermalStyles = readFileSync(new URL("./subjects/thermal/style.css", import.meta.url), "utf8");
 const bootstrap = readFileSync(new URL("./main.ts", import.meta.url), "utf8");
@@ -160,6 +161,9 @@ describe("subject visual shell", () => {
     expect(subjectShellStyles).toMatch(/\.light-experience__inspector\s*\{[^}]*padding:\s*24px 20px/s);
     expect(thermalExperience).toContain("shell.clientWidth");
     expect(thermalExperience).toContain("shell.clientHeight - toolbar.offsetHeight");
+    expect(electromagnetismStyles).not.toMatch(/\.em-selection-screen\s*\{[^}]*width:/s);
+    expect(electromagnetismStyles).not.toMatch(/\.em-selection-intro\s*\{[^}]*margin-bottom:/s);
+    expect(mechanicsBootstrap).toContain('browser.classList.add("subject-browser", "mechanics-browser")');
   });
 
   it("keeps experiment card copy left-aligned in every subject", () => {

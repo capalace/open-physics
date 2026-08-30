@@ -250,10 +250,11 @@ function renderSnapshot(snapshot: PlaygroundSnapshot): void {
   document.querySelectorAll<HTMLButtonElement>("[data-gravity]").forEach((button) => {
     setActive(button, Math.abs(Number(button.dataset.gravity) - snapshot.gravity) < 0.01);
   });
+  const showingLab = document.body.dataset.subjectScreen === "lab";
   document.querySelectorAll<HTMLButtonElement>("[data-lab]").forEach((button) => {
-    setActive(button, appMode === "lab" && button.dataset.lab === activeLab.id);
+    setActive(button, showingLab && appMode === "lab" && button.dataset.lab === activeLab.id);
   });
-  setActive(required<HTMLButtonElement>("[data-start-sandbox]"), appMode === "sandbox");
+  setActive(required<HTMLButtonElement>("[data-start-sandbox]"), showingLab && appMode === "sandbox");
   const editorAvailable = !objectEditor.hidden;
   inspectorEmpty.hidden = !editorAvailable || Boolean(snapshot.selected);
   inspectorForm.hidden = !editorAvailable || !snapshot.selected;
@@ -402,6 +403,7 @@ function applyRoute(route: SubjectRoute, source: SubjectRouteSource): void {
     document.body.dataset.subjectScreen = "selection";
     selection.hidden = false;
     labScreen.hidden = true;
+    selection.querySelectorAll<HTMLButtonElement>(".quick-start").forEach((button) => setActive(button, false));
     return;
   }
   document.body.dataset.subjectScreen = "lab";
@@ -414,6 +416,7 @@ function applyRoute(route: SubjectRoute, source: SubjectRouteSource): void {
 
 function setupMechanicsScreens(): void {
   const browser = required<HTMLElement>("#lab-browser");
+  browser.classList.add("subject-browser", "mechanics-browser");
   const selection = document.createElement("div");
   selection.className = "subject-selection-screen mechanics-selection-screen";
   selection.dataset.subjectSelectionScreen = "";

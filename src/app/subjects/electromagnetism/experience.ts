@@ -323,7 +323,7 @@ class ElectromagnetismController implements SubjectController {
       </div>`;
     this.hosts.workspace.innerHTML = `
       <div class="em-selection-screen subject-selection-screen" data-em-selection-screen>
-        <div class="em-selection-intro subject-selection-intro"><span class="em-eyebrow">전자기학</span><h1>어떤 실험을 해볼까요?</h1><p>실험을 고르면 조작 화면으로 이동합니다. 브라우저 뒤로가기로 이 화면에 돌아올 수 있어요.</p></div>
+        <div class="em-selection-intro subject-selection-intro"><span class="eyebrow">전자기학</span><h1>어떤 실험을 해볼까요?</h1><p>실험을 고르면 조작 화면으로 이동합니다. 브라우저 뒤로가기로 이 화면에 돌아올 수 있어요.</p></div>
         ${subjectPickerMarkup("electromagnetism")}
         ${browser}
       </div>

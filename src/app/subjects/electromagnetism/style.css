@@ -9,16 +9,6 @@
 body[data-subject="electromagnetism"][data-subject-screen="selection"] .app-layout { grid-template-columns: minmax(0, 1fr); }
 body[data-subject="electromagnetism"][data-subject-screen="selection"] :is(#experiment-panel, #inspector-panel) { display: none; }
 body[data-subject="electromagnetism"][data-subject-screen="selection"] .workspace { overflow-y: auto; padding: clamp(24px, 4vw, 56px); }
-.subject-electromagnetism .em-selection-screen { width: min(1040px, 100%); margin: 0 auto; }
-.subject-electromagnetism .em-selection-intro { margin-bottom: 28px; }
-.subject-electromagnetism .em-selection-intro h1 { margin: 8px 0 10px; color: var(--em-ink); font-size: clamp(28px, 4vw, 42px); letter-spacing: -.04em; }
-.subject-electromagnetism .em-selection-intro p { max-width: 660px; margin: 0; color: #68758a; font-size: 15px; line-height: 1.65; }
-.subject-electromagnetism .em-selection-screen .section-heading { margin-bottom: 18px; }
-body[data-subject="electromagnetism"][data-subject-screen="selection"] .em-selection-screen .quick-start-list { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
-.subject-electromagnetism .em-selection-screen .topic-label { grid-column: 1 / -1; margin-top: 12px; }
-.subject-electromagnetism .em-selection-screen .em-lab-button { min-height: 76px; padding: 12px; }
-.subject-electromagnetism .em-selection-screen .em-lab-button strong { font-size: 15px; white-space: normal; }
-.subject-electromagnetism .em-selection-screen .em-lab-button small { white-space: normal; }
 .subject-electromagnetism .em-lab-screen { display: flex; min-height: 0; flex: 1; flex-direction: column; }
 
 .subject-electromagnetism .em-settings-shell { display: grid; gap: 14px; }
@@ -168,7 +158,6 @@ body[data-subject="electromagnetism"][data-subject-screen="selection"] .em-selec
 .subject-electromagnetism .em-graph p { display: flex; justify-content: space-between; gap: 8px; margin: 7px 0 0; color: #718096; font-size: 12px; }
 
 @media (max-width: 940px) {
-  body[data-subject="electromagnetism"][data-subject-screen="selection"] .em-selection-screen .quick-start-list { grid-template-columns: minmax(0, 1fr); }
   .subject-electromagnetism .em-lab-button { min-height: 52px; }
   .subject-electromagnetism .em-canvas-frame canvas { min-height: 360px; }
 }
