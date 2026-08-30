@@ -69,7 +69,8 @@ describe("subject experience contract", () => {
     expect(subjectRouteFromUrl(labUrl, definition)).toEqual({ screen: "lab", labId: "interference" });
     expect(subjectRouteFromUrl(new URL("https://example.test/?subject=waves&lab=missing"), definition)).toEqual({ screen: "selection" });
     expect(subjectRouteFromUrl(new URL("https://example.test/?subject=waves&lab=sandbox"), definition)).toEqual({ screen: "lab", labId: "sandbox" });
-    expect(subjectRouteFromUrl(new URL("https://example.test/?subject=waves"), definition)).toEqual({ screen: "lab", labId: "sandbox" });
+    expect(subjectRouteFromUrl(new URL("https://example.test/?subject=waves"), definition)).toEqual({ screen: "selection" });
+    expect(subjectRouteFromUrl(new URL("https://example.test/"), definition)).toEqual({ screen: "selection" });
   });
 
   it("keeps mechanics routes on the root subject URL", () => {

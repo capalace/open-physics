@@ -77,7 +77,7 @@ type SubjectRouteDefinition = {
 export function subjectRouteFromUrl(url: URL, definition: SubjectRouteDefinition): SubjectRoute {
   if (url.searchParams.get("view") === "selection") return { screen: "selection" };
   const requestedLab = url.searchParams.get("lab");
-  if (!requestedLab) return { screen: "lab", labId: "sandbox" };
+  if (!requestedLab) return { screen: "selection" };
   if (requestedLab === "sandbox" || definition.labs.some((lab) => lab.id === requestedLab)) {
     return { screen: "lab", labId: requestedLab };
   }

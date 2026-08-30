@@ -43,7 +43,7 @@ describe("physics subject shell", () => {
   });
 
   it("keeps navigation recoverable across home and browser history", () => {
-    expect(markup).toContain('class="brand" href="?view=selection"');
+    expect(markup).toContain('class="brand" href="./"');
     expect(bootstrap).toContain("if (event.persisted) return");
   });
 
