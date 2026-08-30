@@ -62,6 +62,19 @@ button:focus-visible, input:focus-visible { outline: 3px solid #91a8ff; outline-
 .brand strong, .brand small { display: block; }
 .brand strong { font-size: 15px; letter-spacing: -.02em; }
 .brand small { margin-top: 1px; color: #657287; font-size: 12px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; }
+.pwa-install-button {
+  min-height: 34px;
+  margin-left: auto;
+  border: 1px solid #cad5e6;
+  border-radius: 9px;
+  padding: 0 12px;
+  background: #eef3ff;
+  color: #365eea;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 850;
+}
+.pwa-install-button:hover { border-color: #9db0ed; background: #e5ecff; }
 
 .app-layout {
   display: grid;
@@ -494,14 +507,25 @@ body[data-app-mode="sandbox"] .object-editor { margin-top: 0; padding-top: 0; bo
 }
 @media (max-width: 700px) {
   .app-layout { display: block; }
-  .experiment-panel { border-right: 0; border-bottom: 1px solid var(--line); }
+  .experiment-panel { gap: 10px; border-right: 0; border-bottom: 1px solid var(--line); padding: 12px; }
+  .subject-settings-header { margin-bottom: 0; }
+  .subject-settings-header > div { display: none; }
+  .workspace { padding: 8px; }
   .guide, .principle-note { display: none; }
   .quick-start-list { grid-template-columns: minmax(0, 1fr); }
-  .world-toolbar { flex-wrap: wrap; }
+  .world-toolbar { flex-wrap: wrap; margin-bottom: 8px; }
   .run-indicator, .toolbar-divider, .canvas-legend { display: none; }
+  .focus-button { display: inline-flex; margin-left: auto; }
+  body[data-subject-screen="lab"] .app-layout.is-focus-mode > .panel { display: none; }
+  body[data-subject-screen="lab"] .app-layout.is-focus-mode .workspace { min-height: calc(100dvh - 54px); }
+  body[data-subject="mechanics"][data-subject-screen="lab"] .canvas-frame { min-height: min(56dvh, 420px); }
+  body[data-subject="mechanics"][data-subject-screen="lab"] .canvas-frame > canvas { height: 100%; aspect-ratio: auto; }
+  body[data-subject="mechanics"][data-subject-screen="lab"] .app-layout.is-focus-mode .canvas-frame { min-height: calc(100dvh - 130px); }
+  .mechanics-interaction-tip,
+  .mechanics-setting-feedback { width: max-content; max-width: calc(100% - 28px); padding: 8px 10px; font-size: 12px; }
   .inspector-panel { display: block; }
   .object-editor, .environment-section, .visualization-section { margin-top: 18px; }
-  .mobile-settings-drawer, .mobile-tools-drawer { display: block; border: 1px solid var(--line); border-radius: 11px; padding: 0 12px; background: #fff; }
+  .mobile-settings-drawer, .mobile-tools-drawer { display: block; border: 1px solid var(--line); border-radius: 12px; padding: 0 12px; background: #fff; box-shadow: 0 4px 14px #22304a0a; }
   .mobile-settings-drawer > summary, .mobile-tools-drawer > summary { display: flex; min-height: 46px; align-items: center; color: #536078; cursor: pointer; font-size: 14px; font-weight: 800; }
   .mobile-settings-drawer[open] > summary, .mobile-tools-drawer[open] > summary { border-bottom: 1px solid var(--line); }
   .mobile-tools-drawer .creation-controls.subject-settings-tools { padding-top: 12px; }

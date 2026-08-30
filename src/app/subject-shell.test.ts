@@ -65,6 +65,14 @@ describe("physics subject shell", () => {
     expect(subjectStyles).toMatch(/\.thermal-experience\s*\{[^}]*grid-template-rows:\s*auto minmax\(0, 1fr\)/s);
   });
 
+  it("gives the mobile playground more room and an explicit focus control", () => {
+    expect(styles).toMatch(/@media \(max-width: 700px\)[\s\S]*\.workspace\s*\{[^}]*padding:\s*8px/s);
+    expect(styles).toMatch(/@media \(max-width: 700px\)[\s\S]*\.focus-button\s*\{[^}]*display:\s*inline-flex/s);
+    expect(styles).toMatch(/\.app-layout\.is-focus-mode \.canvas-frame\s*\{[^}]*min-height:\s*calc\(100dvh - 130px\)/s);
+    expect(styles).toMatch(/\.mechanics-interaction-tip,[\s\S]*max-width:\s*calc\(100% - 28px\)/s);
+    expect(mechanicsEntry).toContain("window.innerWidth > 700 && window.innerWidth <= 940");
+  });
+
   it("opens every subject on its routed experiment selector", () => {
     expect(mechanicsEntry).toContain("SubjectRouteSession");
     expect(mechanicsEntry).toContain("setupMechanicsScreens();");

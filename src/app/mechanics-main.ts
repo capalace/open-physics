@@ -194,7 +194,7 @@ window.addEventListener("keydown", (event) => {
 });
 
 window.addEventListener("resize", () => {
-  if (window.innerWidth <= 940 && appLayout.classList.contains("is-focus-mode")) setFocusMode(false);
+  if (window.innerWidth > 700 && window.innerWidth <= 940 && appLayout.classList.contains("is-focus-mode")) setFocusMode(false);
 });
 
 function bindToggle(

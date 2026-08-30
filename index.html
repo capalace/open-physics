@@ -4,6 +4,12 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="description" content="물체를 직접 배치하고 움직이며 물리 법칙을 관찰하는 인터랙티브 2D 물리 샌드박스" />
+  <meta name="theme-color" content="#1d2940" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <link rel="icon" href="./favicon.svg" type="image/svg+xml" />
+  <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png" />
+  <link rel="manifest" href="./manifest.webmanifest" />
   <link rel="stylesheet" href="/src/app/style.css" />
   <link rel="stylesheet" href="/src/app/subjects/style.css" />
   <title>Open Physics — 물리를 직접 움직여 보세요</title>
@@ -14,6 +20,7 @@
       <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i></span>
       <span><strong>Open Physics</strong><small>Interactive lab</small></span>
     </a>
+    <button id="pwa-install" class="pwa-install-button" type="button" hidden>앱 설치</button>
   </header>
 
   <main class="app-layout">

@@ -1,5 +1,12 @@
 import type { SubjectExperience, SubjectHosts, SubjectId } from "./subjects/subject-experience";
 
+interface BeforeInstallPromptEvent extends Event {
+  prompt(): Promise<void>;
+  readonly userChoice: Promise<{ outcome: "accepted" | "dismissed"; platform: string }>;
+}
+
+installProgressiveWebApp();
+
 const SUBJECT_IDS: readonly SubjectId[] = [
   "mechanics",
   "electromagnetism",
@@ -91,4 +98,34 @@ function required<T extends Element>(selector: string): T {
   const element = document.querySelector<T>(selector);
   if (!element) throw new Error(`${selector} not found`);
   return element;
+}
+
+function installProgressiveWebApp(): void {
+  const button = document.querySelector<HTMLButtonElement>("#pwa-install");
+  let promptEvent: BeforeInstallPromptEvent | null = null;
+
+  window.addEventListener("beforeinstallprompt", (event) => {
+    event.preventDefault();
+    promptEvent = event as BeforeInstallPromptEvent;
+    if (button) button.hidden = false;
+  });
+
+  button?.addEventListener("click", async () => {
+    if (!promptEvent) return;
+    await promptEvent.prompt();
+    const choice = await promptEvent.userChoice;
+    if (choice.outcome === "accepted") button.hidden = true;
+    promptEvent = null;
+  });
+
+  window.addEventListener("appinstalled", () => {
+    promptEvent = null;
+    if (button) button.hidden = true;
+  });
+
+  if (import.meta.env.PROD && "serviceWorker" in navigator) {
+    window.addEventListener("load", () => {
+      navigator.serviceWorker.register(`${import.meta.env.BASE_URL}sw.js`, { scope: import.meta.env.BASE_URL }).catch(() => undefined);
+    });
+  }
 }
