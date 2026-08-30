@@ -206,6 +206,8 @@ export class ElectromagnetismModel {
   reset(): void {
     this.running = this.mode === "capacitors" || this.mode === "electromagnetic-force" || this.mode === "motor"; this.time = 0;
     this.probe = this.mode === "induction" ? { x: 0.22, y: 0.5 }
+      : this.mode === "electrostatic-induction" ? { x: 0.18, y: 0.5 }
+        : this.mode === "electronics" || this.mode === "magnetic-materials" ? { x: 0.5, y: 0.78 }
       : this.mode === "circuits" ? { x: 0.5, y: 0.3 }
         : this.mode === "capacitors" ? { x: 0.62, y: 0.78 }
           : this.mode === "charged-particle" ? { x: 0.36, y: PARTICLE_START.y }
@@ -259,6 +261,8 @@ export class ElectromagnetismModel {
 
   drag(normalizedPoint: Vector2, dt = 0): void {
     const point = { x: clamp(normalizedPoint.x, 0.08, 0.92), y: clamp(normalizedPoint.y, 0.12, 0.88) };
+    if (this.mode === "electrostatic-induction") { this.probe = { x: clamp(point.x, 0.12, 0.42), y: 0.5 }; return; }
+    if (this.mode === "electronics" || this.mode === "magnetic-materials") { this.probe = { x: clamp(point.x, 0.25, 0.75), y: 0.78 }; return; }
     if (this.mode === "circuits") { this.probe = { x: clamp(point.x, CIRCUIT_TRACK.minX, CIRCUIT_TRACK.maxX), y: 0.3 }; return; }
     if (this.mode === "capacitors") {
       const oldSeparation = capacitorSeparationMmAtX(this.probe.x) / 1000;
@@ -609,6 +613,10 @@ export class ElectromagnetismModel {
       const distance = this.distanceFrom({ x: 0.35, y: 0.5 }); const potential = pointChargePotential(2e-6, distance);
       return { primary: { label: "전위", value: potential, unit: "V" }, secondary: { label: "위치 에너지", value: this.sign * this.level * 1e-6 * potential, unit: "J" } };
     }
+    if (this.mode === "electrostatic-induction") {
+      const distance = Math.max(0.08, worldDistance(this.probe, { x: 0.52, y: 0.5 }) - 0.34);
+      return { primary: { label: "유도 전하 분리", value: 1 / (1 + distance * distance * 18), unit: "상대값" }, secondary: { label: "도체와 거리", value: distance, unit: "m" } };
+    }
     if (this.mode === "circuits") {
       const voltage = 3 + this.level * 6; const bulbResistance = circuitResistanceAtX(this.probe.x); const equivalentResistance = this.circuitArrangement === "series" ? bulbResistance * 2 : bulbResistance / 2;
       const totalCurrent = currentFromVoltage(voltage, equivalentResistance); const bulbCurrent = this.circuitArrangement === "series" ? totalCurrent : totalCurrent / 2;
@@ -619,9 +627,18 @@ export class ElectromagnetismModel {
       const storedCharge = capacitance * this.capacitorVoltage;
       return { primary: { label: "축전기 전압", value: this.capacitorVoltage, unit: "V" }, secondary: { label: "저장 전하", value: storedCharge * 1e9, unit: "nC" } };
     }
+    if (this.mode === "electronics") {
+      const inputVoltage = 1.2 * clamp((this.probe.x - 0.25) / 0.5);
+      const outputCurrent = Math.max(0, inputVoltage - 0.58) * 42;
+      return { primary: { label: "출력 전류", value: outputCurrent, unit: "mA" }, secondary: { label: "입력 전압", value: inputVoltage, unit: "V" } };
+    }
     if (this.mode === "magnetic-field") {
       const distance = this.distanceFrom({ x: 0.44, y: 0.5 }); const field = Math.abs(magneticFieldAroundWire(this.direction * this.level * 5, distance));
       return { primary: { label: "자기장 세기", value: field * 1e6, unit: "μT" }, secondary: { label: "전류", value: this.direction * this.level * 5, unit: "A" } };
+    }
+    if (this.mode === "magnetic-materials") {
+      const appliedField = clamp((this.probe.x - 0.25) / 0.5);
+      return { primary: { label: "철의 자화", value: Math.tanh(appliedField * 3.2), unit: "상대값" }, secondary: { label: "외부 자기장", value: appliedField, unit: "상대값" } };
     }
     if (this.mode === "electromagnetic-force") {
       return { primary: { label: "도선에 작용하는 힘", value: Math.hypot(this.lorentzForceVector().x, this.lorentzForceVector().y), unit: "상대값" }, secondary: { label: "전류", value: this.sign * this.level * 3, unit: "A" } };
@@ -655,9 +672,12 @@ export class ElectromagnetismModel {
     if (this.mode === "charge") return points(48, 0.25, 2.4, (distance) => coulombForceMagnitude(2e-6, this.level * 2e-6, distance));
     if (this.mode === "electric-field") return points(48, 0.08, 0.92, (x) => { const field = this.electricFieldAt({ x, y: this.probe.y }, this.guidedCharges()); return Math.hypot(field.x, field.y); }).map((point) => ({ x: point.x * ELECTROMAGNETISM_WORLD.width, y: point.y }));
     if (this.mode === "potential") return points(48, 0.25, 2.4, (distance) => pointChargePotential(2e-6, distance));
+    if (this.mode === "electrostatic-induction") return points(48, 0.08, 0.8, (distance) => 1 / (1 + distance * distance * 18));
     if (this.mode === "circuits") { const voltage = 3 + this.level * 6; return points(48, 2, 20, (resistance) => currentFromVoltage(voltage, this.circuitArrangement === "series" ? resistance * 2 : resistance / 2)); }
     if (this.mode === "capacitors") return this.capacitorHistory.map((point) => ({ ...point }));
+    if (this.mode === "electronics") return points(48, 0, 1.2, (voltage) => Math.max(0, voltage - 0.58) * 42);
     if (this.mode === "magnetic-field") return points(48, 1, 80, (centimeters) => Math.abs(magneticFieldAroundWire(this.direction * this.level * 5, centimeters / 100)) * 1e6);
+    if (this.mode === "magnetic-materials") return points(48, 0, 1, (field) => Math.tanh(field * 3.2));
     if (this.mode === "electromagnetic-force") {
       return points(48, 0, 5, (current) => magneticForceMagnitude(current, 1, 2.2, Math.PI / 2));
     }
@@ -673,10 +693,13 @@ export class ElectromagnetismModel {
   private graphMarker(value: number): GraphPoint | null {
     if (this.mode === "sandbox") return this.sandboxGraphMarker();
     if (this.mode === "charge" || this.mode === "potential") return { x: this.distanceFrom({ x: this.mode === "charge" ? 0.32 : 0.35, y: 0.5 }), y: value };
+    if (this.mode === "electrostatic-induction") return { x: Math.max(0.08, worldDistance(this.probe, { x: 0.52, y: 0.5 }) - 0.34), y: value };
     if (this.mode === "electric-field") return { x: normalizedToWorld(this.probe).x, y: value };
     if (this.mode === "circuits") return { x: circuitResistanceAtX(this.probe.x), y: value };
     if (this.mode === "capacitors") return this.capacitorHistory.length ? { ...this.capacitorHistory[this.capacitorHistory.length - 1] } : { x: this.time, y: value };
+    if (this.mode === "electronics") return { x: 1.2 * clamp((this.probe.x - 0.25) / 0.5), y: value };
     if (this.mode === "magnetic-field") return { x: this.distanceFrom({ x: 0.44, y: 0.5 }) * 100, y: value };
+    if (this.mode === "magnetic-materials") return { x: clamp((this.probe.x - 0.25) / 0.5), y: value };
     if (this.mode === "electromagnetic-force") return { x: this.level * 3, y: value };
     if (this.mode === "induction") return { x: this.magnetSpeed, y: value };
     if (this.mode === "charged-particle") return { x: Math.hypot(this.particleVelocity.x, this.particleVelocity.y) * ELECTROMAGNETISM_WORLD.width, y: value };

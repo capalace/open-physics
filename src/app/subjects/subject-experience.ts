@@ -75,8 +75,9 @@ type SubjectRouteDefinition = {
 
 /** Parses a subject's URL state without leaking browser history concerns into physics models. */
 export function subjectRouteFromUrl(url: URL, definition: SubjectRouteDefinition): SubjectRoute {
+  if (url.searchParams.get("view") === "selection") return { screen: "selection" };
   const requestedLab = url.searchParams.get("lab");
-  if (!requestedLab) return { screen: "selection" };
+  if (!requestedLab) return { screen: "lab", labId: "sandbox" };
   if (requestedLab === "sandbox" || definition.labs.some((lab) => lab.id === requestedLab)) {
     return { screen: "lab", labId: requestedLab };
   }
@@ -88,8 +89,13 @@ export function subjectRouteUrl(currentUrl: URL, definition: SubjectRouteDefinit
   const next = new URL(currentUrl);
   if (definition.id === "mechanics") next.searchParams.delete("subject");
   else next.searchParams.set("subject", definition.id);
-  if (route.screen === "lab") next.searchParams.set("lab", route.labId);
-  else next.searchParams.delete("lab");
+  if (route.screen === "lab") {
+    next.searchParams.delete("view");
+    next.searchParams.set("lab", route.labId);
+  } else {
+    next.searchParams.delete("lab");
+    next.searchParams.set("view", "selection");
+  }
   return next;
 }
 
@@ -183,6 +189,9 @@ export function validateSubjectDefinition(
     }
     if (lab.observe.trim().length < 10 || lab.controls.length === 0) {
       throw new RangeError(`${definition.id}/${lab.id} must provide an observation and controls.`);
+    }
+    if (!lab.terms || lab.terms.length < 3 || lab.terms.some((term) => term.name.trim().length < 1 || term.description.trim().length < 10)) {
+      throw new RangeError(`${definition.id}/${lab.id} must explain at least three experiment-specific terms.`);
     }
     if (
       lab.law.title.trim().length < 2

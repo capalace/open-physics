@@ -108,7 +108,22 @@ function initialState(mode: WavesLabId | "sandbox"): WaveState {
     case "resonance": return { ...common, frequency: 3.5, amplitude: 24, devices: [device("driver", "source", 180, 300), device("resonator", "medium", 540, 300), device("meter", "detector", 850, 300)] };
     case "sound": return { ...common, frequency: 100, amplitude: 30, speed: 340, devices: [device("speaker", "source", 140, 300), device("air", "medium", 500, 300), device("microphone", "detector", 850, 300)] };
     case "doppler": return { ...common, frequency: 440, speed: 340, amplitude: 24, devices: [device("moving-source", "source", 472.2, 300), device("observer", "observer", 850, 300)] };
+    case "communication": return { ...common, frequency: 100, speed: 300, amplitude: 30, devices: [device("transmitter", "source", 180, 300), device("receiver", "detector", 820, 300)] };
     case "sandbox": return { ...common, running: false, devices: [device("sandbox-medium", "medium", 500, 300, false)] };
+  }
+}
+
+export function wavesPrimaryControlRatio(snapshot: WavesSnapshot): number | null {
+  switch (snapshot.mode) {
+    case "source": return (snapshot.amplitude - 12) / 76;
+    case "propagation": return (snapshot.speed - 60) / 240;
+    case "interference": return (snapshot.sourceSpacing - 80) / 320;
+    case "standing-wave": return (snapshot.harmonic - 1) / 4;
+    case "resonance": return (snapshot.frequency - 1) / 8;
+    case "sound": return (snapshot.amplitude - 5) / 65;
+    case "doppler": return (snapshot.sourceVelocity + 100) / 250;
+    case "communication": return (snapshot.frequency - 50) / 250;
+    case "sandbox": return null;
   }
 }
 
@@ -123,6 +138,21 @@ export class WavesModel {
   reset(): void { this.state = initialState(this.state.mode); }
   setRunning(running: boolean): void { this.state.running = running; }
   toggleRunning(): void { this.state.running = !this.state.running; }
+
+  setPrimaryControlRatio(value: number): void {
+    if (!Number.isFinite(value) || this.state.mode === "sandbox") return;
+    const ratio = clamp(value, 0, 1);
+    switch (this.state.mode) {
+      case "source": this.dragPrimary(120, 600 * (1 - ratio)); break;
+      case "propagation": this.dragPrimary(70 + ratio * 860, 500); break;
+      case "interference": this.dragPrimary(180, 340 + ratio * 160); break;
+      case "standing-wave": this.dragPrimary(70 + ratio * 860, 500); break;
+      case "resonance": this.dragPrimary(70 + ratio * 860, 500); break;
+      case "sound": this.dragPrimary(140, 600 * (1 - ratio)); break;
+      case "doppler": this.dragPrimary(130 + ratio * 590, 300); break;
+      case "communication": this.dragPrimary(70 + ratio * 860, 500); break;
+    }
+  }
 
   step(seconds: number): void {
     if (!Number.isFinite(seconds) || seconds < 0) throw new RangeError("Step duration must be finite and non-negative.");
@@ -153,6 +183,7 @@ export class WavesModel {
         if (source) source.x = clamp(x, 130, 720);
         break;
       }
+      case "communication": this.state.frequency = 50 + trackRatio * 250; break;
       case "sandbox": break;
     }
     if (this.state.mode !== "sandbox") this.state.running = true;
@@ -263,6 +294,7 @@ export class WavesModel {
       case "resonance": return `구동 ${this.state.frequency.toFixed(1)} Hz · 응답 ${response.toFixed(1)}배`;
       case "sound": return `압력 진폭 ${this.state.amplitude.toFixed(0)} Pa · 상대 세기 ${(relativeIntensity(this.state.amplitude) / 100).toFixed(1)}`;
       case "doppler": return `파원 ${this.state.sourceVelocity.toFixed(0)} m/s · 관찰 ${observedFrequency.toFixed(0)} Hz`;
+      case "communication": return `반송파 ${this.state.frequency.toFixed(0)} MHz · 파장 ${wavelength.toFixed(2)} m`;
       case "sandbox": {
         const probes = this.state.devices.filter((item) => item.kind === "detector" || item.kind === "observer");
         const readings = probes.map((probe) => {
@@ -308,6 +340,12 @@ export class WavesModel {
           pointSeries(65, (ratio) => dopplerFrequency(s.frequency, s.speed, 0, -100 + ratio * 250), (ratio) => -100 + ratio * 250),
           s.sourceVelocity,
           dopplerFrequency(s.frequency, s.speed, 0, s.sourceVelocity),
+        );
+      case "communication":
+        return withCurrentPoint(
+          pointSeries(65, (ratio) => 300 / (50 + ratio * 250), (ratio) => 50 + ratio * 250),
+          s.frequency,
+          300 / s.frequency,
         );
       case "sandbox": {
         const field = pointSeries(81, (ratio) => this.displacementAt(ratio * 10, 3), (ratio) => ratio * 10);

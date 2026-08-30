@@ -3,14 +3,14 @@ import { validateSubjectDefinition } from "../subject-experience";
 import { LIGHT_LAB_IDS, lightDefinition } from "./catalog";
 
 describe("light lab catalog", () => {
-  it("contains all eight guideline labs exactly once", () => {
+  it("contains all ten curriculum labs exactly once", () => {
     expect(lightDefinition.labs.map((lab) => lab.id)).toEqual(LIGHT_LAB_IDS);
     expect(() => validateSubjectDefinition(lightDefinition, LIGHT_LAB_IDS)).not.toThrow();
   });
 
   it("gives each lab a distinct inquiry, direct control, and measurable graph", () => {
-    expect(new Set(lightDefinition.labs.map((lab) => lab.question)).size).toBe(8);
-    expect(new Set(lightDefinition.labs.map((lab) => lab.graph.title)).size).toBe(8);
+    expect(new Set(lightDefinition.labs.map((lab) => lab.question)).size).toBe(10);
+    expect(new Set(lightDefinition.labs.map((lab) => lab.graph.title)).size).toBe(10);
     for (const lab of lightDefinition.labs) {
       expect(lab.steps).toHaveLength(3);
       expect(lab.controls.length).toBeGreaterThan(0);

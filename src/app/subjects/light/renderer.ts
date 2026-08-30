@@ -49,7 +49,7 @@ export class LightRenderer {
     ctx.fillStyle = background;
     ctx.fillRect(0, 0, WORLD_WIDTH, WORLD_HEIGHT);
     this.drawGrid(ctx);
-    if (snapshot.sceneId === "refraction") {
+    if (snapshot.sceneId === "refraction" || snapshot.sceneId === "total-internal-reflection") {
       ctx.fillStyle = "rgba(50, 150, 220, .18)";
       ctx.fillRect(0, 300, WORLD_WIDTH, 300);
     }

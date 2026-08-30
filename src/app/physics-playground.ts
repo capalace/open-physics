@@ -1052,6 +1052,23 @@ export class PhysicsPlayground {
         ],
       };
     }
+    if (this.currentPreset === "orbit" && this.orbitExperiment) {
+      const body = this.simulation.getBody(this.orbitExperiment.bodyId);
+      if (!body) return null;
+      const radius = Math.hypot(
+        body.state.position.x - this.orbitExperiment.field.sourcePosition.x,
+        body.state.position.y - this.orbitExperiment.field.sourcePosition.y,
+      );
+      const period = 2 * Math.PI * radius / Math.max(this.orbitExperiment.analysis.circularSpeed, 1e-9);
+      const outcome = this.orbitExperiment.analysis.outcome === "crash" ? "충돌" : this.orbitExperiment.analysis.outcome === "escape" ? "이탈" : "공전";
+      return {
+        condition: `예상 결과 · ${outcome}`,
+        values: [
+          { label: "현재 궤도 반지름", value: radius / PIXELS_PER_METER, unit: "m" },
+          { label: "원 궤도 예상 주기", value: period, unit: "s" },
+        ],
+      };
+    }
     return null;
   }
 
@@ -2596,7 +2613,8 @@ export class PhysicsPlayground {
   }
 
   private drawMomentumVisualization(): void {
-    for (const object of this.objects.values()) {
+    const collisionObjects = [...this.objects.values()].slice(0, 2);
+    for (const object of collisionObjects) {
       const body = this.simulation.getBody(object.id);
       if (!body) continue;
       this.drawArrow(
@@ -2608,8 +2626,20 @@ export class PhysicsPlayground {
         "운동량 p = mv",
       );
     }
-    if (this.impulseFlash <= 0) return;
+    const forcePairAlpha = Math.max(this.impulseFlash, this.collisionResult ? 0.78 : 0);
+    if (forcePairAlpha <= 0) return;
     const { ctx } = this;
+    const centerX = this.canvas.width / 2; const diagramY = 136;
+    ctx.save(); ctx.globalAlpha = forcePairAlpha; ctx.fillStyle = "#ffffffee";
+    this.roundRect(centerX - 190, diagramY - 54, 380, 112, 13); ctx.fill();
+    ctx.fillStyle = "#42516a"; ctx.font = "800 15px Inter, system-ui, sans-serif"; ctx.textAlign = "center";
+    ctx.fillText("충돌 순간 · 크기가 같고 방향이 반대인 힘", centerX, diagramY - 29);
+    this.drawArrow(centerX - 16, diagramY + 5, { x: -105, y: 0 }, 1, "#e05c3f", "");
+    this.drawArrow(centerX + 16, diagramY + 5, { x: 105, y: 0 }, 1, "#25a77a", "");
+    ctx.font = "700 13px Inter, system-ui, sans-serif";
+    ctx.fillStyle = "#e05c3f"; ctx.fillText("물체 1이 받은 힘", centerX - 72, diagramY + 39);
+    ctx.fillStyle = "#25a77a"; ctx.fillText("물체 2가 받은 힘", centerX + 72, diagramY + 39);
+    ctx.restore();
     ctx.save();
     ctx.globalAlpha = this.impulseFlash;
     ctx.fillStyle = "#fff4c7";

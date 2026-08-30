@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { wavesDefinition } from "./waves/catalog";
-import { subjectBrowserMarkup, subjectGuideMarkup, subjectSandboxGuideMarkup, termGlossaryMarkup } from "./subject-ui";
+import { learningTermsFor, subjectBrowserMarkup, subjectGuideMarkup, subjectSandboxGuideMarkup, termGlossaryMarkup } from "./subject-ui";
 
 describe("shared subject UI", () => {
   it("renders every experiment browser in the mechanics order and class contract", () => {
@@ -62,5 +62,14 @@ describe("shared subject UI", () => {
     expect(markup).toContain("<summary><span>용어 알아보기</span><small>2개</small></summary>");
     expect(markup).toContain("<dt>전압</dt><dd>전하를 움직이게 하는 전기적인 차이예요.</dd>");
     expect(termGlossaryMarkup([])).toBe("");
+  });
+
+  it("derives three useful terms for a legacy guided catalog without a custom glossary", () => {
+    const source = wavesDefinition.labs.find((item) => item.id === "resonance")!;
+    const lab = { ...source, terms: undefined };
+    const terms = learningTermsFor(lab);
+    expect(terms).toHaveLength(3);
+    expect(terms.map((term) => term.name)).toEqual([lab.law.title, "구동 주파수", lab.graph.yLabel]);
+    expect(subjectGuideMarkup(lab)).toContain("용어 알아보기");
   });
 });

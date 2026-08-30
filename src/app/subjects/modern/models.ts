@@ -40,12 +40,17 @@ export interface ModernSnapshot {
   readonly momentum: number;
   readonly wavelengthNm: number;
   readonly spread: number;
+  readonly momentumUncertainty: number;
   readonly barrierWidth: number;
   readonly transmission: number;
   readonly elapsedYears: number;
   readonly remainingNuclei: number;
   readonly voltage: number;
   readonly currentMilliamp: number;
+  readonly gravityStrength: number;
+  readonly gravityClockRate: number;
+  readonly massDefect: number;
+  readonly releasedEnergyMeV: number;
   readonly measurement: string;
   readonly devices: readonly ModernDevice[];
   readonly graph: readonly ModernGraphPoint[];
@@ -58,6 +63,7 @@ interface ModernState {
   mode: ModernLabId | "sandbox"; running: boolean; animationTime: number;
   speedFraction: number; quantumNumber: number; photonFrequency: number; momentum: number;
   spread: number; barrierWidth: number; elapsedYears: number; voltage: number;
+  gravityStrength: number; massDefect: number;
   devices: MutableDevice[]; nextDeviceId: number;
 }
 
@@ -115,16 +121,18 @@ function initialState(mode: ModernLabId | "sandbox"): ModernState {
   const common = {
     mode, running: mode !== "sandbox", animationTime: 0, speedFraction: 0.6, quantumNumber: 3,
     photonFrequency: 0.75, momentum: 1.4, spread: 0.9, barrierWidth: 0.22,
-    elapsedYears: 8, voltage: 0.55, nextDeviceId: 1,
+    elapsedYears: 8, voltage: 0.55, gravityStrength: 0.45, massDefect: 0.008, nextDeviceId: 1,
   };
   switch (mode) {
     case "relativity": return { ...common, devices: [device("earth-clock", "detector", 210, 270), device("ship-clock", "detector", valueAtRatio(0.6 / 0.95, 420, 900), 270)] };
+    case "gravity-spacetime": return { ...common, devices: [device("near-clock", "detector", 265, 280), device("central-mass", "nucleus", 500, 300), device("far-clock", "detector", 835, 280)] };
     case "atoms": return { ...common, devices: [device("hydrogen", "atom", 500, 300), device("spectrum", "detector", 850, 300)] };
     case "photoelectric": return { ...common, devices: [device("lamp", "photon-source", valueAtRatio(0.55, 100, 400), 300), device("metal", "metal", 520, 300), device("electron-detector", "detector", 850, 300)] };
     case "matter-waves": return { ...common, devices: [device("particle-source", "photon-source", valueAtRatio((1.4 - 0.5) / 4.5, 100, 400), 300), device("wave-detector", "detector", 870, 300)] };
     case "quantum": return { ...common, devices: [device("preparation", "atom", 220, 300), device("position-detector", "detector", 820, 300)] };
     case "tunneling": return { ...common, devices: [device("particle-source", "photon-source", 130, 300), device("barrier", "barrier", 520, 300), device("tunnel-detector", "detector", 850, 300)] };
     case "nuclei": return { ...common, devices: [device("sample", "nucleus", 430, 300), device("decay-counter", "detector", valueAtRatio(8 / 40, 600, 900), 300)] };
+    case "mass-energy": return { ...common, devices: [device("fuel-a", "nucleus", 360, 300), device("fuel-b", "nucleus", 440, 300), device("fusion-product", "nucleus", 590, 300), device("energy-detector", "detector", 820, 300)] };
     case "semiconductors": return { ...common, devices: [device("junction", "metal", 500, 300), device("current-meter", "detector", 850, 300)] };
     case "sandbox": return { ...common, running: false, devices: [device("sandbox-detector", "detector", 820, 300, false)] };
   }
@@ -133,13 +141,31 @@ function initialState(mode: ModernLabId | "sandbox"): ModernState {
 export function modernPrimaryHandle(snapshot: ModernSnapshot): ModernControlPoint | null {
   switch (snapshot.mode) {
     case "relativity": return snapshot.devices.find((item) => item.id === "ship-clock") ?? null;
+    case "gravity-spacetime": return { x: valueAtRatio(snapshot.gravityStrength, 200, 800), y: 500 };
     case "atoms": return { x: 200, y: hydrogenLevelY(snapshot.quantumNumber) };
     case "photoelectric": return snapshot.devices.find((item) => item.kind === "photon-source") ?? null;
     case "matter-waves": return snapshot.devices.find((item) => item.kind === "photon-source") ?? null;
     case "quantum": return { x: 500 + snapshot.spread * 140, y: 300 };
     case "tunneling": return { x: 550 + snapshot.barrierWidth * 240, y: 300 };
     case "nuclei": return snapshot.devices.find((item) => item.kind === "detector") ?? null;
+    case "mass-energy": return { x: valueAtRatio(ratioBetween(snapshot.massDefect, 0.001, 0.02), 200, 800), y: 500 };
     case "semiconductors": return { x: valueAtRatio((snapshot.voltage + 0.1) / 0.8, 300, 700), y: 450 };
+    case "sandbox": return null;
+  }
+}
+
+export function modernPrimaryControlRatio(snapshot: ModernSnapshot): number | null {
+  switch (snapshot.mode) {
+    case "relativity": return ratioBetween(snapshot.speedFraction, 0, 0.95);
+    case "gravity-spacetime": return snapshot.gravityStrength;
+    case "atoms": return ratioBetween(snapshot.quantumNumber, 2, 6);
+    case "photoelectric": return ratioBetween(snapshot.photonFrequency, 0.2, 1.2);
+    case "matter-waves": return ratioBetween(snapshot.momentum, 0.5, 5);
+    case "quantum": return ratioBetween(snapshot.spread, 0.3, 2);
+    case "tunneling": return ratioBetween(snapshot.barrierWidth, 0.05, 0.6);
+    case "nuclei": return ratioBetween(snapshot.elapsedYears, 0, 40);
+    case "mass-energy": return ratioBetween(snapshot.massDefect, 0.001, 0.02);
+    case "semiconductors": return ratioBetween(snapshot.voltage, -0.1, 0.7);
     case "sandbox": return null;
   }
 }
@@ -169,6 +195,7 @@ export class ModernModel {
         const ship = this.state.devices.find((item) => item.id === "ship-clock"); if (ship) ship.x = shipX;
         break;
       }
+      case "gravity-spacetime": this.state.gravityStrength = ratioBetween(x, 200, 800); break;
       case "atoms": this.state.quantumNumber = [2, 3, 4, 5, 6].reduce((closest, n) => Math.abs(hydrogenLevelY(n) - y) < Math.abs(hydrogenLevelY(closest) - y) ? n : closest, 2); break;
       case "photoelectric": {
         const lampX = clamp(x, 100, 400); this.state.photonFrequency = 0.2 + ratioBetween(lampX, 100, 400);
@@ -187,6 +214,7 @@ export class ModernModel {
         const detector = this.state.devices.find((item) => item.kind === "detector"); if (detector) detector.x = detectorX;
         break;
       }
+      case "mass-energy": this.state.massDefect = valueAtRatio(ratioBetween(x, 200, 800), 0.001, 0.02); break;
       case "semiconductors": this.state.voltage = -0.1 + ratioBetween(x, 300, 700) * 0.8; break;
       case "sandbox": break;
     }
@@ -195,6 +223,22 @@ export class ModernModel {
 
   primaryHandle(): ModernControlPoint | null {
     return modernPrimaryHandle(this.snapshot());
+  }
+
+  setPrimaryControlRatio(value: number): void {
+    const ratio = clamp(value, 0, 1);
+    switch (this.state.mode) {
+      case "relativity": this.dragPrimary(valueAtRatio(ratio, 420, 900), 270); break;
+      case "gravity-spacetime": this.dragPrimary(valueAtRatio(ratio, 200, 800), 500); break;
+      case "atoms": this.dragPrimary(200, hydrogenLevelY(Math.round(valueAtRatio(ratio, 2, 6)))); break;
+      case "photoelectric": case "matter-waves": this.dragPrimary(valueAtRatio(ratio, 100, 400), 300); break;
+      case "quantum": this.dragPrimary(500 + valueAtRatio(ratio, 0.3, 2) * 140, 300); break;
+      case "tunneling": this.dragPrimary(550 + valueAtRatio(ratio, 0.05, 0.6) * 240, 300); break;
+      case "nuclei": this.dragPrimary(valueAtRatio(ratio, 600, 900), 300); break;
+      case "mass-energy": this.dragPrimary(valueAtRatio(ratio, 200, 800), 500); break;
+      case "semiconductors": this.dragPrimary(valueAtRatio(ratio, 300, 700), 450); break;
+      case "sandbox": break;
+    }
   }
 
   addDevice(kind: ModernDeviceKind): string {
@@ -224,30 +268,36 @@ export class ModernModel {
     const electronEnergy = Math.max(0, photoelectronMaximumKineticEnergy(H_EV_PER_PHZ, s.photonFrequency, WORK_FUNCTION_EV));
     const wavelengthNm = deBroglieWavelength(H_SI, s.momentum * 1e-24) * 1e9;
     const transmission = rectangularBarrierTransmission(4, 5, s.barrierWidth);
+    const momentumUncertainty = 0.5 / s.spread;
     const remainingNuclei = remainingParticles(INITIAL_NUCLEI, s.elapsedYears, HALF_LIFE_YEARS);
     const currentMilliamp = idealDiodeCurrent(1e-12, s.voltage, 0.026) * 1000;
-    const values = { gamma, transitionEnergy, electronEnergy, wavelengthNm, transmission, remainingNuclei, currentMilliamp };
+    const gravityClockRate = Math.sqrt(Math.max(0.08, 1 - s.gravityStrength * 0.88));
+    const releasedEnergyMeV = s.massDefect * 931.5;
+    const values = { gamma, transitionEnergy, electronEnergy, wavelengthNm, transmission, remainingNuclei, currentMilliamp, gravityClockRate, releasedEnergyMeV };
     return {
       mode: s.mode, running: s.running, animationTime: s.animationTime, speedFraction: s.speedFraction,
       gamma, quantumNumber: s.quantumNumber, transitionEnergy, photonFrequency: s.photonFrequency,
-      electronEnergy, momentum: s.momentum, wavelengthNm, spread: s.spread,
+      electronEnergy, momentum: s.momentum, wavelengthNm, spread: s.spread, momentumUncertainty,
       barrierWidth: s.barrierWidth, transmission, elapsedYears: s.elapsedYears,
       remainingNuclei, voltage: s.voltage, currentMilliamp,
+      gravityStrength: s.gravityStrength, gravityClockRate, massDefect: s.massDefect, releasedEnergyMeV,
       measurement: this.measurement(values), devices: s.devices.map((item) => ({ ...item })),
       graph: this.graphPoints(), detections: this.detectionEvents(values),
     };
   }
 
-  private measurement(v: { gamma: number; transitionEnergy: number; electronEnergy: number; wavelengthNm: number; transmission: number; remainingNuclei: number; currentMilliamp: number }): string {
+  private measurement(v: { gamma: number; transitionEnergy: number; electronEnergy: number; wavelengthNm: number; transmission: number; remainingNuclei: number; currentMilliamp: number; gravityClockRate: number; releasedEnergyMeV: number }): string {
     const s = this.state;
     switch (s.mode) {
       case "relativity": return `속도 ${s.speedFraction.toFixed(2)} c · γ ${v.gamma.toFixed(2)}`;
+      case "gravity-spacetime": return `중력 세기 ${s.gravityStrength.toFixed(2)} · 가까운 시계 ${(v.gravityClockRate * 100).toFixed(1)}%`;
       case "atoms": return `n=${s.quantumNumber} → n=1 · 광자 ${v.transitionEnergy.toFixed(2)} eV`;
       case "photoelectric": return `빛 ${s.photonFrequency.toFixed(2)} PHz · 전자 ${v.electronEnergy.toFixed(2)} eV`;
       case "matter-waves": return `운동량 ${s.momentum.toFixed(2)}×10⁻²⁴ kg·m/s · λ ${v.wavelengthNm.toFixed(2)} nm`;
-      case "quantum": return `파동묶음 폭 σ=${s.spread.toFixed(2)} nm`;
+      case "quantum": return `위치 퍼짐 Δx=${s.spread.toFixed(2)} nm · 운동량 불확정성 ${(.5 / s.spread).toFixed(2)} ℏ/nm`;
       case "tunneling": return `장벽 ${s.barrierWidth.toFixed(2)} nm · 투과 ${(v.transmission * 100).toFixed(1)}%`;
       case "nuclei": return `${s.elapsedYears.toFixed(1)}년 · 남은 핵 ${v.remainingNuclei.toFixed(0)}/${INITIAL_NUCLEI}`;
+      case "mass-energy": return `질량 결손 ${s.massDefect.toFixed(3)} u · ${v.releasedEnergyMeV.toFixed(2)} MeV`;
       case "semiconductors": return `${s.voltage.toFixed(2)} V · ${v.currentMilliamp.toFixed(2)} mA`;
       case "sandbox": {
         const readings = this.sandboxReadings();
@@ -263,12 +313,14 @@ export class ModernModel {
     const s = this.state;
     switch (s.mode) {
       case "relativity": return series(65, (r) => r * 0.95, (r) => lorentzFactor(r * 0.95, 1));
+      case "gravity-spacetime": return series(65, (r) => r, (r) => Math.sqrt(Math.max(0.08, 1 - r * 0.88)) * 100);
       case "atoms": return Array.from({ length: 6 }, (_, i) => ({ x: i + 1, y: hydrogenBohrEnergyLevel(i + 1, -13.6) }));
       case "photoelectric": return series(65, (r) => 0.2 + r, (r) => Math.max(0, photoelectronMaximumKineticEnergy(H_EV_PER_PHZ, 0.2 + r, WORK_FUNCTION_EV)));
       case "matter-waves": return this.matterWaveGraph();
       case "quantum": return series(81, (r) => -4 + r * 8, (r) => gaussianProbabilityDensity(-4 + r * 8, 0, s.spread));
       case "tunneling": return series(65, (r) => 0.05 + r * 0.55, (r) => rectangularBarrierTransmission(4, 5, 0.05 + r * 0.55));
       case "nuclei": return series(65, (r) => r * 40, (r) => remainingParticles(INITIAL_NUCLEI, r * 40, HALF_LIFE_YEARS));
+      case "mass-energy": return series(65, (r) => valueAtRatio(r, 0.001, 0.02), (r) => valueAtRatio(r, 0.001, 0.02) * 931.5);
       case "semiconductors": return series(65, (r) => -0.1 + r * 0.8, (r) => idealDiodeCurrent(1e-12, -0.1 + r * 0.8, 0.026) * 1000);
       case "sandbox": {
         const readings = this.sandboxReadings();

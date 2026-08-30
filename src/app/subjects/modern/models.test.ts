@@ -19,13 +19,20 @@ describe("modern-physics model", () => {
     expect(after.gamma).toBeGreaterThan(before.gamma);
     expect(graphMarker(after)).not.toEqual(graphMarker(before));
   });
-  it("round-trips all eight apparatus-attached primary handles without changing the model", () => {
+  it("round-trips all ten apparatus-attached primary handles without changing the model", () => {
     for (const id of MODERN_LAB_IDS) {
       const model = new ModernModel(id); const before = model.snapshot(); const handle = primaryHandle(before)!;
       model.dragPrimary(handle.x, handle.y); const after = model.snapshot(); const afterHandle = primaryHandle(after)!;
       expect(afterHandle.x, `${id} x`).toBeCloseTo(handle.x);
       expect(afterHandle.y, `${id} y`).toBeCloseTo(handle.y);
       expect(after.measurement, id).toBe(before.measurement);
+    }
+  });
+  it("offers an equivalent keyboard-friendly ratio control for every guided lab", () => {
+    for (const id of MODERN_LAB_IDS) {
+      const model = new ModernModel(id); model.setPrimaryControlRatio(0.8);
+      expect(model.snapshot().measurement).not.toBe("");
+      expect(model.primaryHandle()).not.toBeNull();
     }
   });
   it("places primary handles on the apparatus described by each lab", () => {
@@ -46,12 +53,18 @@ describe("modern-physics model", () => {
     const atoms = new ModernModel("atoms"); atoms.dragPrimary(200, 138); expect(atoms.snapshot().quantumNumber).toBe(6); expect(atoms.snapshot().transitionEnergy).toBeGreaterThan(13);
     const photo = new ModernModel("photoelectric"); photo.dragPrimary(100, 300); expect(photo.snapshot().electronEnergy).toBe(0); expect(photo.snapshot().detections).toHaveLength(0); photo.dragPrimary(400, 300); expect(photo.snapshot().detections.length).toBeGreaterThan(0);
     const matter = new ModernModel("matter-waves"); const longWave = matter.snapshot().wavelengthNm; matter.dragPrimary(400, 300); expect(matter.snapshot().wavelengthNm).toBeLessThan(longWave); expect(matter.snapshot().graph).not.toHaveLength(0);
-    const quantum = new ModernModel("quantum"); const broad = quantum.snapshot().graph; quantum.dragPrimary(542, 300); expect(Math.max(...quantum.snapshot().graph.map((p) => p.y))).toBeGreaterThan(Math.max(...broad.map((p) => p.y)));
+    const quantum = new ModernModel("quantum"); const broad = quantum.snapshot().graph; const broadMomentum = quantum.snapshot().momentumUncertainty; quantum.dragPrimary(542, 300); expect(Math.max(...quantum.snapshot().graph.map((p) => p.y))).toBeGreaterThan(Math.max(...broad.map((p) => p.y))); expect(quantum.snapshot().momentumUncertainty).toBeGreaterThan(broadMomentum);
     const tunnel = new ModernModel("tunneling"); const thin = tunnel.snapshot().transmission; tunnel.dragPrimary(694, 300); expect(tunnel.snapshot().transmission).toBeLessThan(thin); expect(tunnel.snapshot().detections.length).toBeLessThan(12);
   });
   it("derives decay statistics and diode current from their direct controls", () => {
     const nuclei = new ModernModel("nuclei"); nuclei.dragPrimary(750, 300); expect(nuclei.snapshot().elapsedYears).toBeCloseTo(20); expect(nuclei.snapshot().remainingNuclei).toBeCloseTo(25);
     const diode = new ModernModel("semiconductors"); diode.dragPrimary(300, 450); const reverse = diode.snapshot().currentMilliamp; diode.dragPrimary(700, 450); expect(diode.snapshot().currentMilliamp).toBeGreaterThan(reverse + 1);
+  });
+  it("links gravity and mass defect controls to their curriculum results", () => {
+    const gravity = new ModernModel("gravity-spacetime"); const slow = gravity.snapshot().gravityClockRate;
+    gravity.dragPrimary(800, 500); expect(gravity.snapshot().gravityClockRate).toBeLessThan(slow);
+    const energy = new ModernModel("mass-energy"); energy.dragPrimary(200, 500); const low = energy.snapshot().releasedEnergyMeV;
+    energy.dragPrimary(800, 500); expect(energy.snapshot().releasedEnergyMeV).toBeGreaterThan(low);
   });
   it("protects guided equipment", () => {
     const model = new ModernModel("photoelectric"); const lamp = model.snapshot().devices[0];

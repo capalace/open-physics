@@ -14,10 +14,12 @@ export const hitTest = (point: Point, target: Point, radius = HANDLE_RADIUS): bo
 export function graphMarker(snapshot: ModernSnapshot): { x: number; y: number } | null {
   switch (snapshot.mode) {
     case "relativity": return { x: snapshot.speedFraction, y: snapshot.gamma };
+    case "gravity-spacetime": return { x: snapshot.gravityStrength, y: snapshot.gravityClockRate * 100 };
     case "atoms": return { x: snapshot.quantumNumber, y: -13.6 / snapshot.quantumNumber ** 2 };
     case "photoelectric": return { x: snapshot.photonFrequency, y: snapshot.electronEnergy };
     case "tunneling": return { x: snapshot.barrierWidth, y: snapshot.transmission };
     case "nuclei": return { x: snapshot.elapsedYears, y: snapshot.remainingNuclei };
+    case "mass-energy": return { x: snapshot.massDefect, y: snapshot.releasedEnergyMeV };
     case "semiconductors": return { x: snapshot.voltage, y: snapshot.currentMilliamp };
     case "matter-waves": case "quantum": case "sandbox": return null;
   }
@@ -84,9 +86,11 @@ export class ModernRenderer {
     this.grid();
     switch (snapshot.mode) {
       case "relativity": this.relativity(snapshot); break; case "atoms": this.atoms(snapshot); break;
+      case "gravity-spacetime": this.gravitySpacetime(snapshot); break;
       case "photoelectric": this.photoelectric(snapshot); break; case "matter-waves": this.matterWaves(snapshot); break;
       case "quantum": this.quantum(snapshot); break; case "tunneling": this.tunneling(snapshot); break;
       case "nuclei": this.nuclei(snapshot); break; case "semiconductors": this.semiconductors(snapshot); break;
+      case "mass-energy": this.massEnergy(snapshot); break;
       case "sandbox": this.sandbox(snapshot); break;
     }
     snapshot.devices.forEach((item) => this.device(item));
@@ -104,6 +108,24 @@ export class ModernRenderer {
     ctx.strokeStyle = "rgba(45,212,191,.55)"; ctx.lineWidth = 4;
     for (let i = -2; i <= 2; i += 1) { ctx.beginPath(); ctx.moveTo(500 + i * 55 / s.gamma, 80); ctx.lineTo(660 + i * 55 / s.gamma, 450); ctx.stroke(); }
     this.label(`공간과 시간의 눈금 변화 γ=${s.gamma.toFixed(2)}`, 330, 80);
+  }
+  private gravitySpacetime(s: ModernSnapshot): void {
+    const ctx = this.ctx; const massX = 500; const massY = 300; const bend = 15 + s.gravityStrength * 92;
+    ctx.save(); ctx.strokeStyle = "rgba(192,132,252,.42)"; ctx.lineWidth = 2;
+    for (let y = 90; y <= 510; y += 42) {
+      ctx.beginPath();
+      for (let x = 80; x <= 920; x += 10) {
+        const distance = Math.abs(x - massX); const warpedY = y + bend * Math.exp(-(distance * distance) / 36000) * Math.sign(massY - y);
+        if (x === 80) ctx.moveTo(x, warpedY); else ctx.lineTo(x, warpedY);
+      }
+      ctx.stroke();
+    }
+    for (let x = 80; x <= 920; x += 42) { ctx.beginPath(); ctx.moveTo(x, 80); ctx.quadraticCurveTo(massX, 300 + Math.sign(x - massX) * bend * .4, x, 520); ctx.stroke(); }
+    ctx.restore();
+    const nearSeconds = 10 * s.gravityClockRate;
+    this.clock(265, 280, nearSeconds, `가까운 시계 ${nearSeconds.toFixed(1)} s`, "#c084fc");
+    this.clock(835, 280, 10, "먼 시계 10.0 s", "#e2e8f0");
+    this.label("질량이 시공간을 휘게 해요", 375, 65, "#e9d5ff");
   }
   private clock(x: number, y: number, seconds: number, text: string, color: string): void {
     const ctx = this.ctx; ctx.strokeStyle = color; ctx.lineWidth = 7; ctx.beginPath(); ctx.arc(x, y, 84, 0, Math.PI * 2); ctx.stroke();
@@ -135,7 +157,7 @@ export class ModernRenderer {
   private quantum(s: ModernSnapshot): void {
     this.probabilityArea(s.graph, "#f472b6", 350, 270);
     s.detections.forEach((event) => { this.ctx.fillStyle = `rgba(251,207,232,${clamp(0.25 + event.strength, .25, 1)})`; this.ctx.beginPath(); this.ctx.arc(event.x, event.y, 7, 0, Math.PI * 2); this.ctx.fill(); });
-    this.label("여러 번 측정한 위치 검출 사건", 330, 90, "#fbcfe8");
+    this.label(`위치를 좁히면 운동량 불확정성 ${s.momentumUncertainty.toFixed(2)} ℏ/nm`, 270, 90, "#fbcfe8");
   }
   private probabilityArea(points: ModernSnapshot["graph"], color: string, baseline: number, height: number): void {
     const ctx = this.ctx; const max = Math.max(...points.map((p) => p.y), 1e-9); ctx.beginPath(); ctx.moveTo(120, baseline);
@@ -156,6 +178,14 @@ export class ModernRenderer {
     const ctx = this.ctx; const remaining = Math.round(s.remainingNuclei);
     for (let i = 0; i < 100; i += 1) { const x = 180 + (i % 10) * 46; const y = 130 + Math.floor(i / 10) * 34; ctx.fillStyle = i < remaining ? "#4ade80" : "rgba(148,163,184,.2)"; ctx.beginPath(); ctx.arc(x, y, 10, 0, Math.PI * 2); ctx.fill(); }
     this.label(`미붕괴 ${remaining}개 · 붕괴 ${100 - remaining}개`, 300, 80, "#bbf7d0");
+  }
+  private massEnergy(s: ModernSnapshot): void {
+    const ctx = this.ctx; const glow = clamp(s.releasedEnergyMeV / 18, .08, 1);
+    ctx.strokeStyle = `rgba(56,189,248,${glow})`; ctx.lineWidth = 5;
+    for (let ray = 0; ray < 12; ray += 1) { const angle = ray / 12 * Math.PI * 2 + s.animationTime; ctx.beginPath(); ctx.moveTo(555, 300); ctx.lineTo(555 + Math.cos(angle) * (80 + glow * 125), 300 + Math.sin(angle) * (80 + glow * 125)); ctx.stroke(); }
+    ctx.fillStyle = `rgba(250,204,21,${.25 + glow * .55})`; ctx.beginPath(); ctx.arc(555, 300, 45 + glow * 22, 0, Math.PI * 2); ctx.fill();
+    this.label("가벼운 핵", 315, 220, "#bbf7d0"); this.label("결합한 핵", 515, 220, "#fde68a");
+    this.label(`방출 에너지 ${s.releasedEnergyMeV.toFixed(2)} MeV`, 350, 90, "#bae6fd");
   }
   private semiconductors(s: ModernSnapshot): void {
     const ctx = this.ctx; ctx.fillStyle = "rgba(96,165,250,.22)"; ctx.fillRect(160, 130, 340, 320); ctx.fillStyle = "rgba(251,113,133,.22)"; ctx.fillRect(500, 130, 340, 320);
@@ -182,7 +212,7 @@ export class ModernRenderer {
   }
   private handle(p: Point, color: string): void { const ctx = this.ctx; ctx.fillStyle = color; ctx.strokeStyle = "#fff"; ctx.lineWidth = 4; ctx.beginPath(); ctx.arc(p.x, p.y, HANDLE_RADIUS, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); }
   private label(text: string, x: number, y: number, color = "#e0e7ff"): void { this.ctx.fillStyle = color; this.ctx.font = "700 21px system-ui, sans-serif"; this.ctx.fillText(text, x, y); }
-  private color(mode: ModernSnapshot["mode"]): string { return ({ relativity: "#2dd4bf", atoms: "#a78bfa", photoelectric: "#facc15", "matter-waves": "#60a5fa", quantum: "#f472b6", tunneling: "#fb923c", nuclei: "#4ade80", semiconductors: "#fb7185", sandbox: "#fff" })[mode]; }
+  private color(mode: ModernSnapshot["mode"]): string { return ({ relativity: "#2dd4bf", "gravity-spacetime": "#c084fc", atoms: "#a78bfa", photoelectric: "#facc15", "matter-waves": "#60a5fa", quantum: "#f472b6", tunneling: "#fb923c", nuclei: "#4ade80", "mass-energy": "#38bdf8", semiconductors: "#fb7185", sandbox: "#fff" })[mode]; }
 }
 
 const WORK_FUNCTION_LABEL = "2.3 eV";
@@ -194,7 +224,7 @@ export function drawModernGraph(canvas: HTMLCanvasElement, snapshot: ModernSnaps
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, width, height); ctx.fillStyle = "#080d22"; ctx.fillRect(0, 0, width, height);
   const xs = snapshot.graph.map((p) => p.x); const ys = snapshot.graph.map((p) => p.y); const xMin = Math.min(...xs); const xSpan = Math.max(...xs) - xMin || 1; const yMin = Math.min(...ys, 0); const yMax = Math.max(...ys, 1); const ySpan = yMax - yMin || 1;
   ctx.strokeStyle = "rgba(165,180,252,.15)"; for (let y = 30; y < 190; y += 40) { ctx.beginPath(); ctx.moveTo(42, y); ctx.lineTo(width - 14, y); ctx.stroke(); }
-  const colors: Record<ModernSnapshot["mode"], string> = { relativity: "#2dd4bf", atoms: "#a78bfa", photoelectric: "#facc15", "matter-waves": "#60a5fa", quantum: "#f472b6", tunneling: "#fb923c", nuclei: "#4ade80", semiconductors: "#fb7185", sandbox: "#94a3b8" };
+  const colors: Record<ModernSnapshot["mode"], string> = { relativity: "#2dd4bf", "gravity-spacetime": "#c084fc", atoms: "#a78bfa", photoelectric: "#facc15", "matter-waves": "#60a5fa", quantum: "#f472b6", tunneling: "#fb923c", nuclei: "#4ade80", "mass-energy": "#38bdf8", semiconductors: "#fb7185", sandbox: "#94a3b8" };
   ctx.strokeStyle = colors[snapshot.mode]; ctx.lineWidth = 3; ctx.beginPath(); snapshot.graph.forEach((p, index) => { const x = 42 + (p.x - xMin) / xSpan * (width - 58); const y = 16 + (1 - (p.y - yMin) / ySpan) * 172; if (!index) ctx.moveTo(x, y); else ctx.lineTo(x, y); }); ctx.stroke();
   const marker = graphMarker(snapshot); if (marker) { const x = 42 + (marker.x - xMin) / xSpan * (width - 58); const y = 16 + (1 - (marker.y - yMin) / ySpan) * 172; ctx.fillStyle = "#fff"; ctx.strokeStyle = colors[snapshot.mode]; ctx.lineWidth = 4; ctx.beginPath(); ctx.arc(x, y, 7, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); }
   ctx.fillStyle = "#c7d2fe"; ctx.font = "12px system-ui"; ctx.fillText(yMax.toFixed(2), 4, 20); ctx.fillText(yMin.toFixed(2), 4, 190);

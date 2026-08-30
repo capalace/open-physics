@@ -13,6 +13,7 @@ export function primaryHandle(snapshot: WavesSnapshot): Point | null {
     case "resonance": return { x: 70 + (snapshot.frequency - 1) / 8 * 860, y: 500 };
     case "sound": return { x: 140, y: 600 * (1 - (snapshot.amplitude - 5) / 65) };
     case "doppler": return snapshot.devices.find((item) => item.kind === "source") ?? null;
+    case "communication": return { x: 70 + (snapshot.frequency - 50) / 250 * 860, y: 500 };
     case "sandbox": return null;
   }
 }
@@ -135,6 +136,7 @@ export class WavesRenderer {
       case "resonance": this.drawResonance(snapshot); break;
       case "sound": this.drawSound(snapshot); break;
       case "doppler": this.drawDoppler(snapshot); break;
+      case "communication": this.drawCommunication(snapshot); break;
       case "sandbox": this.drawSandbox(snapshot); break;
       default: this.drawTravelingWave(snapshot); break;
     }
@@ -253,6 +255,38 @@ export class WavesRenderer {
     this.label(`관찰자가 듣는 소리 ${snapshot.observedFrequency.toFixed(0)} Hz`, 620, 120);
   }
 
+  private drawCommunication(snapshot: WavesSnapshot): void {
+    const ctx = this.context;
+    const transmitter = snapshot.devices.find((item) => item.id === "transmitter");
+    const receiver = snapshot.devices.find((item) => item.id === "receiver");
+    if (!transmitter || !receiver) return;
+    const spacing = Math.max(34, snapshot.wavelength * 82);
+    const phase = (snapshot.time * 190) % spacing;
+    ctx.save();
+    for (let radius = phase; radius < 720; radius += spacing) {
+      const alpha = Math.max(0.08, 0.55 - radius / 1500);
+      ctx.strokeStyle = `rgba(34,211,238,${alpha})`;
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      ctx.arc(transmitter.x, transmitter.y, radius, -0.72, 0.72);
+      ctx.stroke();
+    }
+    const antenna = (x: number, y: number, color: string): void => {
+      ctx.strokeStyle = color; ctx.lineWidth = 8;
+      ctx.beginPath(); ctx.moveTo(x, y + 95); ctx.lineTo(x, y - 85); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(x - 42, y + 95); ctx.lineTo(x + 42, y + 95); ctx.stroke();
+      ctx.fillStyle = color;
+      const chargeOffset = Math.sin(snapshot.time * snapshot.frequency * 0.08) * 58;
+      ctx.beginPath(); ctx.arc(x, y + chargeOffset, 10, 0, Math.PI * 2); ctx.fill();
+    };
+    antenna(transmitter.x, transmitter.y, "#22d3ee");
+    antenna(receiver.x, receiver.y, "#facc15");
+    ctx.restore();
+    this.label(`송신 ${snapshot.frequency.toFixed(0)} MHz`, 105, 145);
+    this.label(`수신 파장 ${snapshot.wavelength.toFixed(2)} m`, 650, 145);
+    this.drawScaleTrack();
+  }
+
   private drawSandbox(snapshot: WavesSnapshot): void {
     const sources = snapshot.devices.filter((item) => item.kind === "source" || item.kind === "second-source");
     const ctx = this.context;
@@ -301,7 +335,7 @@ export class WavesRenderer {
   }
 
   private handleColor(mode: WavesSnapshot["mode"]): string {
-    return ({ source: "#38bdf8", propagation: "#a78bfa", interference: "#fb923c", "standing-wave": "#34d399", resonance: "#f472b6", sound: "#facc15", doppler: "#fb7185", sandbox: "#fff" })[mode];
+    return ({ source: "#38bdf8", propagation: "#a78bfa", interference: "#fb923c", "standing-wave": "#34d399", resonance: "#f472b6", sound: "#facc15", doppler: "#fb7185", communication: "#22d3ee", sandbox: "#fff" })[mode];
   }
 
   private drawScaleTrack(): void {
@@ -338,7 +372,7 @@ export function drawGraph(canvas: HTMLCanvasElement, snapshot: WavesSnapshot): v
   const xValues = snapshot.graph.map((point) => point.x);
   const xMin = Math.min(...xValues); const xMax = Math.max(...xValues); const xSpan = xMax - xMin || 1;
   const min = Math.min(...values, 0); const max = Math.max(...values, 1); const span = max - min || 1;
-  const colors: Record<WavesSnapshot["mode"], string> = { source: "#38bdf8", propagation: "#a78bfa", interference: "#fb923c", "standing-wave": "#34d399", resonance: "#f472b6", sound: "#facc15", doppler: "#fb7185", sandbox: "#94a3b8" };
+  const colors: Record<WavesSnapshot["mode"], string> = { source: "#38bdf8", propagation: "#a78bfa", interference: "#fb923c", "standing-wave": "#34d399", resonance: "#f472b6", sound: "#facc15", doppler: "#fb7185", communication: "#22d3ee", sandbox: "#94a3b8" };
   ctx.strokeStyle = colors[snapshot.mode]; ctx.lineWidth = 3; ctx.beginPath();
   snapshot.graph.forEach((point, index) => {
     const x = 44 + (point.x - xMin) / xSpan * (width - 64);

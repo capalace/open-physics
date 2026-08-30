@@ -72,7 +72,7 @@ class LightController implements SubjectController {
   }
 
   private renderSettings(): void {
-    this.hosts.experimentPanel.innerHTML = `${subjectSettingsHeaderMarkup()}<div class="light-experience__palette subject-settings-tools" data-subject-settings-tools hidden></div>`;
+    this.hosts.experimentPanel.innerHTML = `${subjectSettingsHeaderMarkup()}<div class="light-experience__palette subject-settings-tools" data-subject-settings-tools hidden></div><div data-subject-device-settings></div>`;
   }
 
   private bindPointer(): void {
@@ -141,9 +141,20 @@ class LightController implements SubjectController {
 
   private renderPalette(): void {
     const palette = this.hosts.experimentPanel.querySelector<HTMLElement>(".light-experience__palette")!;
+    const controlHost = this.hosts.experimentPanel.querySelector<HTMLElement>("[data-subject-device-settings]")!;
     const signal = this.events.nextPaletteSignal();
     palette.hidden = this.model.activeScene !== "sandbox";
-    if (palette.hidden) return;
+    controlHost.replaceChildren();
+    if (palette.hidden) {
+      const lab = lightLab(this.model.activeScene as LightLabId);
+      const ratio = this.model.primaryControlRatio() ?? 0;
+      const controlName = lab.controls[0].split(" · ")[0];
+      controlHost.innerHTML = `<label class="subject-direct-control"><span>${controlName}</span><input type="range" min="0" max="100" step="1" value="${Math.round(ratio * 100)}" data-light-primary-range aria-label="${lab.controls[0]}"><div><small>낮게</small><output>${Math.round(ratio * 100)}%</output><small>높게</small></div></label><p class="subject-settings-hint">슬라이더나 캔버스의 손잡이로 같은 조건을 바꿀 수 있어요.</p>`;
+      controlHost.querySelector<HTMLInputElement>("[data-light-primary-range]")!.addEventListener("input", (event) => {
+        this.model.setPrimaryControlRatio(Number((event.target as HTMLInputElement).value) / 100); this.paint();
+      }, { signal });
+      return;
+    }
     const kinds: readonly LightDeviceKind[] = ["source", "mirror", "boundary", "lens", "prism", "slit", "screen"];
     const labels: Record<LightDeviceKind, string> = { source: "광원", mirror: "거울", boundary: "경계면", lens: "렌즈", prism: "프리즘", slit: "슬릿", screen: "스크린" };
     palette.innerHTML = `<span class="palette-label">추가</span>${kinds.map((kind) => `<button type="button" data-add-light="${kind}">＋ ${labels[kind]}</button>`).join("")}<button class="danger-button" type="button" data-delete-light ${this.selectedSandboxDevice ? "" : "disabled"}>삭제</button>`;
@@ -159,6 +170,13 @@ class LightController implements SubjectController {
   private paint(): void {
     const snapshot = this.model.snapshot();
     this.renderer.draw(snapshot);
+    const range = this.hosts.experimentPanel.querySelector<HTMLInputElement>("[data-light-primary-range]");
+    const ratio = this.model.primaryControlRatio();
+    if (range && ratio !== null) {
+      range.value = String(Math.round(ratio * 100));
+      const output = range.parentElement?.querySelector("output");
+      if (output) output.textContent = `${Math.round(ratio * 100)}%`;
+    }
     this.hosts.workspace.querySelector<HTMLElement>(".light-experience__value")!.textContent = snapshot.graphValue;
     const run = this.hosts.workspace.querySelector<HTMLElement>(".run-indicator");
     if (run) { run.textContent = "멈춤"; run.dataset.running = "false"; }

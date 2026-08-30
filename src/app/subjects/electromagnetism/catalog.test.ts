@@ -7,8 +7,8 @@ import {
 } from "./catalog";
 
 describe("electromagnetism subject catalog", () => {
-  it("defines nine distinct guided labs with direct manipulation and graphs", () => {
-    expect(ELECTROMAGNETISM_LABS).toHaveLength(9);
+  it("defines fifteen distinct guided labs with direct manipulation and graphs", () => {
+    expect(ELECTROMAGNETISM_LABS).toHaveLength(15);
     expect(() => validateSubjectDefinition(ELECTROMAGNETISM_SUBJECT, ELECTROMAGNETISM_LAB_IDS)).not.toThrow();
     expect(new Set(ELECTROMAGNETISM_LABS.flatMap((lab) => lab.controls)).size).toBeGreaterThan(8);
     expect(ELECTROMAGNETISM_LABS.every((lab) => lab.graph.series.length > 0)).toBe(true);

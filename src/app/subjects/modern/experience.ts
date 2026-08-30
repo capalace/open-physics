@@ -1,7 +1,7 @@
 import { SubjectRouteSession, type SubjectController, type SubjectExperience, type SubjectGraphDefinition, type SubjectHosts, type SubjectRoute } from "../subject-experience";
 import { subjectBrowserMarkup, subjectGuideMarkup, subjectSandboxGuideMarkup, subjectSelectionMarkup, subjectSettingsHeaderMarkup } from "../subject-ui";
 import { modernDefinition, type ModernLabId } from "./catalog";
-import { ModernModel, type ModernDeviceKind, type ModernSnapshot } from "./models";
+import { ModernModel, modernPrimaryControlRatio, type ModernDeviceKind, type ModernSnapshot } from "./models";
 import { drawModernGraph, ModernRenderer } from "./renderer";
 import "./style.css";
 
@@ -103,10 +103,18 @@ class ModernController implements SubjectController {
   }
   private renderDeviceSettings(snapshot: ModernSnapshot): void {
     const host = this.hosts.experimentPanel.querySelector<HTMLElement>("[data-subject-device-settings]")!; host.replaceChildren();
-    if (this.active !== "sandbox") { host.innerHTML = "<p class=\"subject-settings-hint\">캔버스의 손잡이를 직접 움직여 조건을 바꿔 보세요.</p>"; return; }
+    if (this.active !== "sandbox") {
+      const lab = modernDefinition.labs.find((item) => item.id === this.active)!;
+      const ratio = modernPrimaryControlRatio(snapshot) ?? 0;
+      const controlName = lab.controls[0].split(" · ")[0];
+      host.innerHTML = `<label class="subject-direct-control"><span>${controlName}</span><input type="range" min="0" max="100" step="1" value="${Math.round(ratio * 100)}" data-modern-primary-range aria-label="${lab.controls[0]}"><div><small>낮게</small><output>${Math.round(ratio * 100)}%</output><small>높게</small></div></label><p class="subject-settings-hint">슬라이더나 캔버스의 손잡이로 같은 조건을 바꿀 수 있어요.</p>`;
+      const range = host.querySelector<HTMLInputElement>("[data-modern-primary-range]")!;
+      this.listen(range, "input", () => { this.model.setPrimaryControlRatio(Number(range.value) / 100); this.refresh(); }, "inspector");
+      return;
+    }
     const list = document.createElement("ul"); list.className = "modern-experience__device-list"; snapshot.devices.forEach((item) => { const row = document.createElement("li"); row.textContent = palette.find(({ kind }) => kind === item.kind)?.label ?? item.kind; row.append(this.button("삭제", () => { this.model.removeDevice(item.id); this.renderInspector(); this.refresh(); }, "inspector")); list.append(row); }); host.append(list);
   }
-  private refresh(): void { const snapshot = this.model.snapshot(); this.measurement.textContent = snapshot.measurement; const play = this.hosts.workspace.querySelector<HTMLButtonElement>(".transport-controls .primary-button"); if (play) { play.textContent = snapshot.running ? "Ⅱ 일시정지" : "▶ 실행"; play.dataset.running = String(snapshot.running); } const run = this.hosts.workspace.querySelector<HTMLElement>(".run-indicator"); if (run) { run.textContent = snapshot.running ? "실행 중" : "멈춤"; run.dataset.running = String(snapshot.running); } if (this.active !== "sandbox" && this.graphCanvas.isConnected) drawModernGraph(this.graphCanvas, snapshot); }
+  private refresh(): void { const snapshot = this.model.snapshot(); this.measurement.textContent = snapshot.measurement; const range = this.hosts.experimentPanel.querySelector<HTMLInputElement>("[data-modern-primary-range]"); const ratio = modernPrimaryControlRatio(snapshot); if (range && ratio !== null) { range.value = String(Math.round(ratio * 100)); const output = range.parentElement?.querySelector("output"); if (output) output.textContent = `${Math.round(ratio * 100)}%`; } const play = this.hosts.workspace.querySelector<HTMLButtonElement>(".transport-controls .primary-button"); if (play) { play.textContent = snapshot.running ? "Ⅱ 일시정지" : "▶ 실행"; play.dataset.running = String(snapshot.running); } const run = this.hosts.workspace.querySelector<HTMLElement>(".run-indicator"); if (run) { run.textContent = snapshot.running ? "실행 중" : "멈춤"; run.dataset.running = String(snapshot.running); } if (this.active !== "sandbox" && this.graphCanvas.isConnected) drawModernGraph(this.graphCanvas, snapshot); }
 }
 
 export const modernExperience: SubjectExperience = { definition: modernDefinition, mount(hosts: SubjectHosts): SubjectController { return new ModernController(hosts); } };

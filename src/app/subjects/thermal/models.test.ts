@@ -3,7 +3,7 @@ import { ThermalWorld, type ThermalSceneId, type ThermalTool } from "./models";
 
 describe("ThermalWorld", () => {
   it("resets every guided scene to an identical deterministic state", () => {
-    for (const scene of ["particles", "heat-transfer", "phase-change", "gas", "heat-energy", "heat-engine", "entropy"] as const) {
+    for (const scene of ["particles", "heat-transfer", "thermal-expansion", "phase-change", "gas", "heat-energy", "heat-engine", "entropy"] as const) {
       const world = new ThermalWorld(scene);
       const first = world.snapshot();
       world.step(0.5);
@@ -17,6 +17,7 @@ describe("ThermalWorld", () => {
     const changes: Array<[ThermalSceneId, (world: ThermalWorld) => number]> = [
       ["particles", (world) => world.snapshot().temperature],
       ["heat-transfer", (world) => world.snapshot().heatFlow],
+      ["thermal-expansion", (world) => world.snapshot().expansion],
       ["phase-change", (world) => world.snapshot().liquidFraction],
       ["gas", (world) => world.snapshot().pressure],
       ["heat-energy", (world) => world.snapshot().temperature],

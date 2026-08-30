@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { WAVES_LAB_IDS } from "./catalog";
-import { WavesModel } from "./models";
+import { WavesModel, wavesPrimaryControlRatio } from "./models";
 import { hitTest, primaryHandle } from "./renderer";
 
 describe("waves model", () => {
@@ -12,6 +12,16 @@ describe("waves model", () => {
       model.step(0.1);
       model.reset();
       expect(model.snapshot()).toEqual(initial);
+    }
+  });
+
+  it("offers the same normalized control to keyboard and pointer interfaces", () => {
+    for (const id of WAVES_LAB_IDS) {
+      const model = new WavesModel(id);
+      model.setPrimaryControlRatio(0);
+      expect(wavesPrimaryControlRatio(model.snapshot()), `${id} low`).toBeCloseTo(0);
+      model.setPrimaryControlRatio(1);
+      expect(wavesPrimaryControlRatio(model.snapshot()), `${id} high`).toBeCloseTo(1);
     }
   });
 

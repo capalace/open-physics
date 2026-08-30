@@ -40,6 +40,17 @@ export function termGlossaryMarkup(terms: readonly PhysicsTermDefinition[]): str
   </details>`;
 }
 
+/** Keeps every guided lab self-explanatory even when its catalog has not supplied a custom glossary yet. */
+export function learningTermsFor(lab: SubjectLabDefinition): readonly PhysicsTermDefinition[] {
+  if (lab.terms?.length) return lab.terms;
+  const controlName = lab.controls[0]?.split(" · ")[0] ?? "실험 조건";
+  return [
+    { name: lab.law.title, description: lab.law.description },
+    { name: controlName, description: "이 실험에서 직접 바꾸며 결과와의 관계를 비교하는 조건이에요." },
+    { name: lab.graph.yLabel, description: "조건을 바꾼 뒤 그래프의 세로축에서 비교하는 관찰값이에요." },
+  ];
+}
+
 /** Builds the single experiment-browser layout shared by every subject. */
 export function subjectBrowserMarkup(
   definition: SubjectDefinition,
@@ -86,7 +97,7 @@ export function subjectGuideMarkup(lab: SubjectLabDefinition): string {
         <ol>${lab.steps.map((step) => `<li>${escapeHtml(step)}</li>`).join("")}</ol>
       </div>
       <div class="lab-observation"><strong>눈여겨볼 것</strong><p>${escapeHtml(lab.observe)}</p></div>
-      ${termGlossaryMarkup(lab.terms ?? [])}
+      ${termGlossaryMarkup(learningTermsFor(lab))}
       <div class="lab-law">
         <span>연결되는 법칙</span>
         <strong>${escapeHtml(lab.law.title)}</strong>

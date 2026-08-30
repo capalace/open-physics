@@ -129,6 +129,32 @@ body[data-subject]:not([data-subject="mechanics"]) :is(
   font-family: inherit;
 }
 
+.subject-direct-control,
+.em-direct-control {
+  display: grid;
+  gap: 10px;
+  border: 1px solid #dce3ef;
+  border-radius: 12px;
+  padding: 12px;
+  background: #fbfcff;
+  color: #43536b;
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1.45;
+}
+
+.subject-direct-control input,
+.em-direct-control input { width: 100%; accent-color: #5575e8; }
+
+.subject-direct-control div,
+.em-direct-control div { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+
+.subject-direct-control small,
+.em-direct-control small { color: #8793a5; font-weight: 700; }
+
+.subject-direct-control output,
+.em-direct-control output { color: #405fc5; }
+
 /* Experiment selector: the mechanics browser markup and exact measurements. */
 body[data-subject]:not([data-subject="mechanics"]) .subject-browser {
   padding: 0;

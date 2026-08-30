@@ -14,9 +14,9 @@ const remainingSubjects = [
 ] as const;
 
 describe("remaining physics subject coverage", () => {
-  it("provides all 39 guided labs and one sandbox entry per subject", () => {
-    expect(remainingSubjects.map((subject) => subject.labs.length)).toEqual([9, 7, 8, 7, 8]);
-    expect(remainingSubjects.flatMap((subject) => subject.labs)).toHaveLength(39);
+  it("provides all guided labs and one sandbox entry per subject", () => {
+    expect(remainingSubjects.map((subject) => subject.labs.length)).toEqual([15, 8, 10, 8, 10]);
+    expect(remainingSubjects.flatMap((subject) => subject.labs)).toHaveLength(51);
     expect(remainingSubjects.every((subject) => subject.sandboxTitle === "빈 실험실 만들기")).toBe(true);
   });
 

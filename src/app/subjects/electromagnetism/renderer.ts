@@ -95,9 +95,12 @@ export class ElectromagnetismRenderer {
     if (snapshot.mode === "charge") this.chargeLab(context, snapshot, width, height, visualTime);
     else if (snapshot.mode === "electric-field") this.fieldLab(context, snapshot, width, height, visualTime);
     else if (snapshot.mode === "potential") this.potentialLab(context, snapshot, width, height, visualTime);
+    else if (snapshot.mode === "electrostatic-induction") this.electrostaticInductionLab(context, snapshot, width, height);
     else if (snapshot.mode === "circuits") this.circuitLab(context, snapshot, width, height, visualTime);
     else if (snapshot.mode === "capacitors") this.capacitorLab(context, snapshot, width, height, visualTime);
+    else if (snapshot.mode === "electronics") this.electronicsLab(context, snapshot, width, height, visualTime);
     else if (snapshot.mode === "magnetic-field") this.magneticLab(context, snapshot, width, height, visualTime);
+    else if (snapshot.mode === "magnetic-materials") this.magneticMaterialsLab(context, snapshot, width, height);
     else if (snapshot.mode === "electromagnetic-force") this.forceLab(context, snapshot, width, height, visualTime);
     else if (snapshot.mode === "induction") this.inductionLab(context, snapshot, width, height, visualTime);
     else if (snapshot.mode === "charged-particle") this.chargedParticleLab(context, snapshot, width, height, visualTime);
@@ -219,6 +222,26 @@ export class ElectromagnetismRenderer {
     this.badge(ctx, probe.x + 22, probe.y - 34, `${this.compact(s.measurement.value)} V`);
   }
 
+  private electrostaticInductionLab(ctx: CanvasRenderingContext2D, s: ElectromagnetismSnapshot, w: number, h: number): void {
+    const charge = this.pixel(s.probe, w, h); const conductor = this.pixel({ x: 0.62, y: 0.5 }, w, h);
+    const separation = Math.max(0, Math.min(1, s.measurement.value));
+    this.charge(ctx, charge, 1, "끌어서 거리 바꾸기");
+    ctx.fillStyle = "#dce6f3"; ctx.strokeStyle = palette.ink; ctx.lineWidth = 4;
+    ctx.beginPath(); ctx.roundRect(conductor.x - 155, conductor.y - 72, 310, 144, 34); ctx.fill(); ctx.stroke();
+    const count = 4 + Math.round(separation * 6);
+    ctx.font = "800 24px system-ui"; ctx.textAlign = "center";
+    for (let index = 0; index < count; index += 1) {
+      const y = conductor.y - 48 + index * 96 / Math.max(1, count - 1);
+      ctx.fillStyle = palette.negative; ctx.fillText("−", conductor.x - 112, y + 8);
+      ctx.fillStyle = palette.positive; ctx.fillText("+", conductor.x + 112, y + 8);
+    }
+    this.label(ctx, conductor.x, conductor.y - 98, "금속 도체 안 자유 전자의 이동");
+    const dielectric = this.pixel({ x: 0.62, y: 0.78 }, w, h);
+    for (let index = -3; index <= 3; index += 1) { ctx.fillStyle = palette.negative; ctx.beginPath(); ctx.arc(dielectric.x + index * 38 - separation * 5, dielectric.y, 5, 0, TAU); ctx.fill(); ctx.fillStyle = palette.positive; ctx.beginPath(); ctx.arc(dielectric.x + index * 38 + separation * 5, dielectric.y, 5, 0, TAU); ctx.fill(); }
+    this.miniTag(ctx, dielectric.x, dielectric.y + 30, "부도체의 유전 분극", palette.purple);
+    this.badge(ctx, conductor.x, conductor.y + 112, `전하 분리 ${Math.round(separation * 100)}%`);
+  }
+
   private circuitLab(ctx: CanvasRenderingContext2D, s: ElectromagnetismSnapshot, w: number, h: number, time: number): void {
     const left = this.pixel({ x: 0.2, y: 0.5 }, w, h).x; const right = this.pixel({ x: 0.8, y: 0.5 }, w, h).x;
     const top = this.pixel({ x: 0.5, y: 0.3 }, w, h).y; const bottom = this.pixel({ x: 0.5, y: 0.7 }, w, h).y;
@@ -309,6 +332,21 @@ export class ElectromagnetismRenderer {
     this.badge(ctx, center, plateTop - 42, `${modeLabel} · ${s.capacitorVoltage.toFixed(2)} V · ${s.secondaryMeasurement?.value.toFixed(2)} nC`);
   }
 
+  private electronicsLab(ctx: CanvasRenderingContext2D, s: ElectromagnetismSnapshot, w: number, h: number, time: number): void {
+    const left = this.pixel({ x: 0.18, y: 0.48 }, w, h); const right = this.pixel({ x: 0.82, y: 0.48 }, w, h);
+    const current = s.measurement.value; const brightness = Math.min(1, current / 20);
+    ctx.strokeStyle = palette.ink; ctx.lineWidth = 5; ctx.beginPath(); ctx.moveTo(left.x, left.y); ctx.lineTo(right.x, right.y); ctx.lineTo(right.x, right.y + 130); ctx.lineTo(left.x, left.y + 130); ctx.closePath(); ctx.stroke();
+    this.batterySymbol(ctx, left, 9, 1, false);
+    const diodeX = left.x + 155; ctx.fillStyle = palette.positive; ctx.beginPath(); ctx.moveTo(diodeX - 22, left.y - 25); ctx.lineTo(diodeX + 22, left.y); ctx.lineTo(diodeX - 22, left.y + 25); ctx.closePath(); ctx.fill(); ctx.strokeStyle = palette.ink; ctx.beginPath(); ctx.moveTo(diodeX + 25, left.y - 28); ctx.lineTo(diodeX + 25, left.y + 28); ctx.stroke();
+    const transistorX = (left.x + right.x) / 2; ctx.fillStyle = "#fff"; ctx.strokeStyle = palette.purple; ctx.lineWidth = 4; ctx.beginPath(); ctx.arc(transistorX, left.y, 38, 0, TAU); ctx.fill(); ctx.stroke(); this.label(ctx, transistorX, left.y + 7, "T");
+    this.resistorSymbol(ctx, transistorX + 80, right.x - 72, left.y, palette.gold, 4, 8);
+    ctx.save(); ctx.shadowColor = palette.gold; ctx.shadowBlur = brightness * 52; ctx.fillStyle = `rgba(242,184,75,${.15 + brightness * .85})`; ctx.beginPath(); ctx.arc(right.x, right.y + 65, 29, 0, TAU); ctx.fill(); ctx.strokeStyle = palette.ink; ctx.stroke(); ctx.restore();
+    this.flowDots(ctx, left.x, right.x, left.y, left.y + 130, current / 12, time);
+    const handle = this.pixel(s.probe, w, h); const trackLeft = this.pixel({ x: 0.25, y: 0.78 }, w, h); const trackRight = this.pixel({ x: 0.75, y: 0.78 }, w, h);
+    ctx.strokeStyle = "#cbd5e1"; ctx.lineWidth = 6; ctx.beginPath(); ctx.moveTo(trackLeft.x, handle.y); ctx.lineTo(trackRight.x, handle.y); ctx.stroke(); this.probe(ctx, handle, palette.negative, "입력 전압");
+    this.badge(ctx, transistorX, left.y - 82, `${s.secondaryMeasurement?.value.toFixed(2)} V → ${current.toFixed(1)} mA`);
+  }
+
   private magneticLab(ctx: CanvasRenderingContext2D, s: ElectromagnetismSnapshot, w: number, h: number, time: number): void {
     const wire = this.pixel({ x: 0.44, y: 0.5 }, w, h);
     const scale = electromagnetismViewport(w, h).scale;
@@ -321,6 +359,18 @@ export class ElectromagnetismRenderer {
     const probe = this.pixel(s.probe, w, h);
     this.compass(ctx, probe, wire, s.direction);
     this.badge(ctx, probe.x, probe.y - 48, `${s.measurement.value.toFixed(2)} μT`);
+  }
+
+  private magneticMaterialsLab(ctx: CanvasRenderingContext2D, s: ElectromagnetismSnapshot, w: number, h: number): void {
+    const field = s.secondaryMeasurement?.value ?? 0; const rows = [{ label: "철 · 강자성", response: Math.tanh(field * 3.2), color: palette.positive }, { label: "알루미늄 · 상자성", response: field * .22, color: palette.gold }, { label: "구리 · 반자성", response: -field * .16, color: palette.negative }];
+    for (const [rowIndex, row] of rows.entries()) {
+      const center = this.pixel({ x: 0.55, y: 0.27 + rowIndex * .22 }, w, h); ctx.fillStyle = "rgba(220,230,243,.8)"; ctx.strokeStyle = row.color; ctx.lineWidth = 3; ctx.beginPath(); ctx.roundRect(center.x - 250, center.y - 42, 500, 84, 14); ctx.fill(); ctx.stroke();
+      this.label(ctx, center.x - 320, center.y + 7, row.label);
+      for (let index = 0; index < 9; index += 1) { const x = center.x - 200 + index * 50; const direction = row.response >= 0 ? 1 : -1; const disorder = 1 - Math.min(1, Math.abs(row.response)); const angle = direction > 0 ? (index % 2 ? .18 : -.18) * disorder : Math.PI + (index % 2 ? .18 : -.18) * disorder; this.arrow(ctx, { x, y: center.y }, { x: Math.cos(angle), y: Math.sin(angle) }, row.color, "", 22 + Math.abs(row.response) * 18); }
+    }
+    const handle = this.pixel(s.probe, w, h); const trackLeft = this.pixel({ x: 0.25, y: 0.78 }, w, h); const trackRight = this.pixel({ x: 0.75, y: 0.78 }, w, h);
+    ctx.strokeStyle = "#cbd5e1"; ctx.lineWidth = 6; ctx.beginPath(); ctx.moveTo(trackLeft.x, handle.y); ctx.lineTo(trackRight.x, handle.y); ctx.stroke(); this.probe(ctx, handle, palette.magnetic, "외부 자기장");
+    this.arrow(ctx, { x: trackLeft.x, y: handle.y - 55 }, { x: 1, y: 0 }, palette.magnetic, "자기장 방향", trackRight.x - trackLeft.x);
   }
 
   private forceLab(ctx: CanvasRenderingContext2D, s: ElectromagnetismSnapshot, w: number, h: number, time: number): void {

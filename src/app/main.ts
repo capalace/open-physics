@@ -24,6 +24,7 @@ document.querySelectorAll<HTMLButtonElement>("button[data-subject]").forEach((bu
     if (subject === activeSubject) return;
     const url = new URL(window.location.href);
     url.searchParams.delete("lab");
+    url.searchParams.delete("view");
     if (subject === "mechanics") url.searchParams.delete("subject");
     else url.searchParams.set("subject", subject);
     window.location.assign(url);

@@ -32,6 +32,15 @@ describe("ElectromagnetismModel", () => {
     expect(potential.snapshot().measurement.value).toBeGreaterThan(initialPotential);
   });
 
+  it("connects induction, magnetic materials, and electronics controls to observable results", () => {
+    const induction = new ElectromagnetismModel("electrostatic-induction"); const far = induction.snapshot().measurement.value;
+    induction.drag({ x: 0.42, y: 0.5 }); expect(induction.snapshot().measurement.value).toBeGreaterThan(far);
+    const materials = new ElectromagnetismModel("magnetic-materials"); materials.drag({ x: 0.25, y: 0.78 }); const weak = materials.snapshot().measurement.value;
+    materials.drag({ x: 0.75, y: 0.78 }); expect(materials.snapshot().measurement.value).toBeGreaterThan(weak);
+    const electronics = new ElectromagnetismModel("electronics"); electronics.drag({ x: 0.25, y: 0.78 }); expect(electronics.snapshot().measurement.value).toBe(0);
+    electronics.drag({ x: 0.75, y: 0.78 }); expect(electronics.snapshot().measurement.value).toBeGreaterThan(20);
+  });
+
   it("couples circuit resistance to current and conserves isolated capacitor charge", () => {
     const circuit = new ElectromagnetismModel("circuits");
     circuit.drag({ x: 0.2, y: 0.5 });

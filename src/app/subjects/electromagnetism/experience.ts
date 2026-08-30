@@ -29,6 +29,18 @@ import { ElectromagnetismRenderer } from "./renderer";
 import "./style.css";
 
 type SandboxTool = readonly [ElectromagnetismSandboxKind, string, string, number?];
+const guidedDirectRanges: Partial<Record<ElectromagnetismLabId, { readonly label: string; readonly min: number; readonly max: number; readonly y: number; readonly low: string; readonly high: string }>> = {
+  charge: { label: "두 전하 사이 거리", min: 0.42, max: 0.86, y: 0.5, low: "가까이", high: "멀리" },
+  potential: { label: "전하에서 탐침까지 거리", min: 0.42, max: 0.88, y: 0.5, low: "가까이", high: "멀리" },
+  "electrostatic-induction": { label: "대전체 위치", min: 0.12, max: 0.42, y: 0.5, low: "멀리", high: "가까이" },
+  circuits: { label: "전구 하나의 저항", min: 0.27, max: 0.73, y: 0.3, low: "작게", high: "크게" },
+  capacitors: { label: "축전기 판 사이 거리", min: 0.46, max: 0.78, y: 0.78, low: "가까이", high: "멀리" },
+  electronics: { label: "트랜지스터 입력 전압", min: 0.25, max: 0.75, y: 0.78, low: "낮게", high: "높게" },
+  "magnetic-field": { label: "도선에서 나침반까지 거리", min: 0.52, max: 0.88, y: 0.5, low: "가까이", high: "멀리" },
+  "magnetic-materials": { label: "외부 자기장 세기", min: 0.25, max: 0.75, y: 0.78, low: "약하게", high: "강하게" },
+  induction: { label: "막대 자석 위치", min: 0.12, max: 0.88, y: 0.5, low: "코일 왼쪽", high: "코일 오른쪽" },
+  transformer: { label: "2차 코일 감은 수", min: 0.3, max: 0.7, y: 0.78, low: "적게", high: "많이" },
+};
 const sandboxToolGroups: readonly { label: string; hint: string; tone: string; tools: readonly SandboxTool[] }[] = [
   { label: "전하·장", hint: "거리로 작용", tone: "field", tools: [
     ["charge", "+", "양전하", 2e-6], ["charge", "−", "음전하", -2e-6], ["capacitor", "Ⅱ", "축전기"], ["probe", "✦", "탐침"],
@@ -120,8 +132,28 @@ export function electromagnetismLegend(mode: ElectromagnetismLabId | "sandbox"):
       { kind: "field", label: "작은 화살표 = 전기장" },
       { kind: "electric-line", label: "초록 선 = 전기력선 (+에서 −로)" },
     ];
+    case "potential": return [
+      { kind: "potential", label: "보라 원 = 등전위선" },
+      { kind: "field", label: "등전위선에 수직 = 전기장 방향" },
+    ];
+    case "electrostatic-induction": return [
+      { kind: "field", label: "금속 안 +/− = 유도된 전하 분리" },
+      { kind: "connection", label: "작은 쌍극자 = 유전 분극" },
+    ];
     case "circuits": return [{ kind: "current", label: "움직이는 점 = 전류" }];
     case "capacitors": return [{ kind: "field", label: "판 사이 화살표 = 전기장" }];
+    case "electronics": return [
+      { kind: "current", label: "움직이는 점 = 출력 전류" },
+      { kind: "magnetic-line", label: "코일 둘레 = 저장된 자기 에너지" },
+    ];
+    case "magnetic-field": return [
+      { kind: "magnetic-line", label: "청록 원 = 자기력선" },
+      { kind: "field", label: "나침반 = 자기장 방향" },
+    ];
+    case "magnetic-materials": return [
+      { kind: "magnetic-line", label: "작은 화살표 = 물질 속 자기 모멘트" },
+      { kind: "field", label: "청록 화살표 = 외부 자기장" },
+    ];
     case "electromagnetic-force": return [
       { kind: "current", label: "노란 화살표 = 전류" },
       { kind: "magnetic-line", label: "바닥 기호 = 자기장" },
@@ -130,6 +162,11 @@ export function electromagnetismLegend(mode: ElectromagnetismLabId | "sandbox"):
     case "induction": return [
       { kind: "magnetic-line", label: "청록 선 = 자기력선 (N에서 S로)" },
       { kind: "voltage", label: "화살표 = 유도 전압" },
+    ];
+    case "charged-particle": return [
+      { kind: "velocity", label: "보라 화살표 = 처음 속도" },
+      { kind: "force", label: "초록 화살표 = 로런츠 힘" },
+      { kind: "magnetic-line", label: "바닥 기호 = 자기장 방향" },
     ];
     case "electromagnet": return [
       { kind: "current", label: "노란 코일 = 전류" },
@@ -153,9 +190,15 @@ export function electromagnetismLegend(mode: ElectromagnetismLabId | "sandbox"):
 
 const interactionTips: Record<ElectromagnetismLabId, string> = {
   charge: "파란 전하를 잡아 움직여 거리와 힘이 함께 바뀌는지 보세요.",
+  potential: "보라색 전위 탐침을 등전위선을 따라, 그리고 바깥쪽으로 옮겨 보세요.",
+  "electrostatic-induction": "주황색 양전하를 금속 가까이 가져가 전하가 나뉘는 모습을 보세요.",
   circuits: "회로 아래의 저항 손잡이를 좌우로 끌어 전류와 밝기를 바꾸세요.",
   capacitors: "축전기 판 간격 손잡이를 좌우로 끌고 플래시 밝기를 비교하세요.",
+  electronics: "파란 입력 전압 손잡이를 문턱 앞뒤로 옮겨 전구가 켜지는 순간을 찾으세요.",
+  "magnetic-field": "나침반을 도선 가까이와 멀리 옮기고 전류 방향도 뒤집어 보세요.",
+  "magnetic-materials": "청록색 손잡이를 옮겨 세 물질 속 작은 자석의 정렬을 비교하세요.",
   "electromagnetic-force": "노란 전류 화살표 끝을 좌우로 끌어 세기와 방향을 바꾸세요.",
+  "charged-particle": "보라색 속도 화살표를 끌어 방향을 정한 뒤 실행해 표적을 맞혀 보세요.",
   induction: "막대 자석을 코일 안팎으로 빠르게 끌어 유도 전압을 만드세요.",
   electromagnet: "전자석을 짐까지 내린 뒤 오른쪽 놓을 곳으로 직접 옮기세요.",
   motor: "위쪽 보라색 전류 손잡이를 좌우로 끌어 짐의 움직임을 바꾸세요.",
@@ -318,6 +361,13 @@ class ElectromagnetismController implements SubjectController {
   }
 
   private bindEvents(): void {
+    this.hosts.experimentPanel.addEventListener("input", (event) => {
+      const range = (event.target as Element).closest<HTMLInputElement>("[data-em-direct-range]");
+      const config = this.activeMode === "sandbox" ? undefined : guidedDirectRanges[this.activeMode];
+      if (!range || !config) return;
+      this.model.drag({ x: Number(range.value), y: config.y }, 0.05);
+      this.render();
+    }, { signal: this.eventScope.signal });
     this.hosts.experimentPanel.addEventListener("click", (event) => {
       if ((event.target as Element).closest("[data-em-back]")) {
         this.routeSession.returnToSelection();
@@ -380,6 +430,17 @@ class ElectromagnetismController implements SubjectController {
       else if (control === "circuit-arrangement") this.model.setCircuitArrangement(button.dataset.value as "series" | "parallel");
       else if (control === "device-load") this.model.setDeviceLoad(Number(button.dataset.value));
       else if (control === "appliance-target") this.model.setApplianceTargetVoltage(Number(button.dataset.value));
+      else if (control === "particle-launch") {
+        const angle = Number(button.dataset.angle) * Math.PI / 180;
+        const distance = Number(button.dataset.speed);
+        this.model.drag({ x: 0.25 + Math.cos(angle) * distance, y: 0.52 + Math.sin(angle) * distance });
+        this.model.setRunning(true);
+      }
+      else if (control === "crane-pick") this.model.drag({ x: 0.5, y: 0.7 });
+      else if (control === "crane-deliver") this.model.drag({ x: 0.82, y: 0.7 });
+      else if (control === "generator-slow") { this.model.drag({ x: 0.643, y: 0.564 }, 0.1); this.model.setRunning(true); }
+      else if (control === "generator-fast") { this.model.drag({ x: 0.5, y: 0.67 }, 0.1); this.model.setRunning(true); }
+      else if (control === "generator-stop") { this.model.drag({ x: 0.65, y: 0.52 }, 0); this.model.setRunning(false); }
       const sandboxValue = button.dataset.emSandboxValue;
       if (sandboxValue !== undefined && this.selectedSandboxId) this.model.setSandboxObjectValue(this.selectedSandboxId, Number(sandboxValue));
       const sandboxSecondaryValue = button.dataset.emSandboxSecondaryValue;
@@ -577,10 +638,19 @@ class ElectromagnetismController implements SubjectController {
     const needsApplianceTarget = lab.controls.includes("appliance-target");
     const levelLabels: Partial<Record<ElectromagnetismLabId, string>> = {
       charge: "전하량", circuits: "전압", capacitors: "전압",
+      "magnetic-field": "전류 세기", "charged-particle": "자기장 세기",
       "electromagnetic-force": "전류 세기",
       electromagnet: "전류 세기", motor: "전류 세기", transformer: "1차 전압",
     };
     const levelLabel = levelLabels[this.activeMode];
+    const directRange = guidedDirectRanges[this.activeMode];
+    const guidedActions = this.activeMode === "charged-particle"
+      ? `<div class="em-choice"><span>발사 방향과 속력</span><button data-em-control="particle-launch" data-angle="-15" data-speed="0.12">아래 15°</button><button data-em-control="particle-launch" data-angle="0" data-speed="0.16">정면 빠르게</button><button data-em-control="particle-launch" data-angle="15" data-speed="0.12">위 15°</button></div>`
+      : this.activeMode === "electromagnet"
+        ? `<div class="em-choice"><span>전자석 옮기기</span><button data-em-control="crane-pick">짐에 붙이기</button><button data-em-control="crane-deliver">목표로 옮기기</button></div>`
+        : this.activeMode === "generator"
+          ? `<div class="em-choice"><span>손잡이 돌리기</span><button data-em-control="generator-slow">천천히</button><button data-em-control="generator-fast">빠르게</button><button data-em-control="generator-stop">멈추기</button></div>`
+          : "";
     const signLabel = this.activeMode === "electromagnetic-force" || this.activeMode === "electromagnet" || this.activeMode === "motor"
       ? "전류 방향 뒤집기"
       : "전하 부호 뒤집기 (+/−)";
@@ -589,6 +659,7 @@ class ElectromagnetismController implements SubjectController {
       : this.activeMode === "motor" ? "자석 N/S 방향 뒤집기" : "전류 방향 뒤집기";
     controls.innerHTML = `
       <h3>바꿔 볼 조건</h3>
+      ${directRange ? `<label class="em-direct-control"><span>${directRange.label}</span><input type="range" min="${directRange.min}" max="${directRange.max}" step="0.01" value="${this.model.snapshot().probe.x}" data-em-direct-range aria-label="${directRange.label}"><div><small>${directRange.low}</small><output data-em-direct-output></output><small>${directRange.high}</small></div></label>` : ""}
       ${levelLabel ? `<div class="em-choice"><span>${levelLabel}</span><button data-em-control="level" data-value="0.5">약하게</button><button data-em-control="level" data-value="1">보통</button><button data-em-control="level" data-value="1.5">강하게</button></div>` : ""}
       ${needsSign ? `<button class="em-wide-control" data-em-control="sign">${signLabel}</button>` : ""}
       ${needsDirection ? `<button class="em-wide-control" data-em-control="direction">${directionLabel}</button>` : ""}
@@ -596,11 +667,19 @@ class ElectromagnetismController implements SubjectController {
       ${needsCapacitorCircuit ? `<div class="em-choice"><span>회로 연결</span><button data-em-control="capacitor-mode" data-value="charging">전지 연결</button><button data-em-control="capacitor-mode" data-value="open">전지 분리</button><button data-em-control="capacitor-mode" data-value="lamp">플래시 켜기</button></div>` : ""}
       ${needsCircuitArrangement ? `<div class="em-choice"><span>전구 연결</span><button data-em-control="circuit-arrangement" data-value="series">직렬</button><button data-em-control="circuit-arrangement" data-value="parallel">병렬</button></div>` : ""}
       ${needsDeviceLoad ? `<div class="em-choice"><span>짐 무게</span><button data-em-control="device-load" data-value="1">가벼움</button><button data-em-control="device-load" data-value="2">보통</button><button data-em-control="device-load" data-value="3">무거움</button></div>` : ""}
-      ${needsApplianceTarget ? `<div class="em-choice"><span>연결할 장치</span><button data-em-control="appliance-target" data-value="6">LED 6 V</button><button data-em-control="appliance-target" data-value="9">라디오 9 V</button><button data-em-control="appliance-target" data-value="12">로봇 12 V</button></div>` : ""}`;
+      ${needsApplianceTarget ? `<div class="em-choice"><span>연결할 장치</span><button data-em-control="appliance-target" data-value="6">LED 6 V</button><button data-em-control="appliance-target" data-value="9">라디오 9 V</button><button data-em-control="appliance-target" data-value="12">로봇 12 V</button></div>` : ""}
+      ${guidedActions}`;
   }
 
   private render(): void {
     const snapshot = this.model.snapshot();
+    const directRange = this.hosts.experimentPanel.querySelector<HTMLInputElement>("[data-em-direct-range]");
+    if (directRange) {
+      directRange.value = String(snapshot.probe.x);
+      const output = this.hosts.experimentPanel.querySelector<HTMLOutputElement>("[data-em-direct-output]");
+      const reading = snapshot.secondaryMeasurement;
+      if (output && reading) output.textContent = `${this.format(reading.value)} ${reading.unit}`;
+    }
     this.peakVoltage = nextElectromagnetismPeakVoltage(snapshot.mode, this.peakVoltage, snapshot.measurement.value);
     this.renderer.render(snapshot, this.visualTime, this.selectedSandboxId, this.wiring, this.wireStart);
     if (snapshot.mode === "sandbox") this.renderSandboxControls(snapshot.sandboxObjects.find((object) => object.id === this.selectedSandboxId) ?? null, snapshot);
@@ -628,7 +707,7 @@ class ElectromagnetismController implements SubjectController {
     if (deleteButton) deleteButton.disabled = !this.selectedSandboxId;
     const play = this.require<HTMLButtonElement>(this.hosts.workspace, '[data-em-action="play"]');
     const step = this.require<HTMLButtonElement>(this.hosts.workspace, '[data-em-action="step"]');
-    const timeDriven = snapshot.mode === "sandbox" || snapshot.mode === "capacitors" || snapshot.mode === "electromagnetic-force" || snapshot.mode === "motor" || snapshot.mode === "generator" || snapshot.mode === "induction";
+    const timeDriven = snapshot.mode === "sandbox" || snapshot.mode === "capacitors" || snapshot.mode === "electromagnetic-force" || snapshot.mode === "charged-particle" || snapshot.mode === "motor" || snapshot.mode === "generator" || snapshot.mode === "induction";
     const directPrompt = snapshot.mode === "induction" ? "자석을 직접 움직여요" : snapshot.mode === "generator" ? "손잡이를 직접 돌려요" : "";
     const transportDriven = timeDriven && !directPrompt;
     play.disabled = !transportDriven; step.disabled = !transportDriven;

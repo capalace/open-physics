@@ -45,6 +45,7 @@ export interface ThermalSnapshot {
   readonly liquidFraction: number;
   readonly efficiency: number;
   readonly entropy: number;
+  readonly expansion: number;
   readonly particles: readonly ThermalParticle[];
   readonly objects: readonly ThermalObject[];
   readonly thermometerReadings: readonly { id: string; temperature: number; unit: "K" }[];
@@ -57,6 +58,7 @@ const clamp = (value: number, minimum = 0, maximum = 1): number =>
 const initialControl: Record<ThermalSceneId, number> = {
   particles: 0.42,
   "heat-transfer": 0.45,
+  "thermal-expansion": 0.35,
   "phase-change": 0,
   gas: 0.62,
   "heat-energy": 0.45,
@@ -69,6 +71,7 @@ const toolsFor = (scene: ThermalSceneId): ThermalTool[] => {
   switch (scene) {
     case "particles": return ["container", "heater", "thermometer"];
     case "heat-transfer": return ["container", "container", "conductor", "thermometer", "thermometer"];
+    case "thermal-expansion": return ["container", "heater", "thermometer"];
     case "phase-change": return ["container", "heater", "thermometer"];
     case "gas": return ["container", "piston", "thermometer"];
     case "heat-energy": return ["container", "heater", "thermometer"];
@@ -234,6 +237,7 @@ export class ThermalWorld {
     let liquidFraction = 0;
     let efficiency = 0;
     let entropy = 0;
+    let expansion = 0;
     let temperatureUnit: "K" | "°C" = "K";
 
     switch (this.sceneValue) {
@@ -247,6 +251,16 @@ export class ThermalWorld {
         temperature = 420 - transferred / 0.8;
         secondaryTemperature = 260 + transferred / 0.8;
         energy = transferred;
+        break;
+      }
+      case "thermal-expansion": {
+        temperatureUnit = "°C";
+        temperature = -20 + c * 220;
+        const referenceTemperature = 20;
+        const aluminumAlpha = 23e-6;
+        const referenceLengthMeters = 4;
+        expansion = aluminumAlpha * referenceLengthMeters * (temperature - referenceTemperature) * 1000;
+        energy = Math.max(0, temperature - referenceTemperature) * 0.9;
         break;
       }
       case "phase-change": {
@@ -331,6 +345,7 @@ export class ThermalWorld {
       liquidFraction,
       efficiency,
       entropy,
+      expansion,
       particles,
       objects: this.objectsValue.map((object) => ({ ...object })),
       thermometerReadings,
@@ -356,6 +371,7 @@ export class ThermalWorld {
       case "heat-transfer": {
         return [snapshot.energy, snapshot.energy];
       }
+      case "thermal-expansion": return [snapshot.expansion];
       case "phase-change": return [snapshot.temperature];
       case "gas": return [snapshot.pressure];
       case "heat-energy": return [snapshot.temperature - 20];
@@ -409,6 +425,7 @@ export class ThermalWorld {
   private graphX(snapshot: Omit<ThermalSnapshot, "graph">): number {
     switch (this.sceneValue) {
       case "heat-transfer": return snapshot.time;
+      case "thermal-expansion": return snapshot.temperature;
       case "phase-change": return snapshot.energy;
       case "gas": return snapshot.volume;
       case "heat-energy": return snapshot.mass;

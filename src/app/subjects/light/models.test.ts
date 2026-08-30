@@ -6,11 +6,13 @@ const drags: Record<LightLabId, { from: Point; to: Point }> = {
   propagation: { from: { x: 120, y: 225 }, to: { x: 120, y: 380 } },
   reflection: { from: { x: 568, y: 267 }, to: { x: 520, y: 225 } },
   refraction: { from: { x: 250, y: 100 }, to: { x: 390, y: 100 } },
+  "total-internal-reflection": { from: { x: 260, y: 500 }, to: { x: 420, y: 500 } },
   lenses: { from: { x: 260, y: 220 }, to: { x: 340, y: 220 } },
   prism: { from: { x: 575, y: 300 }, to: { x: 520, y: 225 } },
   diffraction: { from: { x: 470, y: 347 }, to: { x: 470, y: 390 } },
   polarization: { from: { x: 640, y: 329 }, to: { x: 590, y: 358 } },
   instruments: { from: { x: 680, y: 312 }, to: { x: 680, y: 250 } },
+  laser: { from: { x: 422.4, y: 500 }, to: { x: 760, y: 500 } },
 };
 
 describe("light lab model", () => {
@@ -27,6 +29,17 @@ describe("light lab model", () => {
       expect(first.devices.every((device) => device.protected)).toBe(true);
       expect(first.rays.length).toBeGreaterThan(0);
       expect(first.graph.length).toBeGreaterThan(1);
+    }
+  });
+
+  it("offers every guided control as a normalized keyboard-operable value", () => {
+    for (const id of LIGHT_LAB_IDS) {
+      const model = new LightLabModel(id);
+      model.setPrimaryControlRatio(0);
+      expect(model.primaryControlRatio(), `${id} low`).toBeCloseTo(0);
+      model.setPrimaryControlRatio(1);
+      expect(model.primaryControlRatio(), `${id} high`).toBeCloseTo(1);
+      expect(model.snapshot().graphValue.length).toBeGreaterThan(0);
     }
   });
 

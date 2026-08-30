@@ -86,6 +86,8 @@ button:focus-visible, input:focus-visible { outline: 3px solid #91a8ff; outline-
 }
 .panel { background: #ffffffd9; }
 .experiment-panel { display: flex; flex-direction: column; gap: 20px; padding: 24px 16px 20px; border-right: 1px solid var(--line); }
+.mobile-settings-drawer, .mobile-tools-drawer { display: contents; }
+.mobile-settings-drawer > summary, .mobile-tools-drawer > summary { display: none; }
 .panel-heading { padding: 0 4px; }
 .eyebrow { color: var(--accent); font-size: 12px; font-weight: 800; letter-spacing: .16em; }
 .panel-heading h1 { margin: 10px 0 12px; color: #17243b; font-size: 26px; line-height: 1.2; letter-spacing: -.055em; }
@@ -508,4 +510,8 @@ body[data-app-mode="sandbox"] .object-editor { margin-top: 0; padding-top: 0; bo
   .run-indicator, .toolbar-divider, .canvas-legend { display: none; }
   .inspector-panel { display: block; }
   .object-editor, .environment-section, .visualization-section { margin-top: 18px; }
+  .mobile-settings-drawer, .mobile-tools-drawer { display: block; border: 1px solid var(--line); border-radius: 11px; padding: 0 12px; background: #fff; }
+  .mobile-settings-drawer > summary, .mobile-tools-drawer > summary { display: flex; min-height: 46px; align-items: center; color: #536078; cursor: pointer; font-size: 14px; font-weight: 800; }
+  .mobile-settings-drawer[open] > summary, .mobile-tools-drawer[open] > summary { border-bottom: 1px solid var(--line); }
+  .mobile-tools-drawer .creation-controls.subject-settings-tools { padding-top: 12px; }
 }

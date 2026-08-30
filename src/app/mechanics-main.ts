@@ -446,11 +446,24 @@ function setupMechanicsScreens(): void {
   settingsHeader.innerHTML = `<button class="subject-back-button" type="button" data-subject-back>← 실험 선택</button><div><span class="eyebrow">실험 설정</span><h2 data-subject-settings-title>바꿔 볼 조건</h2></div>`;
   const creationControls = required<HTMLElement>(".creation-controls");
   creationControls.classList.add("subject-settings-tools");
-  experimentPanel.replaceChildren(settingsHeader, creationControls, objectEditor);
-  experimentPanel.append(
+  const mobileTools = document.createElement("details");
+  mobileTools.className = "mobile-tools-drawer";
+  mobileTools.dataset.sandboxOnly = "";
+  mobileTools.innerHTML = "<summary>도구 추가</summary>";
+  mobileTools.append(creationControls);
+  const mobileSettings = document.createElement("details");
+  mobileSettings.className = "mobile-settings-drawer";
+  mobileSettings.innerHTML = "<summary>물체·환경 세부 설정</summary>";
+  mobileSettings.append(
+    objectEditor,
     required<HTMLElement>(".environment-section"),
     required<HTMLElement>(".visualization-section"),
   );
+  const mobileQuery = window.matchMedia("(max-width: 700px)");
+  mobileTools.open = !mobileQuery.matches;
+  mobileSettings.open = !mobileQuery.matches;
+  mobileQuery.addEventListener("change", (event) => { mobileTools.open = !event.matches; mobileSettings.open = !event.matches; });
+  experimentPanel.replaceChildren(settingsHeader, mobileTools, mobileSettings);
   inspectorPanel.setAttribute("aria-label", "실험 설명과 관찰 결과");
   const termGlossary = document.createElement("div");
   termGlossary.id = "lab-term-glossary";
@@ -523,7 +536,7 @@ function applyModeUi(): void {
   const hasObjectControl = activeLab.controls.includes("mass") || activeLab.controls.includes("material");
   objectEditor.hidden = appMode === "lab" && !hasObjectControl;
   inspectorHeading.textContent = appMode === "lab" ? "바꿔 볼 조건" : "물체 설정";
-  inspectorEyebrow.textContent = appMode === "lab" ? "CHANGE A CONDITION" : "SELECTED OBJECT";
+  inspectorEyebrow.textContent = appMode === "lab" ? "조건 바꾸기" : "선택한 물체";
   const interactionTip = required<HTMLElement>("[data-mechanics-interaction-tip]");
   interactionTip.hidden = appMode !== "lab";
   if (appMode === "lab") interactionTip.textContent = `☝ ${mechanicsInteractionTip(activeLab.id)}`;
