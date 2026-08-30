@@ -154,13 +154,15 @@ describe("subject visual shell", () => {
 
   it("keeps subject content on the same panel coordinates as mechanics", () => {
     expect(styles).toMatch(/@media \(min-width: 1021px\)[\s\S]*body\s*\{[^}]*overflow:\s*hidden/);
-    expect(styles).toMatch(/@media \(min-width: 701px\) and \(max-width: 1020px\)[\s\S]*grid-template-rows:\s*max\(520px, calc\(100dvh - 54px\)\)/);
+    expect(styles).toMatch(/@media \(min-width: 701px\) and \(max-width: 1020px\)[\s\S]*grid-template-rows:\s*minmax\(0, calc\(100dvh - 54px\)\) auto/);
     expect(subjectShellStyles).toMatch(/\.subject-browser \.quick-start-list\s*\{[^}]*gap:\s*6px/s);
     expect(subjectShellStyles).toMatch(/\.em-guide\s*\{[^}]*padding:\s*0/s);
     expect(subjectShellStyles).toMatch(/\.waves-experience__inspector article[^}]*padding:\s*0 0 24px/s);
     expect(subjectShellStyles).toMatch(/\.light-experience__inspector\s*\{[^}]*padding:\s*24px 20px/s);
+    expect(subjectShellStyles).toMatch(/#experiment-panel,[\s\S]*#inspector-panel\s*\{[^}]*background:\s*#fbfcff/s);
     expect(thermalExperience).toContain("shell.clientWidth");
     expect(thermalExperience).toContain("shell.clientHeight - toolbar.offsetHeight");
+    expect(thermalExperience).not.toContain("Math.max(420, shell.clientHeight");
     expect(electromagnetismStyles).not.toMatch(/\.em-selection-screen\s*\{[^}]*width:/s);
     expect(electromagnetismStyles).not.toMatch(/\.em-selection-intro\s*\{[^}]*margin-bottom:/s);
     expect(mechanicsBootstrap).toContain('browser.classList.add("subject-browser", "mechanics-browser")');

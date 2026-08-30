@@ -65,7 +65,7 @@ export class ThermalExperienceController implements SubjectController {
     const shell = this.hosts.workspace.querySelector<HTMLElement>(".thermal-experience")!;
     const toolbar = shell.querySelector<HTMLElement>(".thermal-toolbar")!;
     const width = Math.max(520, shell.clientWidth || 900);
-    const height = Math.max(420, shell.clientHeight - toolbar.offsetHeight - 12 || 560);
+    const height = Math.max(180, shell.clientHeight - toolbar.offsetHeight - 12 || 560);
     this.renderer.resize(width, height);
     this.refresh();
   }

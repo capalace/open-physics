@@ -77,7 +77,12 @@ body[data-subject-screen="selection"] .workspace {
   white-space: normal !important;
 }
 
-.subject-lab-screen { min-height: 100%; }
+.subject-lab-screen {
+  display: flex;
+  height: 100%;
+  min-height: 0;
+  flex-direction: column;
+}
 .subject-settings-header { margin-bottom: 18px; }
 .subject-settings-header > div { margin-top: 18px; }
 .subject-settings-header .eyebrow { color: var(--subject-accent, #365eea); font-size: 12px; font-weight: 850; }
@@ -333,7 +338,7 @@ body[data-subject="light"] .light-experience__workspace { background: #f4f6fa; }
 
 body[data-subject]:not([data-subject="mechanics"]) #experiment-panel,
 body[data-subject]:not([data-subject="mechanics"]) #inspector-panel {
-  background: #ffffffd9;
+  background: #fbfcff;
 }
 
 body[data-subject]:not([data-subject="mechanics"]) #inspector-panel { padding: 24px 20px; }
@@ -637,4 +642,30 @@ body[data-subject]:not([data-subject="mechanics"]) :is(
     .thermal-toolbar,
     .modern-experience__toolbar
   ) { flex-wrap: wrap; }
+}
+
+/* Viewport-bound lab layouts must shrink their canvases instead of growing past the screen. */
+@media (min-width: 701px) {
+  body[data-subject-screen="lab"] .subject-lab-screen {
+    height: 100% !important;
+    min-height: 0 !important;
+  }
+
+  body[data-subject-screen="lab"] :is(
+    .em-canvas-frame canvas,
+    .waves-experience__canvas,
+    .light-experience__stage,
+    .light-experience__stage canvas,
+    .thermal-canvas,
+    .modern-experience__canvas
+  ) { min-height: 0 !important; }
+
+  body[data-subject="thermal"][data-subject-screen="lab"] .thermal-experience {
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+
+  body[data-subject="thermal"][data-subject-screen="lab"] .thermal-canvas {
+    width: 100%;
+    height: 100%;
+  }
 }

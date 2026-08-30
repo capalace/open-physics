@@ -6,6 +6,7 @@ import { readFileSync } from "node:fs";
 const markup = readFileSync(new URL("../../index.html", import.meta.url), "utf8");
 const bootstrap = readFileSync(new URL("./main.ts", import.meta.url), "utf8");
 const styles = readFileSync(new URL("./style.css", import.meta.url), "utf8");
+const subjectStyles = readFileSync(new URL("./subjects/style.css", import.meta.url), "utf8");
 const mechanicsEntry = readFileSync(new URL("./mechanics-main.ts", import.meta.url), "utf8");
 const subjectUi = readFileSync(new URL("./subjects/subject-ui.ts", import.meta.url), "utf8");
 const subjectEntries = Object.fromEntries(
@@ -49,8 +50,19 @@ describe("physics subject shell", () => {
 
   it("switches to the narrower layout before the three columns overflow", () => {
     expect(styles).toContain("@media (max-width: 1020px)");
-    expect(styles).toContain("@media (min-width: 1021px) and (min-height: 700px)");
+    expect(styles).toContain("@media (min-width: 1021px)");
+    expect(styles).not.toContain("and (min-height: 700px)");
     expect(styles).toContain('body:not([data-subject="mechanics"]) .inspector-panel { display: block; }');
+  });
+
+  it("keeps lab panels scrollable and uses the dynamic viewport height", () => {
+    expect(styles).toMatch(/\.app-layout\s*\{[^}]*min-height:\s*calc\(100dvh - 54px\)/s);
+    expect(styles).toMatch(/@media \(min-width: 1021px\)[\s\S]*\.panel\s*\{[^}]*overflow-y:\s*auto/s);
+    expect(styles).toMatch(/@media \(min-width: 701px\) and \(max-width: 1020px\)[\s\S]*grid-template-rows:\s*minmax\(0, calc\(100dvh - 54px\)\) auto/s);
+    expect(styles).not.toContain("max(520px, calc(100dvh - 54px))");
+    expect(subjectStyles).toMatch(/\.subject-lab-screen\s*\{[^}]*display:\s*flex;[^}]*height:\s*100%;[^}]*min-height:\s*0/s);
+    expect(subjectStyles).toMatch(/@media \(min-width: 701px\)[\s\S]*\.waves-experience__canvas,[\s\S]*\.modern-experience__canvas[\s\S]*min-height:\s*0 !important/s);
+    expect(subjectStyles).toMatch(/\.thermal-experience\s*\{[^}]*grid-template-rows:\s*auto minmax\(0, 1fr\)/s);
   });
 
   it("opens every subject on its routed experiment selector", () => {
