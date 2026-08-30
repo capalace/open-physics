@@ -18,7 +18,7 @@ import {
   type MotionDirection,
 } from "./experiment-learning";
 import { formatGraphValue, renderLabGraph } from "./lab-graph";
-import { termGlossaryMarkup } from "./subjects/subject-ui";
+import { subjectPickerMarkup, termGlossaryMarkup } from "./subjects/subject-ui";
 import {
   MECHANICS_LABS,
   mechanicsInteractionTip,
@@ -417,7 +417,7 @@ function setupMechanicsScreens(): void {
   const selection = document.createElement("div");
   selection.className = "subject-selection-screen mechanics-selection-screen";
   selection.dataset.subjectSelectionScreen = "";
-  selection.innerHTML = `<div class="subject-selection-intro"><span class="eyebrow">역학</span><h1>어떤 실험을 해볼까요?</h1><p>실험을 고르면 조작 화면으로 이동합니다. 브라우저 뒤로가기로 이 화면에 돌아올 수 있어요.</p></div>`;
+  selection.innerHTML = `<div class="subject-selection-intro"><span class="eyebrow">역학</span><h1>어떤 실험을 해볼까요?</h1><p>실험을 고르면 조작 화면으로 이동합니다. 브라우저 뒤로가기로 이 화면에 돌아올 수 있어요.</p></div>${subjectPickerMarkup("mechanics")}`;
   selection.append(browser);
 
   const labScreen = document.createElement("div");

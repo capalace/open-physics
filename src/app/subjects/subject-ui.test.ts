@@ -1,8 +1,16 @@
 import { describe, expect, it } from "vitest";
 import { wavesDefinition } from "./waves/catalog";
-import { learningTermsFor, subjectBrowserMarkup, subjectGuideMarkup, subjectSandboxGuideMarkup, termGlossaryMarkup } from "./subject-ui";
+import { learningTermsFor, subjectBrowserMarkup, subjectGuideMarkup, subjectPickerMarkup, subjectSandboxGuideMarkup, termGlossaryMarkup } from "./subject-ui";
 
 describe("shared subject UI", () => {
+  it("keeps subject navigation inside the experiment selection screen", () => {
+    const markup = subjectPickerMarkup("waves");
+    expect(markup.match(/data-subject=/g)).toHaveLength(6);
+    expect(markup).toContain('href="?view=selection" data-subject="mechanics"');
+    expect(markup).toContain('href="?subject=light&amp;view=selection"');
+    expect(markup).toContain('data-subject="waves" class="is-active" aria-current="page"');
+  });
+
   it("renders every experiment browser in the mechanics order and class contract", () => {
     const markup = subjectBrowserMarkup(wavesDefinition, {
       rootClass: "waves-browser",

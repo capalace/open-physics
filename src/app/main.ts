@@ -15,21 +15,6 @@ const activeSubject: SubjectId = SUBJECT_IDS.includes(requestedSubject as Subjec
   : "mechanics";
 
 document.body.dataset.subject = activeSubject;
-document.querySelectorAll<HTMLButtonElement>("button[data-subject]").forEach((button) => {
-  const subject = button.dataset.subject as SubjectId;
-  const selected = subject === activeSubject;
-  button.classList.toggle("is-active", selected);
-  button.setAttribute("aria-pressed", String(selected));
-  button.addEventListener("click", () => {
-    if (subject === activeSubject) return;
-    const url = new URL(window.location.href);
-    url.searchParams.delete("lab");
-    url.searchParams.delete("view");
-    if (subject === "mechanics") url.searchParams.delete("subject");
-    else url.searchParams.set("subject", subject);
-    window.location.assign(url);
-  });
-});
 
 if (activeSubject === "mechanics") {
   await import("./mechanics-main");

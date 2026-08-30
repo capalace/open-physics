@@ -153,7 +153,7 @@ describe("subject visual shell", () => {
 
   it("keeps subject content on the same panel coordinates as mechanics", () => {
     expect(styles).toMatch(/@media \(min-width: 1021px\)[\s\S]*body\s*\{[^}]*overflow:\s*hidden/);
-    expect(styles).toMatch(/@media \(min-width: 701px\) and \(max-width: 1020px\)[\s\S]*grid-template-rows:\s*max\(520px, calc\(100dvh - 125px\)\)/);
+    expect(styles).toMatch(/@media \(min-width: 701px\) and \(max-width: 1020px\)[\s\S]*grid-template-rows:\s*max\(520px, calc\(100dvh - 54px\)\)/);
     expect(subjectShellStyles).toMatch(/\.subject-browser \.quick-start-list\s*\{[^}]*gap:\s*6px/s);
     expect(subjectShellStyles).toMatch(/\.em-guide\s*\{[^}]*padding:\s*0/s);
     expect(subjectShellStyles).toMatch(/\.waves-experience__inspector article[^}]*padding:\s*0 0 24px/s);

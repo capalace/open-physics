@@ -1,5 +1,25 @@
 import type { PhysicsTermDefinition, SubjectDefinition, SubjectLabDefinition } from "./subject-experience";
 
+const subjectChoices = [
+  ["mechanics", "역학"],
+  ["electromagnetism", "전자기학"],
+  ["waves", "파동"],
+  ["light", "빛"],
+  ["thermal", "열"],
+  ["modern", "현대물리"],
+] as const;
+
+export function subjectPickerMarkup(activeSubject: SubjectDefinition["id"]): string {
+  return `<nav class="subject-picker" aria-label="물리 영역 선택">
+    <span>물리 영역</span>
+    <div>${subjectChoices.map(([id, label]) => {
+      const href = id === "mechanics" ? "?view=selection" : `?subject=${id}&amp;view=selection`;
+      const current = id === activeSubject ? ' class="is-active" aria-current="page"' : "";
+      return `<a href="${href}" data-subject="${id}"${current}>${label}</a>`;
+    }).join("")}</div>
+  </nav>`;
+}
+
 export function subjectSelectionMarkup(definition: SubjectDefinition, browserMarkup: string): string {
   return `<div class="subject-selection-screen" data-subject-selection-screen>
     <div class="subject-selection-intro">
@@ -7,6 +27,7 @@ export function subjectSelectionMarkup(definition: SubjectDefinition, browserMar
       <h1>어떤 실험을 해볼까요?</h1>
       <p>실험을 고르면 조작 화면으로 이동합니다. 브라우저 뒤로가기로 이 화면에 돌아올 수 있어요.</p>
     </div>
+    ${subjectPickerMarkup(definition.id)}
     ${browserMarkup}
   </div>`;
 }

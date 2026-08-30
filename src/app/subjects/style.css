@@ -37,6 +37,32 @@ body[data-subject-screen="selection"] .workspace {
 .subject-selection-intro h1 { margin: 6px 0 8px; color: #26324a; font-size: clamp(28px, 3vw, 40px); line-height: 1.15; }
 .subject-selection-intro p { max-width: 680px; margin: 0; color: #68758a; font-size: 16px; line-height: 1.6; }
 
+.subject-picker {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  margin-bottom: 26px;
+  border: 1px solid #dfe5ee;
+  border-radius: 14px;
+  padding: 12px 14px;
+  background: #fff;
+  box-shadow: 0 5px 18px #22304a0a;
+}
+.subject-picker > span { flex: none; color: #647187; font-size: 13px; font-weight: 850; }
+.subject-picker > div { display: flex; flex-wrap: wrap; gap: 6px; }
+.subject-picker a {
+  min-height: 38px;
+  border-radius: 9px;
+  padding: 9px 13px;
+  color: #59677d;
+  font-size: 14px;
+  font-weight: 750;
+  text-decoration: none;
+}
+.subject-picker a:hover { background: #f1f4f9; color: #26324a; }
+.subject-picker a:focus-visible { outline: 3px solid #91a8ff; outline-offset: 2px; }
+.subject-picker a.is-active { background: var(--ink); color: #fff; box-shadow: 0 4px 10px #1d294024; }
+
 .subject-selection-screen .quick-start-list {
   grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
   gap: 10px !important;
@@ -110,6 +136,9 @@ body[data-subject="mechanics"] #experiment-panel .creation-controls.subject-sett
 
 @media (max-width: 760px) {
   .subject-selection-screen .quick-start-list { grid-template-columns: minmax(0, 1fr) !important; }
+  .subject-picker { align-items: flex-start; flex-direction: column; gap: 8px; }
+  .subject-picker > div { width: 100%; }
+  .subject-picker a { flex: 1 1 calc(33.333% - 6px); text-align: center; }
 }
 
 body[data-subject]:not([data-subject="mechanics"]) :is(

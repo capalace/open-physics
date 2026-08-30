@@ -7,6 +7,7 @@ const markup = readFileSync(new URL("../../index.html", import.meta.url), "utf8"
 const bootstrap = readFileSync(new URL("./main.ts", import.meta.url), "utf8");
 const styles = readFileSync(new URL("./style.css", import.meta.url), "utf8");
 const mechanicsEntry = readFileSync(new URL("./mechanics-main.ts", import.meta.url), "utf8");
+const subjectUi = readFileSync(new URL("./subjects/subject-ui.ts", import.meta.url), "utf8");
 const subjectEntries = Object.fromEntries(
   ["electromagnetism", "waves", "light", "thermal", "modern"].map((subject) => [
     subject,
@@ -15,8 +16,8 @@ const subjectEntries = Object.fromEntries(
 );
 
 describe("physics subject shell", () => {
-  it("offers every subject at the same navigation level", () => {
-    const subjectIds = [...markup.matchAll(/data-subject="([^"]+)"/g)].map((match) => match[1]);
+  it("offers every subject inside the experiment selection screen, not the global header", () => {
+    const subjectIds = [...subjectUi.matchAll(/\["([a-z-]+)", "[^"]+"\]/g)].map((match) => match[1]);
 
     expect(subjectIds).toEqual([
       "mechanics",
@@ -26,7 +27,11 @@ describe("physics subject shell", () => {
       "thermal",
       "modern",
     ]);
-    expect(markup).not.toMatch(/data-subject="[^"]+"[^>]*disabled/);
+    expect(markup).not.toContain("subject-nav");
+    expect(markup).not.toContain("data-subject=");
+    expect(subjectUi).toContain('class="subject-picker"');
+    expect(mechanicsEntry).toContain('subjectPickerMarkup("mechanics")');
+    expect(subjectEntries.electromagnetism).toContain('subjectPickerMarkup("electromagnetism")');
   });
 
   it("loads a deep subject module for every non-mechanics navigation item", () => {
@@ -38,7 +43,7 @@ describe("physics subject shell", () => {
   });
 
   it("keeps navigation recoverable across home and browser history", () => {
-    expect(markup).toContain('class="brand" href="./"');
+    expect(markup).toContain('class="brand" href="?view=selection"');
     expect(bootstrap).toContain("if (event.persisted) return");
   });
 
