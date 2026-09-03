@@ -10,13 +10,6 @@ import {
   type SandboxEnvironmentKind,
   type SandboxObjectKind,
 } from "./physics-playground";
-import {
-  collisionPredictionSummary,
-  horizontalMotionDirection,
-  motionDirectionLabel,
-  type CollisionPrediction,
-  type MotionDirection,
-} from "./experiment-learning";
 import { formatGraphValue, renderLabGraph } from "./lab-graph";
 import { subjectPickerMarkup, termGlossaryMarkup } from "./subjects/subject-ui";
 import {
@@ -30,6 +23,7 @@ import {
   type MechanicsLab,
 } from "./mechanics-labs";
 import { SubjectRouteSession, type SubjectRoute, type SubjectRouteSource } from "./subjects/subject-experience";
+import { formatDisplayNumber, qualitativeLevel } from "./format-value";
 
 type AppMode = "lab" | "sandbox";
 
@@ -74,9 +68,6 @@ let activeLab = mechanicsLab("free-fall");
 let feedbackTimer = 0;
 let latestSnapshot: PlaygroundSnapshot | null = null;
 let pinnedComparison: PlaygroundTrialComparison | null = null;
-let collisionPrediction: CollisionPrediction = { a: null, b: null };
-let collisionActual: { a: MotionDirection; b: MotionDirection } | null = null;
-let collisionPauseTimer = 0;
 
 const playground = new PhysicsPlayground(canvas, { onUpdate: renderSnapshot });
 setupMechanicsScreens();
@@ -87,8 +78,8 @@ stepButton.addEventListener("click", () => playground.stepOnce());
 required<HTMLButtonElement>("#reset").addEventListener("click", () => {
   if (appMode === "lab") {
     resetLearningState(activeLab.id);
-    playground.setDirectManipulationAutoPlay(activeLab.id !== "collision");
-    playground.loadPreset(activeLab.id, activeLab.id !== "collision");
+    playground.setDirectManipulationAutoPlay(true);
+    playground.loadPreset(activeLab.id, true);
   }
   else playground.startSandbox();
 });
@@ -205,30 +196,47 @@ function bindToggle(
   input.addEventListener("change", () => playground.setVisualization(option, input.checked));
 }
 
+function directionSymbol(direction: string): string {
+  return ({
+    "위쪽": "↑",
+    "위오른쪽": "↗",
+    "오른쪽": "→",
+    "아래오른쪽": "↘",
+    "아래쪽": "↓",
+    "아래왼쪽": "↙",
+    "왼쪽": "←",
+    "위왼쪽": "↖",
+  }[direction] ?? "—");
+}
+
+function renderVectorLegend(snapshot: PlaygroundSnapshot): void {
+  const legend = required<HTMLElement>("#vector-legend");
+  const observation = snapshot.observation;
+  legend.hidden = !observation || !required<HTMLInputElement>("#show-vectors").checked;
+  if (!observation) return;
+
+  const speed = required<HTMLOutputElement>("#legend-speed");
+  speed.value = `${qualitativeLevel(observation.speed, 0, 14, ["느림", "보통", "빠름"])} ${directionSymbol(observation.speedDirection)}`;
+  speed.title = observation.speedDirection;
+
+  const acceleration = required<HTMLOutputElement>("#legend-acceleration");
+  acceleration.value = `${qualitativeLevel(observation.acceleration, 0, 14, ["약함", "보통", "강함"])} ${directionSymbol(observation.accelerationDirection)}`;
+  acceleration.title = observation.accelerationDirection;
+
+  const netForce = required<HTMLOutputElement>("#legend-net-force");
+  const diagram = snapshot.forceDiagram;
+  netForce.value = !diagram || diagram.balanced
+    ? "평형"
+    : `${qualitativeLevel(diagram.net.magnitude, 0, 100, ["작음", "보통", "큼"])} ${directionSymbol(diagram.net.direction)}`;
+  netForce.title = diagram?.balanced ? "힘이 균형을 이뤄요" : diagram?.net.direction ?? "알짜힘 없음";
+}
+
 function renderSnapshot(snapshot: PlaygroundSnapshot): void {
   latestSnapshot = snapshot;
-  if (appMode === "lab" && activeLab.id === "collision" && snapshot.collision?.occurred && !collisionActual) {
-    collisionActual = {
-      a: horizontalMotionDirection(snapshot.collision.velocityA),
-      b: horizontalMotionDirection(snapshot.collision.velocityB),
-    };
-    window.clearTimeout(collisionPauseTimer);
-    collisionPauseTimer = window.setTimeout(() => {
-      if (appMode === "lab" && activeLab.id === "collision") playground.paused = true;
-    }, 260);
-  }
   playButton.textContent = snapshot.paused ? "▶  실행" : "Ⅱ  일시정지";
   playButton.dataset.running = String(!snapshot.paused);
-  playButton.disabled = appMode === "lab"
-    && activeLab.id === "collision"
-    && (!collisionPrediction.a || !collisionPrediction.b)
-    && !collisionActual;
-  stepButton.disabled = !snapshot.paused || (
-    appMode === "lab"
-    && activeLab.id === "collision"
-    && (!collisionPrediction.a || !collisionPrediction.b)
-    && !collisionActual
-  );
+  playButton.disabled = false;
+  stepButton.disabled = !snapshot.paused;
 
   required<HTMLOutputElement>("#gravity-value").value = gravityDescription(snapshot.gravity);
 
@@ -244,7 +252,7 @@ function renderSnapshot(snapshot: PlaygroundSnapshot): void {
     renderGraphLegend(snapshot.graph);
   }
   renderForceSummary(snapshot.forceDiagram);
-  renderCollisionPrediction();
+  renderVectorLegend(snapshot);
   renderTrialComparison(snapshot.comparison);
 
   document.querySelectorAll<HTMLButtonElement>("[data-gravity]").forEach((button) => {
@@ -289,13 +297,13 @@ function renderSnapshot(snapshot: PlaygroundSnapshot): void {
   });
   sandboxObservation.hidden = appMode !== "sandbox" || !snapshot.observation;
   if (snapshot.observation) {
-    required<HTMLOutputElement>("#observe-speed").value = `${snapshot.observation.speed.toFixed(2)} m/s`;
-    required<HTMLOutputElement>("#observe-acceleration").value = `${snapshot.observation.acceleration.toFixed(2)} m/s²`;
-    required<HTMLOutputElement>("#observe-momentum").value = `${snapshot.observation.momentum.toFixed(2)} kg·m/s`;
-    required<HTMLOutputElement>("#observe-kinetic").value = `${snapshot.observation.kineticEnergy.toFixed(2)} J`;
-    required<HTMLOutputElement>("#observe-potential").value = `${snapshot.observation.potentialEnergy.toFixed(2)} J`;
-    required<HTMLOutputElement>("#observe-spring").value = `${snapshot.observation.springEnergy.toFixed(2)} J`;
-    required<HTMLOutputElement>("#observe-force").value = `${snapshot.observation.appliedForce.toFixed(2)} N`;
+    required<HTMLOutputElement>("#observe-speed").value = `${formatDisplayNumber(snapshot.observation.speed)} m/s`;
+    required<HTMLOutputElement>("#observe-acceleration").value = `${formatDisplayNumber(snapshot.observation.acceleration)} m/s²`;
+    required<HTMLOutputElement>("#observe-momentum").value = `${formatDisplayNumber(snapshot.observation.momentum)} kg·m/s`;
+    required<HTMLOutputElement>("#observe-kinetic").value = `${formatDisplayNumber(snapshot.observation.kineticEnergy)} J`;
+    required<HTMLOutputElement>("#observe-potential").value = `${formatDisplayNumber(snapshot.observation.potentialEnergy)} J`;
+    required<HTMLOutputElement>("#observe-spring").value = `${formatDisplayNumber(snapshot.observation.springEnergy)} J`;
+    required<HTMLOutputElement>("#observe-force").value = `${formatDisplayNumber(snapshot.observation.appliedForce)} N`;
   }
 
   if (!snapshot.selected) {
@@ -352,8 +360,8 @@ function renderForceSummary(diagram: PlaygroundForceDiagram | null): void {
   if (!diagram) return;
   required<HTMLElement>("#force-object-name").textContent = `${diagram.objectLabel}에 작용하는 힘`;
   required<HTMLOutputElement>("#net-force-value").textContent = diagram.balanced
-    ? "0 N · 평형"
-    : `${diagram.net.magnitude.toFixed(1)} N · ${diagram.net.direction}`;
+    ? "힘이 균형을 이뤄요"
+    : `${diagram.net.direction}으로 작용해요`;
   required<HTMLElement>("#net-force-explanation").textContent = diagram.balanced
     ? "서로 반대인 힘이 균형을 이뤄 움직임이 바뀌지 않아요."
     : `모든 힘을 합치면 ${diagram.net.direction}으로 작용해요.`;
@@ -364,13 +372,15 @@ function renderForceSummary(diagram: PlaygroundForceDiagram | null): void {
     const label = document.createElement("strong");
     label.textContent = force.label;
     const value = document.createElement("span");
-    value.textContent = `${force.magnitude.toFixed(1)} N · ${force.direction}`;
+    value.textContent = `${force.direction} · ${qualitativeLevel(force.magnitude, 0, 100, ["작음", "보통", "큼"])}`;
     item.append(key, label, value);
     return item;
   });
   const list = required<HTMLElement>("#force-list");
   list.replaceChildren(...entries);
-  list.hidden = entries.length === 0;
+  const details = required<HTMLDetailsElement>("#force-details");
+  details.hidden = entries.length === 0;
+  required<HTMLElement>("#force-count").textContent = `${entries.length}개`;
   required<HTMLElement>("#force-empty").hidden = entries.length > 0;
 }
 
@@ -378,10 +388,10 @@ function activateLab(id: PlaygroundPreset, source: LabActivationSource = "select
   appMode = "lab";
   activeLab = mechanicsLab(id);
   resetLearningState(id);
-  playground.setDirectManipulationAutoPlay(id !== "collision");
+  playground.setDirectManipulationAutoPlay(true);
   renderLabGuide(activeLab);
   applyModeUi();
-  playground.loadPreset(id, id === "collision" ? false : shouldAutoPlayLab(source));
+  playground.loadPreset(id, shouldAutoPlayLab(source));
   hideMechanicsFeedback();
   pulseWorld();
 }
@@ -442,7 +452,8 @@ function setupMechanicsScreens(): void {
   settingFeedback.setAttribute("role", "status");
   settingFeedback.setAttribute("aria-live", "polite");
   settingFeedback.hidden = true;
-  canvasFrame.append(interactionTip, settingFeedback);
+  canvasFrame.before(interactionTip);
+  canvasFrame.append(settingFeedback);
 
   const settingsHeader = document.createElement("div");
   settingsHeader.className = "subject-settings-header";
@@ -471,6 +482,13 @@ function setupMechanicsScreens(): void {
   mobileSettings.addEventListener("toggle", () => {
     if (mobileQuery.matches && mobileSettings.open) mobileTools.open = false;
   });
+  mobileTools.addEventListener("click", (event) => {
+    if (!mobileQuery.matches || !(event.target as Element | null)?.closest("button")) return;
+    requestAnimationFrame(() => {
+      mobileTools.open = false;
+      labScreen.querySelector<HTMLElement>(".world-toolbar")?.scrollIntoView({ block: "start" });
+    });
+  });
   mobileQuery.addEventListener("change", (event) => { mobileTools.open = !event.matches; mobileSettings.open = !event.matches; });
   experimentPanel.replaceChildren(settingsHeader, mobileTools, mobileSettings);
   inspectorPanel.setAttribute("aria-label", "실험 설명과 관찰 결과");
@@ -482,34 +500,11 @@ function setupMechanicsScreens(): void {
   forceSummary.id = "force-summary";
   forceSummary.className = "force-summary";
   forceSummary.innerHTML = `
-    <div><span>힘 살펴보기</span><output id="net-force-value"></output></div>
+    <div><span>알짜힘</span><output id="net-force-value"></output></div>
     <h3 id="force-object-name"></h3>
     <p id="net-force-explanation"></p>
-    <ul id="force-list"></ul>
+    <details id="force-details"><summary><span>힘을 나눠 보기</span><small id="force-count"></small></summary><ul id="force-list"></ul></details>
     <p id="force-empty" class="force-empty">지금은 계속 작용하는 힘이 없어요. 충돌 순간에는 짧은 충돌력이 생겨요.</p>`;
-  const collisionPredictionPanel = document.createElement("section");
-  collisionPredictionPanel.id = "collision-prediction";
-  collisionPredictionPanel.className = "collision-prediction";
-  collisionPredictionPanel.hidden = true;
-  collisionPredictionPanel.innerHTML = `
-    <span>먼저 예상해 보기</span>
-    <h3>충돌 뒤 어느 쪽으로 움직일까요?</h3>
-    <div class="collision-prediction-row" data-prediction-object="a"><strong>물체 A</strong><div role="group" aria-label="물체 A의 예상 방향"><button type="button" data-collision-object="a" data-collision-prediction="left">← 왼쪽</button><button type="button" data-collision-object="a" data-collision-prediction="stop">멈춤</button><button type="button" data-collision-object="a" data-collision-prediction="right">오른쪽 →</button></div></div>
-    <div class="collision-prediction-row" data-prediction-object="b"><strong>물체 B</strong><div role="group" aria-label="물체 B의 예상 방향"><button type="button" data-collision-object="b" data-collision-prediction="left">← 왼쪽</button><button type="button" data-collision-object="b" data-collision-prediction="stop">멈춤</button><button type="button" data-collision-object="b" data-collision-prediction="right">오른쪽 →</button></div></div>
-    <p data-collision-prediction-status></p>
-    <div class="collision-prediction-result" data-collision-prediction-result hidden></div>`;
-  collisionPredictionPanel.addEventListener("click", (event) => {
-    const button = (event.target as Element).closest<HTMLButtonElement>("[data-collision-prediction]");
-    if (!button || collisionActual) return;
-    const object = button.dataset.collisionObject as "a" | "b";
-    collisionPrediction = { ...collisionPrediction, [object]: button.dataset.collisionPrediction as MotionDirection };
-    renderCollisionPrediction();
-    if (collisionPrediction.a && collisionPrediction.b && playground.paused) {
-      playground.setDirectManipulationAutoPlay(true);
-      pulseWorld("✓ 예측을 저장했어요 — 충돌을 시작합니다.");
-      playground.paused = false;
-    }
-  });
   const comparisonPanel = document.createElement("section");
   comparisonPanel.id = "trial-comparison";
   comparisonPanel.className = "trial-comparison";
@@ -524,7 +519,6 @@ function setupMechanicsScreens(): void {
     renderTrialComparison(latestSnapshot.comparison);
     pulseWorld("✓ 첫 번째 결과를 고정했어요 — 이제 조건을 바꿔 보세요.");
   });
-  labGuide.insertBefore(collisionPredictionPanel, lawSection);
   labGuide.insertBefore(forceSummary, lawSection);
   labGuide.insertBefore(comparisonPanel, lawSection);
   labGuide.insertBefore(termGlossary, lawSection);
@@ -566,35 +560,8 @@ function renderLabGuide(lab: MechanicsLab): void {
 
 function resetLearningState(id: PlaygroundPreset): void {
   pinnedComparison = null;
-  collisionPrediction = { a: null, b: null };
-  collisionActual = null;
-  window.clearTimeout(collisionPauseTimer);
-  const predictionPanel = document.querySelector<HTMLElement>("#collision-prediction");
-  if (predictionPanel) predictionPanel.hidden = id !== "collision";
   const comparisonPanel = document.querySelector<HTMLElement>("#trial-comparison");
   if (comparisonPanel) comparisonPanel.hidden = id !== "friction" && id !== "pulley";
-}
-
-function renderCollisionPrediction(): void {
-  const panel = document.querySelector<HTMLElement>("#collision-prediction");
-  if (!panel || panel.hidden) return;
-  panel.querySelectorAll<HTMLButtonElement>("[data-collision-prediction]").forEach((button) => {
-    const object = button.dataset.collisionObject as "a" | "b";
-    const selected = collisionPrediction[object] === button.dataset.collisionPrediction;
-    button.classList.toggle("is-active", selected);
-    button.setAttribute("aria-pressed", String(selected));
-    button.disabled = Boolean(collisionActual);
-  });
-  const status = panel.querySelector<HTMLElement>("[data-collision-prediction-status]");
-  if (status) status.textContent = collisionPredictionSummary(collisionPrediction, collisionActual);
-  const result = panel.querySelector<HTMLElement>("[data-collision-prediction-result]");
-  if (!result) return;
-  result.hidden = !collisionActual;
-  if (collisionActual) {
-    result.innerHTML = `
-      <div><strong>물체 A</strong><span>예상 ${motionDirectionLabel(collisionPrediction.a ?? "stop")}</span><b>실제 ${motionDirectionLabel(collisionActual.a)}</b></div>
-      <div><strong>물체 B</strong><span>예상 ${motionDirectionLabel(collisionPrediction.b ?? "stop")}</span><b>실제 ${motionDirectionLabel(collisionActual.b)}</b></div>`;
-  }
 }
 
 function cloneComparison(comparison: PlaygroundTrialComparison): PlaygroundTrialComparison {
@@ -604,9 +571,13 @@ function cloneComparison(comparison: PlaygroundTrialComparison): PlaygroundTrial
   };
 }
 
-function trialMarkup(label: string, comparison: PlaygroundTrialComparison | null): string {
+function trialMarkup(label: string, comparison: PlaygroundTrialComparison | null, baseline: PlaygroundTrialComparison | null = null): string {
   if (!comparison) return `<span>${label}</span><p>아직 고정한 결과가 없어요.</p>`;
-  return `<span>${label}</span><strong>${comparison.condition}</strong><dl>${comparison.values.map((value) => `<div><dt>${value.label}</dt><dd>${value.value.toFixed(value.value < 10 ? 1 : 0)} ${value.unit}</dd></div>`).join("")}</dl>`;
+  return `<span>${label}</span><strong>${comparison.condition}</strong><dl>${comparison.values.map((value, index) => {
+    const reference = baseline?.values[index]?.value;
+    const relation = reference === undefined ? "비교 기준" : Math.abs(value.value - reference) <= Math.max(0.05, Math.abs(reference) * 0.05) ? "비슷함" : value.value > reference ? "더 큼" : "더 작음";
+    return `<div><dt>${value.label}</dt><dd>${relation}</dd></div>`;
+  }).join("")}</dl>`;
 }
 
 function renderTrialComparison(current: PlaygroundTrialComparison | null): void {
@@ -615,7 +586,7 @@ function renderTrialComparison(current: PlaygroundTrialComparison | null): void 
   const pinned = panel.querySelector<HTMLElement>("[data-pinned-trial]");
   const currentTrial = panel.querySelector<HTMLElement>("[data-current-trial]");
   if (pinned) pinned.innerHTML = trialMarkup("고정한 결과", pinnedComparison);
-  if (currentTrial) currentTrial.innerHTML = trialMarkup("현재 결과", current);
+  if (currentTrial) currentTrial.innerHTML = trialMarkup("현재 결과", current, pinnedComparison);
   const button = panel.querySelector<HTMLButtonElement>("[data-pin-comparison]");
   if (button) button.textContent = pinnedComparison ? "고정 결과 바꾸기" : "현재 결과 고정";
 }
@@ -630,6 +601,7 @@ function setFocusMode(enabled: boolean): void {
   focusButton.setAttribute("aria-pressed", String(enabled));
   focusButton.textContent = enabled ? "▦ 설정 보기" : "⛶ 크게 보기";
   focusButton.title = enabled ? "설정 패널 다시 열기 (Esc)" : "설정 패널을 접고 실험 공간 크게 보기";
+  if (enabled && window.innerWidth <= 700) window.scrollTo(0, 0);
 }
 
 function syncInput(input: HTMLInputElement, value: string): void {
@@ -641,7 +613,7 @@ function gravityDescription(gravity: number): string {
   if (Math.abs(gravity - 1.62) < 0.01) return "달 · 0.17×";
   if (Math.abs(gravity - EARTH_GRAVITY) < 0.01) return "지구 · 1×";
   if (Math.abs(gravity - 24.79) < 0.01) return "목성 · 2.53×";
-  return `${(gravity / EARTH_GRAVITY).toFixed(2)}× 지구`;
+  return `${formatDisplayNumber(gravity / EARTH_GRAVITY)}× 지구`;
 }
 
 function pulseWorld(message?: string): void {

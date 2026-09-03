@@ -544,9 +544,30 @@ describe("PhysicsPlayground force diagrams", () => {
     expect(diagram.net.magnitude).toBeCloseTo(3 * 9.81);
     expect(diagram.net.direction).toBe("아래쪽");
     expect(diagram.balanced).toBe(false);
+    expect(playground.snapshot().observation).toMatchObject({
+      speedDirection: "멈춤",
+      accelerationDirection: "아래쪽",
+    });
   });
 
-  it("keeps the ground and downward force labels above the bottom overlay", () => {
+  it("draws guided vectors without floating labels that overlap around the object", () => {
+    vi.stubGlobal("requestAnimationFrame", () => 0);
+    const { canvas, fillText } = createRenderingCanvas();
+    const playground = new PhysicsPlayground(canvas, { width: 960, height: 600 });
+    playground.loadPreset("free-fall");
+    const renderer = playground as unknown as { render(): void };
+
+    renderer.render();
+
+    const labels = fillText.mock.calls.map(([label]) => String(label));
+    expect(labels).not.toContain("운동 방향");
+    expect(labels).not.toContain("여기서 끌어 보세요");
+    expect(labels).not.toContain("가속도");
+    expect(labels.some((label) => label.startsWith("알짜힘 "))).toBe(false);
+    expect(labels.some((label) => label.startsWith("중력 "))).toBe(false);
+  });
+
+  it("keeps the ground label above the bottom overlay", () => {
     vi.stubGlobal("requestAnimationFrame", () => 0);
     const { canvas, fillText } = createRenderingCanvas();
     const playground = new PhysicsPlayground(canvas, { width: 960, height: 600 });
@@ -557,9 +578,7 @@ describe("PhysicsPlayground force diagrams", () => {
 
     expect(canvas.height - playground.floorY).toBeGreaterThanOrEqual(76);
     const floorLabel = fillText.mock.calls.find(([label]) => label === "마찰이 있는 바닥");
-    const gravityLabel = fillText.mock.calls.find(([label]) => String(label).startsWith("중력 "));
     expect(floorLabel?.[2]).toBeLessThan(playground.floorY - 8);
-    expect(gravityLabel?.[2]).toBeLessThan(playground.floorY - 8);
   });
 
   it("separates applied force, friction, weight, and normal force on a pushed box", () => {
@@ -1161,6 +1180,37 @@ describe("PhysicsPlayground extended mechanics", () => {
     expect(easyStartY - easyLoad.state.position.y).toBeCloseTo(200);
   });
 
+  it("keeps the pulley handle under the pointer while the load responds by mechanical advantage", () => {
+    vi.stubGlobal("requestAnimationFrame", () => 0);
+    const { canvas, dispatchPointer } = createInteractiveCanvas();
+    const playground = new PhysicsPlayground(canvas, { width: 960, height: 600 });
+    playground.loadPreset("pulley");
+    const controller = playground as unknown as {
+      guidedScene: object;
+      pulleyHandlePoint(scene: object): { x: number; y: number };
+    };
+    const handle = controller.pulleyHandlePoint(controller.guidedScene);
+
+    dispatchPointer("pointerdown", handle.x, handle.y);
+    dispatchPointer("pointermove", handle.x, handle.y + 160);
+
+    expect(controller.pulleyHandlePoint(controller.guidedScene).y).toBeCloseTo(handle.y + 160);
+  });
+
+  it("accepts the full visible width of a mechanics drag handle", () => {
+    vi.stubGlobal("requestAnimationFrame", () => 0);
+    const playground = new PhysicsPlayground(createInteractiveCanvas().canvas, { width: 960, height: 600 });
+    playground.loadPreset("rotation");
+    const controller = playground as unknown as {
+      guidedScene: object;
+      leverHandlePoint(scene: object): { x: number; y: number };
+      beginChallengeInteraction(point: { x: number; y: number }, pointerId: number): boolean;
+    };
+    const handle = controller.leverHandlePoint(controller.guidedScene);
+
+    expect(controller.beginChallengeInteraction({ x: handle.x + 29, y: handle.y }, 1)).toBe(true);
+  });
+
   it("keeps the pulley handle where it was released and continues from there", () => {
     vi.stubGlobal("requestAnimationFrame", () => 0);
     const { canvas, dispatchPointer } = createInteractiveCanvas();
@@ -1274,7 +1324,7 @@ describe("PhysicsPlayground extended mechanics", () => {
     expect(body.state.acceleration.y).toBeLessThan(0);
   });
 
-  it("keeps an upward acceleration label away from the object name", () => {
+  it("keeps a guided object name uncluttered by an acceleration label", () => {
     vi.stubGlobal("requestAnimationFrame", () => 0);
     const { canvas, fillText } = createRenderingCanvas();
     const playground = new PhysicsPlayground(canvas, { width: 960, height: 600 });
@@ -1288,20 +1338,9 @@ describe("PhysicsPlayground extended mechanics", () => {
     renderer.drawObject(object);
 
     const name = fillText.mock.calls.find(([text]) => text === object.label)!;
-    const acceleration = fillText.mock.calls.find(([text]) => text === "가속도")!;
-    const nameBox = { left: name[1] - 20, right: name[1] + 20, top: name[2] - 14, bottom: name[2] };
-    const accelerationBox = {
-      left: acceleration[1],
-      right: acceleration[1] + 40,
-      top: acceleration[2] - 14,
-      bottom: acceleration[2],
-    };
-    const overlaps = nameBox.left < accelerationBox.right
-      && nameBox.right > accelerationBox.left
-      && nameBox.top < accelerationBox.bottom
-      && nameBox.bottom > accelerationBox.top;
-
-    expect(overlaps).toBe(false);
+    const acceleration = fillText.mock.calls.find(([text]) => text === "가속도");
+    expect(name).toBeDefined();
+    expect(acceleration).toBeUndefined();
   });
 
   it("maintains a near-circular orbit under point gravity", () => {
@@ -1411,6 +1450,19 @@ describe("PhysicsPlayground velocity control", () => {
     const vector = control.velocityControlVector(object, { x: 0, y: 1 });
 
     expect(Math.hypot(vector.x, vector.y)).toBeGreaterThan(object.radius + 12);
+  });
+
+  it("gives the mechanics velocity handle a finger-sized hit target", () => {
+    vi.stubGlobal("requestAnimationFrame", () => 0);
+    const playground = new PhysicsPlayground(createInteractiveCanvas().canvas, { width: 960, height: 600 });
+    const object = playground.addCircle(480, 240, 25);
+    const controller = playground as unknown as {
+      velocityControlVector(target: typeof object, velocity: { x: number; y: number }): { x: number; y: number };
+      hitVelocityHandle(point: { x: number; y: number }): typeof object | null;
+    };
+    const vector = controller.velocityControlVector(object, { x: 0, y: 0 });
+
+    expect(controller.hitVelocityHandle({ x: object.x + vector.x + 20, y: object.y + vector.y })).toBe(object);
   });
 
   it("sets movement by dragging the selected object's arrow handle", () => {

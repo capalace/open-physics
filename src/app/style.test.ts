@@ -46,11 +46,24 @@ describe("mechanics lab content", () => {
     expect(labs).not.toEqual(expect.arrayContaining(["momentum", "energy", "circular", "pendulum"]));
     expect(markup).toContain("data-start-sandbox");
     expect(markup).toContain("빈 실험실 만들기");
+    expect(markup).not.toContain('class="topic-label"');
+    expect(markup).toContain('id="vector-legend"');
+    expect(markup).toContain('id="legend-speed"');
+    expect(markup).toContain('id="legend-acceleration"');
+    expect(markup).toContain('id="legend-net-force"');
+    expect(markup).not.toContain('class="vector-terms"');
     expect(markup).not.toMatch(/<button[^>]+data-app-mode=/);
     expect(markup).not.toContain("mode-switch");
+    expect(mechanicsBootstrap).not.toContain("먼저 예상해 보기");
+    expect(mechanicsBootstrap).not.toContain("collision-prediction");
     expect(markup).toContain('id="lab-guide"');
     expect(markup).not.toContain('id="new-sandbox"');
     expect(styles).toMatch(/\.quick-start-list\s*\{[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\)/s);
+  });
+
+  it("hoists snapshot formatters used during playground construction", () => {
+    expect(mechanicsBootstrap).toContain("function directionSymbol(");
+    expect(mechanicsBootstrap).not.toContain("const directionSymbol =");
   });
 });
 
@@ -92,9 +105,22 @@ describe("mechanics lab graph", () => {
     expect(markup).toContain('id="lab-graph-canvas"');
     expect(markup).toContain('aria-label="실험 결과 그래프"');
   });
+
+  it("keeps live numerical readouts out of the experiment screens", () => {
+    expect(styles).toMatch(/\.sandbox-observation\s*\{[^}]*display:\s*none/s);
+    expect(styles).toMatch(/\.lab-graph-legend output\s*\{[^}]*display:\s*none/s);
+    expect(subjectShellStyles).toMatch(/\.subject-direct-control__value,[\s\S]*\.subject-control-result\s*\{[^}]*display:\s*none/s);
+    expect(subjectStyles).toContain(".waves-experience__measurement { display: none; }");
+    expect(subjectStyles).toContain(".thermal-current { display: none; }");
+    expect(subjectStyles).toContain(".light-experience__value { display: none;");
+  });
 });
 
 describe("subject visual shell", () => {
+  it("keeps the light readout from blocking draggable apparatus near the Canvas edge", () => {
+    expect(lightStyles).toMatch(/\.light-experience__value\s*\{[^}]*pointer-events:\s*none/s);
+  });
+
   it("keeps the initial lab blank until the selected subject is mounted", () => {
     expect(markup).toContain('data-app-ready="false"');
     expect(markup).not.toMatch(/class="is-active"[^>]+data-subject/);
@@ -137,7 +163,7 @@ describe("subject visual shell", () => {
   });
 
   it("uses one vocabulary for the toolbar run state", () => {
-    expect(markup).toContain('data-running="false">멈춤</div>');
+    expect(markup).toMatch(/data-running="false"[^>]*>멈춤<\/div>/);
     expect(mechanicsBootstrap).toContain('snapshot.paused ? "멈춤" : "실행 중"');
     expect(mechanicsBootstrap).not.toContain('snapshot.paused ? "대기"');
 
@@ -161,8 +187,9 @@ describe("subject visual shell", () => {
     expect(subjectShellStyles).toMatch(/\.light-experience__inspector\s*\{[^}]*padding:\s*24px 20px/s);
     expect(subjectShellStyles).toMatch(/#experiment-panel,[\s\S]*#inspector-panel\s*\{[^}]*background:\s*#fbfcff/s);
     expect(thermalExperience).toContain("shell.clientWidth");
-    expect(thermalExperience).toContain("shell.clientHeight - toolbar.offsetHeight");
-    expect(thermalExperience).not.toContain("Math.max(420, shell.clientHeight");
+    expect(thermalExperience).toContain("5 / 8");
+    expect(thermalExperience).toContain("3 / 4");
+    expect(thermalExperience).not.toContain("shell.clientHeight - toolbar.offsetHeight");
     expect(electromagnetismStyles).not.toMatch(/\.em-selection-screen\s*\{[^}]*width:/s);
     expect(electromagnetismStyles).not.toMatch(/\.em-selection-intro\s*\{[^}]*margin-bottom:/s);
     expect(mechanicsBootstrap).toContain('browser.classList.add("subject-browser", "mechanics-browser")');
@@ -188,6 +215,8 @@ describe("subject visual shell", () => {
       expect(source).toContain("SubjectRouteSession");
     });
     expect(subjectShellStyles).toContain('.subject-settings-tools');
+    expect(bootstrap).toContain("installSubjectToolsDrawer");
+    expect(subjectShellStyles).toContain(".subject-tools-drawer[open]");
     expect(subjectShellStyles).toContain('body[data-subject-screen="selection"] .app-layout');
   });
 
@@ -195,5 +224,14 @@ describe("subject visual shell", () => {
     expect(bootstrap).toContain("installSubjectFocusMode");
     expect(bootstrap).toContain("⛶ 크게 보기");
     expect(bootstrap).toContain("is-focus-mode");
+  });
+
+  it("preserves desktop aspect ratios while giving every mobile world a usable height", () => {
+    expect(styles).toMatch(/data-subject="mechanics"[^}]*\.canvas-frame\s*\{[^}]*height:\s*clamp\(360px, 58svh, 420px\)/s);
+    expect(subjectShellStyles).toMatch(/data-subject="(?:electromagnetism|light|thermal)"[^}]*--subject-canvas-aspect:\s*8\s*\/\s*5/s);
+    expect(subjectShellStyles).toMatch(/data-subject="(?:waves|modern)"[^}]*--subject-canvas-aspect:\s*5\s*\/\s*3/s);
+    expect(subjectShellStyles).toMatch(/\.em-canvas-frame,[\s\S]*\.modern-experience__canvas[\s\S]*aspect-ratio:\s*var\(--subject-canvas-aspect\)/);
+    expect(subjectShellStyles).not.toMatch(/\.thermal-canvas\s*\{[^}]*height:\s*100%/s);
+    expect(subjectShellStyles).toMatch(/@media \(max-width: 700px\)[\s\S]*\.modern-experience__canvas[\s\S]*height:\s*clamp\(360px, 58svh, 420px\)/);
   });
 });

@@ -1,7 +1,10 @@
 import type { Vector2 } from "../../../physics/core";
+import { drawInteractionAffordance } from "../canvas-theme";
+import { qualitativeLevel } from "../../format-value";
 import {
   CAPACITOR_PLATES,
   CIRCUIT_TRACK,
+  ELECTROMAGNETIC_FORCE_CONTROL_SPAN,
   ELECTROMAGNETISM_WORLD,
   GENERATOR_CENTER,
   INDUCTION_COIL,
@@ -35,6 +38,26 @@ const palette = {
 };
 
 const TAU = Math.PI * 2;
+
+const DIRECT_MANIPULATION_MODES = new Set<ElectromagnetismSnapshot["mode"]>([
+  "charge", "potential", "electrostatic-induction", "circuits", "capacitors",
+  "electronics", "magnetic-field", "magnetic-materials", "electromagnetic-force",
+  "charged-particle", "induction", "electromagnet", "motor", "generator", "transformer",
+]);
+
+export const isElectromagnetismDirectManipulationMode = (mode: ElectromagnetismSnapshot["mode"]): boolean =>
+  DIRECT_MANIPULATION_MODES.has(mode);
+
+export const electromagnetismDirectHandle = (snapshot: ElectromagnetismSnapshot): Vector2 | null => {
+  if (!isElectromagnetismDirectManipulationMode(snapshot.mode)) return null;
+  if (snapshot.mode === "charged-particle" && snapshot.running) return null;
+  if (snapshot.mode === "electromagnetic-force") return {
+    x: 0.5 + snapshot.sign * snapshot.level * ELECTROMAGNETIC_FORCE_CONTROL_SPAN,
+    y: Math.max(0.12, snapshot.wirePosition - 0.22),
+  };
+  if (snapshot.mode === "motor") return { x: snapshot.probe.x, y: 0.17 };
+  return snapshot.probe;
+};
 
 export const wrappedPhase = (value: number): number => ((value % 1) + 1) % 1;
 
@@ -109,6 +132,8 @@ export class ElectromagnetismRenderer {
     else if (snapshot.mode === "generator") this.generatorLab(context, snapshot, width, height, visualTime);
     else if (snapshot.mode === "transformer") this.transformerLab(context, snapshot, width, height, visualTime);
     else this.sandbox(context, snapshot, width, height, visualTime, selectedSandboxId, wiring, wireStart);
+    const directHandle = electromagnetismDirectHandle(snapshot);
+    if (directHandle) drawInteractionAffordance(context, this.pixel(directHandle, width, height), { kind: "object", radius: 30 });
     context.restore();
   }
 
@@ -172,7 +197,7 @@ export class ElectromagnetismRenderer {
     this.charge(ctx, target, s.sign, "끌어서 거리 바꾸기");
     const direction = s.sign === 1 ? { x: target.x - source.x, y: target.y - source.y } : { x: source.x - target.x, y: source.y - target.y };
     const forceLength = Math.min(140, 30 + Math.log10(1 + s.measurement.value) * 36) * (0.96 + Math.sin(time * 5) * 0.04);
-    this.arrow(ctx, target, direction, palette.positive, `${s.measurement.value.toFixed(3)} N`, forceLength);
+    this.arrow(ctx, target, direction, palette.positive, s.sign === 1 ? "밀어내는 힘" : "끌어당기는 힘", forceLength);
   }
 
   private fieldLab(ctx: CanvasRenderingContext2D, s: ElectromagnetismSnapshot, w: number, h: number, time: number): void {
@@ -189,7 +214,7 @@ export class ElectromagnetismRenderer {
     const probe = this.pixel(s.probe, w, h);
     this.probe(ctx, probe, palette.field, "전기장 탐침");
     this.arrow(ctx, probe, s.probeField, palette.field, "", Math.min(95, 24 + Math.log10(1 + s.measurement.value) * 8));
-    this.badge(ctx, probe.x + 22, probe.y - 34, `${this.compact(s.measurement.value)} N/C`);
+    this.badge(ctx, probe.x + 22, probe.y - 34, `전기장 · ${qualitativeLevel(Math.log10(1 + s.measurement.value), 0, 6, ["약함", "보통", "강함"])}`);
   }
 
   private potentialLab(ctx: CanvasRenderingContext2D, s: ElectromagnetismSnapshot, w: number, h: number, time: number): void {
@@ -211,7 +236,7 @@ export class ElectromagnetismRenderer {
         ctx,
         source.x + Math.cos(angle) * radiusMeters * scale,
         source.y + Math.sin(angle) * radiusMeters * scale,
-        `${this.compact(18_000 / radiusMeters)} V`,
+        `전위 ${index < 2 ? "높음" : index === 2 ? "보통" : "낮음"}`,
         palette.purple,
       );
     }
@@ -219,7 +244,7 @@ export class ElectromagnetismRenderer {
     const probe = this.pixel(s.probe, w, h);
     this.dashedConnection(ctx, source, probe);
     this.probe(ctx, probe, palette.purple, "전위 탐침");
-    this.badge(ctx, probe.x + 22, probe.y - 34, `${this.compact(s.measurement.value)} V`);
+    this.badge(ctx, probe.x + 22, probe.y - 34, `전위 · ${qualitativeLevel(Math.log10(1 + Math.abs(s.measurement.value)), 2, 6)}`);
   }
 
   private electrostaticInductionLab(ctx: CanvasRenderingContext2D, s: ElectromagnetismSnapshot, w: number, h: number): void {
@@ -239,7 +264,7 @@ export class ElectromagnetismRenderer {
     const dielectric = this.pixel({ x: 0.62, y: 0.78 }, w, h);
     for (let index = -3; index <= 3; index += 1) { ctx.fillStyle = palette.negative; ctx.beginPath(); ctx.arc(dielectric.x + index * 38 - separation * 5, dielectric.y, 5, 0, TAU); ctx.fill(); ctx.fillStyle = palette.positive; ctx.beginPath(); ctx.arc(dielectric.x + index * 38 + separation * 5, dielectric.y, 5, 0, TAU); ctx.fill(); }
     this.miniTag(ctx, dielectric.x, dielectric.y + 30, "부도체의 유전 분극", palette.purple);
-    this.badge(ctx, conductor.x, conductor.y + 112, `전하 분리 ${Math.round(separation * 100)}%`);
+    this.badge(ctx, conductor.x, conductor.y + 112, `전하 분리 · ${qualitativeLevel(separation, 0, 1, ["조금", "보통", "많이"])}`);
   }
 
   private circuitLab(ctx: CanvasRenderingContext2D, s: ElectromagnetismSnapshot, w: number, h: number, time: number): void {
@@ -279,12 +304,12 @@ export class ElectromagnetismRenderer {
     ctx.fillStyle = "#fff"; ctx.strokeStyle = palette.purple; ctx.lineWidth = 4;
     ctx.beginPath(); ctx.arc(handle.x, sliderY, 13, 0, TAU); ctx.fill(); ctx.stroke();
     ctx.fillStyle = palette.purple; ctx.beginPath(); ctx.arc(handle.x, sliderY, 4, 0, TAU); ctx.fill();
-    this.miniTag(ctx, trackLeft, sliderY + 28, "2 Ω", palette.purple);
-    this.miniTag(ctx, trackRight, sliderY + 28, "20 Ω", palette.purple);
-    this.badge(ctx, resistorCenter, top - 48, `저항 ${resistance.toFixed(1)} Ω`);
+    this.miniTag(ctx, trackLeft, sliderY + 28, "저항 작게", palette.purple);
+    this.miniTag(ctx, trackRight, sliderY + 28, "저항 크게", palette.purple);
+    this.badge(ctx, resistorCenter, top - 48, `저항 · ${qualitativeLevel(resistance, 2, 20, ["작음", "보통", "큼"])}`);
     this.flowDots(ctx, left, right, top, bottom, s.measurement.value, time);
     const badge = this.pixel({ x: 0.5, y: 0.82 }, w, h);
-    this.badge(ctx, badge.x, badge.y, `${s.circuitArrangement === "series" ? "직렬" : "병렬"} · 전체 ${s.measurement.value.toFixed(2)} A · 전구 하나 ${bulbPower.toFixed(2)} W`);
+    this.badge(ctx, badge.x, badge.y, `${s.circuitArrangement === "series" ? "직렬" : "병렬"} · 전류 ${qualitativeLevel(s.measurement.value, 0, 4)} · 전구 ${qualitativeLevel(bulbPower, 0, 8, ["어두움", "보통", "밝음"])}`);
   }
 
   private capacitorLab(ctx: CanvasRenderingContext2D, s: ElectromagnetismSnapshot, w: number, h: number, time: number): void {
@@ -326,10 +351,10 @@ export class ElectromagnetismRenderer {
     ctx.save(); ctx.shadowColor = palette.gold; ctx.shadowBlur = flashLevel * 50; ctx.fillStyle = `rgba(242,184,75,${0.16 + flashLevel * 0.84})`; ctx.strokeStyle = palette.ink; ctx.lineWidth = 4;
     ctx.beginPath(); ctx.arc(flash.x, flash.y, 30, 0, TAU); ctx.fill(); ctx.stroke(); ctx.restore();
     this.miniTag(ctx, battery.x, battery.y + 54, s.capacitorMode === "charging" ? "전지 연결됨" : "전지 분리됨", s.capacitorMode === "charging" ? palette.positive : palette.muted);
-    this.miniTag(ctx, flash.x, flash.y + 54, s.capacitorMode === "lamp" ? `플래시 밝기 ${Math.round(flashLevel * 100)}%` : "플래시 꺼짐", s.capacitorMode === "lamp" ? palette.gold : palette.muted);
+    this.miniTag(ctx, flash.x, flash.y + 54, s.capacitorMode === "lamp" ? `플래시 · ${qualitativeLevel(flashLevel, 0, 1, ["어두움", "보통", "밝음"])}` : "플래시 꺼짐", s.capacitorMode === "lamp" ? palette.gold : palette.muted);
     this.probe(ctx, this.pixel(s.probe, w, h), palette.purple, "판 간격 끌기");
     const modeLabel = s.capacitorMode === "charging" ? "충전 중" : s.capacitorMode === "lamp" ? "플래시로 방전 중" : "전지에서 분리";
-    this.badge(ctx, center, plateTop - 42, `${modeLabel} · ${s.capacitorVoltage.toFixed(2)} V · ${s.secondaryMeasurement?.value.toFixed(2)} nC`);
+    this.badge(ctx, center, plateTop - 42, `${modeLabel} · 저장 전하 ${qualitativeLevel(s.secondaryMeasurement?.value ?? 0, 0, 30)}`);
   }
 
   private electronicsLab(ctx: CanvasRenderingContext2D, s: ElectromagnetismSnapshot, w: number, h: number, time: number): void {
@@ -344,7 +369,7 @@ export class ElectromagnetismRenderer {
     this.flowDots(ctx, left.x, right.x, left.y, left.y + 130, current / 12, time);
     const handle = this.pixel(s.probe, w, h); const trackLeft = this.pixel({ x: 0.25, y: 0.78 }, w, h); const trackRight = this.pixel({ x: 0.75, y: 0.78 }, w, h);
     ctx.strokeStyle = "#cbd5e1"; ctx.lineWidth = 6; ctx.beginPath(); ctx.moveTo(trackLeft.x, handle.y); ctx.lineTo(trackRight.x, handle.y); ctx.stroke(); this.probe(ctx, handle, palette.negative, "입력 전압");
-    this.badge(ctx, transistorX, left.y - 82, `${s.secondaryMeasurement?.value.toFixed(2)} V → ${current.toFixed(1)} mA`);
+    this.badge(ctx, transistorX, left.y - 82, current > 0.1 ? "문이 열려 전류가 흘러요" : "문이 닫혀 전류가 멈춰요");
   }
 
   private magneticLab(ctx: CanvasRenderingContext2D, s: ElectromagnetismSnapshot, w: number, h: number, time: number): void {
@@ -358,7 +383,7 @@ export class ElectromagnetismRenderer {
     ctx.fillStyle = "#fff"; ctx.font = "700 28px system-ui"; ctx.textAlign = "center"; ctx.fillText(s.direction === 1 ? "⊙" : "⊗", wire.x, wire.y + 9);
     const probe = this.pixel(s.probe, w, h);
     this.compass(ctx, probe, wire, s.direction);
-    this.badge(ctx, probe.x, probe.y - 48, `${s.measurement.value.toFixed(2)} μT`);
+    this.badge(ctx, probe.x, probe.y - 48, `자기장 · ${qualitativeLevel(Math.abs(s.measurement.value), 0, 80, ["약함", "보통", "강함"])}`);
   }
 
   private magneticMaterialsLab(ctx: CanvasRenderingContext2D, s: ElectromagnetismSnapshot, w: number, h: number): void {
@@ -389,10 +414,12 @@ export class ElectromagnetismRenderer {
       const x = center.x - 145 + progress * 290;
       ctx.beginPath(); ctx.arc(x, center.y, 5, 0, TAU); ctx.stroke();
     }
-    const currentLength = 92 + s.level * 78;
-    const currentOrigin = { x: center.x - currentLength / 2 * s.sign, y: center.y - 108 };
-    this.arrow(ctx, currentOrigin, { x: s.sign, y: 0 }, palette.gold, `전류 ${s.sign === 1 ? "→" : "←"} · 끝을 끌어 조절`, currentLength);
-    ctx.fillStyle = "#fff"; ctx.strokeStyle = palette.gold; ctx.lineWidth = 4; ctx.beginPath(); ctx.arc(currentOrigin.x + currentLength * s.sign, currentOrigin.y, 9, 0, TAU); ctx.fill(); ctx.stroke();
+    const directHandle = electromagnetismDirectHandle(s)!;
+    const currentHandle = this.pixel(directHandle, w, h);
+    const currentOrigin = this.pixel({ x: 0.5 - s.sign * 0.07, y: directHandle.y }, w, h);
+    const currentVector = { x: currentHandle.x - currentOrigin.x, y: currentHandle.y - currentOrigin.y };
+    this.arrow(ctx, currentOrigin, currentVector, palette.gold, `전류 ${s.sign === 1 ? "→" : "←"} · 끝을 끌어 조절`, Math.hypot(currentVector.x, currentVector.y));
+    ctx.fillStyle = "#fff"; ctx.strokeStyle = palette.gold; ctx.lineWidth = 4; ctx.beginPath(); ctx.arc(currentHandle.x, currentHandle.y, 9, 0, TAU); ctx.fill(); ctx.stroke();
     this.arrow(ctx, center, s.lorentzForce, palette.positive, "도선이 받는 힘", Math.min(132, 46 + Math.hypot(s.lorentzForce.x, s.lorentzForce.y) * 10));
     const contact = s.wirePosition <= 0.255 ? "위쪽 종에 닿음" : s.wirePosition >= 0.775 ? "아래쪽 종에 닿음" : s.wireVelocity < -0.002 ? "위로 이동 중" : s.wireVelocity > 0.002 ? "아래로 이동 중" : "힘의 방향을 바꿔 보세요";
     this.badge(ctx, center.x, h - 72, `${contact} · 자기장 ${s.direction === 1 ? "화면 밖 ⊙" : "화면 안 ⊗"}`);
@@ -414,10 +441,10 @@ export class ElectromagnetismRenderer {
     const magnet = this.pixel(s.probe, w, h);
     this.barMagnet(ctx, magnet, 70, 28);
     this.probe(ctx, { x: magnet.x, y: magnet.y + 44 }, palette.purple, "자석을 빠르게 끌기");
-    this.arrow(ctx, { x: coilX + 120, y: coil.y }, { x: voltage, y: 0 }, voltage >= 0 ? palette.positive : palette.negative, `${voltage.toFixed(2)} V`, Math.min(100, Math.abs(voltage) * 5));
+    this.arrow(ctx, { x: coilX + 120, y: coil.y }, { x: voltage, y: 0 }, voltage >= 0 ? palette.positive : palette.negative, "유도 전압", Math.min(100, Math.abs(voltage) * 5));
     this.inductionMeter(ctx, coilX + 190, coil.y, voltage);
     const badge = this.pixel({ x: 0.5, y: 0.84 }, w, h);
-    this.badge(ctx, badge.x, badge.y, `${s.coilTurns}회 감은 코일 · 속도 ${s.magnetSpeed.toFixed(2)} m/s`);
+    this.badge(ctx, badge.x, badge.y, `${s.coilTurns}회 감은 코일 · 자석 ${qualitativeLevel(Math.abs(s.magnetSpeed), 0, 3, ["천천히", "보통", "빠르게"])}`);
   }
 
   private chargedParticleLab(ctx: CanvasRenderingContext2D, s: ElectromagnetismSnapshot, w: number, h: number, time: number): void {
@@ -449,7 +476,7 @@ export class ElectromagnetismRenderer {
     } else this.arrow(ctx, particle, s.lorentzForce, palette.positive, "로런츠 힘", 66);
     const hitCount = s.particleTargetsHit.filter(Boolean).length;
     if (hitCount === PARTICLE_TARGETS.length) this.confetti(ctx, w, h, time);
-    this.badge(ctx, w / 2, 48, hitCount === PARTICLE_TARGETS.length ? "표적 3개 성공!" : `표적 ${hitCount}/3 · ${s.sign === 1 ? "양전하" : "음전하"} · 반지름 ${s.measurement.value.toFixed(2)} m`);
+    this.badge(ctx, w / 2, 48, hitCount === PARTICLE_TARGETS.length ? "모든 표적 성공!" : `표적 ${hitCount}/3 · ${s.sign === 1 ? "양전하" : "음전하"} · 궤도 ${qualitativeLevel(s.measurement.value, 0, 3, ["좁음", "보통", "넓음"])}`);
   }
 
   private electromagnetLab(ctx: CanvasRenderingContext2D, s: ElectromagnetismSnapshot, w: number, h: number, time: number): void {
@@ -472,7 +499,7 @@ export class ElectromagnetismRenderer {
     ctx.fillStyle = "#fff"; ctx.font = "800 17px system-ui"; ctx.textAlign = "center"; ctx.fillText(["", "가벼움", "보통", "무거움"][s.deviceLoad], loadPoint.x, loadPoint.y + 6);
     if (s.craneDelivered === 0) { ctx.fillStyle = palette.negative; ctx.font = "800 18px system-ui"; ctx.textAlign = "center"; ctx.fillText("놓을 곳", bin.x, bin.y + 7); }
     const state = s.craneDelivered > 0 ? "운반됨" : s.craneCarrying > 0 ? "전자석에 붙음" : force >= requiredForce ? "들 수 있음 · 짐으로 내려 보세요" : "힘이 부족해 붙지 않음";
-    this.badge(ctx, w / 2, h - 92, `${state} · 전자석 ${force.toFixed(1)} / 필요 ${requiredForce.toFixed(1)}`);
+    this.badge(ctx, w / 2, h - 92, `${state} · ${force >= requiredForce ? "필요한 힘에 도달했어요" : "힘이 더 필요해요"}`);
   }
 
   private motorLab(ctx: CanvasRenderingContext2D, s: ElectromagnetismSnapshot, w: number, h: number, time: number): void {
@@ -490,10 +517,10 @@ export class ElectromagnetismRenderer {
     ctx.fillStyle = "#fff"; ctx.font = "800 18px system-ui"; ctx.textAlign = "center"; ctx.fillText(["", "가벼움", "보통", "무거움"][s.deviceLoad], load.x, load.y + 6);
     const trackLeft = this.pixel({ x: 0.28, y: 0.17 }, w, h); const trackRight = this.pixel({ x: 0.68, y: 0.17 }, w, h); const handle = this.pixel(s.probe, w, h);
     ctx.strokeStyle = palette.purple; ctx.lineWidth = 6; ctx.beginPath(); ctx.moveTo(trackLeft.x, trackLeft.y); ctx.lineTo(trackRight.x, trackRight.y); ctx.stroke();
-    ctx.fillStyle = "#fff"; ctx.strokeStyle = palette.purple; ctx.lineWidth = 4; ctx.beginPath(); ctx.arc(handle.x, trackLeft.y, 11, 0, TAU); ctx.fill(); ctx.stroke(); this.miniTag(ctx, handle.x, trackLeft.y - 25, `전류 ${(2 + s.level * 2).toFixed(1)} A`, palette.purple);
+    ctx.fillStyle = "#fff"; ctx.strokeStyle = palette.purple; ctx.lineWidth = 4; ctx.beginPath(); ctx.arc(handle.x, trackLeft.y, 11, 0, TAU); ctx.fill(); ctx.stroke(); this.miniTag(ctx, handle.x, trackLeft.y - 25, `전류 · ${qualitativeLevel(s.level, 0, 1)}`, palette.purple);
     const torque = s.measurement.value; const required = s.secondaryMeasurement?.value ?? 0; const correctDirection = s.sign * s.direction > 0;
     const state = !correctDirection ? "회전 방향이 반대라 짐이 내려가요" : torque > required ? "토크가 충분해 짐이 올라가요" : "부하가 커서 전동기가 멈췄어요";
-    this.badge(ctx, w / 2, h - 72, `${state} · 토크 ${torque.toFixed(1)} / 필요 ${required.toFixed(1)}`);
+    this.badge(ctx, w / 2, h - 72, `${state} · ${torque >= required ? "돌릴 힘이 충분해요" : "돌릴 힘이 더 필요해요"}`);
   }
 
   private generatorLab(ctx: CanvasRenderingContext2D, s: ElectromagnetismSnapshot, w: number, h: number, time: number): void {
@@ -515,9 +542,9 @@ export class ElectromagnetismRenderer {
     this.miniTag(ctx, handle.x, handle.y - 28, "잡고 돌리기", palette.purple);
     this.inductionMeter(ctx, w - 92, 78, voltage);
     ctx.fillStyle = "rgba(255,255,255,.22)"; ctx.beginPath(); ctx.roundRect(w * 0.58, 42, w * 0.3, 18, 9); ctx.fill(); ctx.fillStyle = palette.gold; ctx.beginPath(); ctx.roundRect(w * 0.58, 42, w * 0.3 * output, 18, 9); ctx.fill();
-    ctx.fillStyle = "#fff"; ctx.font = "800 14px system-ui"; ctx.textAlign = "center"; ctx.fillText(`현재 공급 전력 ${Math.round(output * 100)}%`, w * 0.73, 84);
+    ctx.fillStyle = "#fff"; ctx.font = "800 14px system-ui"; ctx.textAlign = "center"; ctx.fillText(`공급 전력 · ${qualitativeLevel(output, 0, 1)}`, w * 0.73, 84);
     const litCount = Math.floor(output * 4 + 1e-6);
-    this.badge(ctx, w / 2, h - 92, `${s.coilTurns}회 코일 · 현재 ${voltage.toFixed(2)} V · 점등 ${litCount}/4 · 손을 멈추면 꺼져요`);
+    this.badge(ctx, w / 2, h - 92, `${s.coilTurns}회 코일 · 전압 ${qualitativeLevel(Math.abs(voltage), 0, 12)} · 점등 ${litCount}/4 · 손을 멈추면 꺼져요`);
   }
 
   private transformerLab(ctx: CanvasRenderingContext2D, s: ElectromagnetismSnapshot, w: number, h: number, time: number): void {
@@ -528,7 +555,7 @@ export class ElectromagnetismRenderer {
     const pulse = wrappedPhase(time * (0.35 + s.level * 0.15));
     ctx.save(); ctx.strokeStyle = this.withAlpha(palette.magnetic, 0.58); ctx.lineWidth = 4; ctx.setLineDash([12, 9]); ctx.lineDashOffset = -time * 28; ctx.beginPath(); ctx.roundRect(coreLeft, left.y - 135, coreRight - coreLeft, 270, 18); ctx.stroke(); ctx.restore();
     const pulseX = coreLeft + (coreRight - coreLeft) * pulse; this.radialGlow(ctx, { x: pulseX, y: left.y - 135 }, palette.magnetic, 28, 0.32);
-    const primaryVoltage = 3 + s.level * 6; this.miniTag(ctx, left.x, left.y - 158, `1차 80회 · ${primaryVoltage.toFixed(0)} V AC`, palette.gold); this.miniTag(ctx, right.x, right.y - 158, `2차 ${s.secondaryTurns}회 · ${s.measurement.value.toFixed(1)} V`, palette.purple);
+    this.miniTag(ctx, left.x, left.y - 158, "1차 코일 · 교류 입력", palette.gold); this.miniTag(ctx, right.x, right.y - 158, `2차 ${s.secondaryTurns}회 · 전압 ${qualitativeLevel(s.measurement.value, 0, 18)}`, palette.purple);
     const robotBase = this.pixel({ x: 0.86, y: 0.55 }, w, h); const outputVoltage = s.measurement.value; const targetVoltage = s.applianceTargetVoltage;
     const tolerance = Math.max(0.6, targetVoltage * 0.1); const ready = Math.abs(outputVoltage - targetVoltage) <= tolerance; const overload = outputVoltage > targetVoltage + tolerance;
     const deviceName = targetVoltage === 6 ? "LED" : targetVoltage === 9 ? "라디오" : "로봇"; const shake = overload ? Math.sin(time * 34) * 5 : 0; const robot = { x: robotBase.x + shake, y: robotBase.y };
@@ -544,7 +571,7 @@ export class ElectromagnetismRenderer {
     const trackLeft = this.pixel({ x: TRANSFORMER_TRACK.minX, y: 0.78 }, w, h); const trackRight = this.pixel({ x: TRANSFORMER_TRACK.maxX, y: 0.78 }, w, h); const handle = this.pixel(s.probe, w, h);
     ctx.strokeStyle = palette.purple; ctx.lineWidth = 6; ctx.beginPath(); ctx.moveTo(trackLeft.x, trackLeft.y); ctx.lineTo(trackRight.x, trackRight.y); ctx.stroke();
     ctx.fillStyle = "#fff"; ctx.strokeStyle = palette.purple; ctx.lineWidth = 4; ctx.beginPath(); ctx.arc(handle.x, trackLeft.y, 11, 0, TAU); ctx.fill(); ctx.stroke(); this.miniTag(ctx, handle.x, trackLeft.y + 27, "2차 감은 수", palette.purple);
-    this.badge(ctx, w / 2, 46, `${deviceName} 필요 ${targetVoltage} V · 현재 ${outputVoltage.toFixed(1)} V · ${ready ? "알맞음" : overload ? "너무 높음" : "너무 낮음"}`);
+    this.badge(ctx, w / 2, 46, `${deviceName} · 출력이 ${ready ? "알맞아요" : overload ? "너무 높아요" : "너무 낮아요"}`);
   }
 
   private sandbox(ctx: CanvasRenderingContext2D, s: ElectromagnetismSnapshot, w: number, h: number, time: number, selectedId: string | null, wiring: boolean, wireStart: SandboxWireEndpoint | null): void {
@@ -591,18 +618,18 @@ export class ElectromagnetismRenderer {
       if (magnitude > 1e-9) this.arrow(ctx, this.pixel(object.position, w, h), force.vector, palette.positive, object.id === selectedId ? object.kind === "charge" ? "로런츠 힘" : "자기력" : "", Math.min(104, 32 + magnitude * 24));
     }
     const probe = s.sandboxObjects.find((object) => object.kind === "probe");
-    if (probe) this.arrow(ctx, this.pixel(probe.position, w, h), s.sandboxMetrics.electricField, palette.field, `${this.compact(Math.hypot(s.sandboxMetrics.electricField.x, s.sandboxMetrics.electricField.y))} N/C`, Math.min(90, 20 + Math.log10(1 + Math.hypot(s.sandboxMetrics.electricField.x, s.sandboxMetrics.electricField.y)) * 8));
+    if (probe) this.arrow(ctx, this.pixel(probe.position, w, h), s.sandboxMetrics.electricField, palette.field, "전기장", Math.min(90, 20 + Math.log10(1 + Math.hypot(s.sandboxMetrics.electricField.x, s.sandboxMetrics.electricField.y)) * 8));
     if (probe && Math.abs(s.sandboxMetrics.magneticFieldZ) > 0.01) {
       const probePoint = this.pixel(probe.position, w, h);
-      this.badge(ctx, probePoint.x, probePoint.y - 54, `${s.sandboxMetrics.magneticFieldZ >= 0 ? "⊙" : "⊗"} 수직 자기장 ${this.compact(Math.abs(s.sandboxMetrics.magneticFieldZ))}`);
-    } else if (probe && Math.hypot(s.sandboxMetrics.magneticField.x, s.sandboxMetrics.magneticField.y) > 0) this.arrow(ctx, this.pixel(probe.position, w, h), s.sandboxMetrics.magneticField, palette.magnetic, `${this.compact(s.graphMarker?.y ?? 0)} 자기장`, 74);
+      this.badge(ctx, probePoint.x, probePoint.y - 54, `${s.sandboxMetrics.magneticFieldZ >= 0 ? "⊙" : "⊗"} 수직 자기장`);
+    } else if (probe && Math.hypot(s.sandboxMetrics.magneticField.x, s.sandboxMetrics.magneticField.y) > 0) this.arrow(ctx, this.pixel(probe.position, w, h), s.sandboxMetrics.magneticField, palette.magnetic, "자기장", 74);
     if (Math.abs(s.sandboxMetrics.current) > 0) {
       const inducedOnly = !s.sandboxObjects.some((object) => object.kind === "battery") && Math.abs(s.sandboxMetrics.inducedVoltage) > 0;
       const generatorOnly = !s.sandboxObjects.some((object) => object.kind === "battery") && s.sandboxObjects.some((object) => object.kind === "generator" && object.enabled !== false);
       const arrangement = generatorOnly ? "발전기 회로" : { none: "", single: "전지 1개", series: "전지 직렬", parallel: "전지 병렬", mixed: "혼합 회로" }[s.sandboxMetrics.batteryArrangement];
-      this.badge(ctx, w / 2, 54, inducedOnly ? `유도 전류 ${s.sandboxMetrics.current.toFixed(2)} A` : `${arrangement} · ${s.sandboxMetrics.circuitVoltage.toFixed(1)} V · ${s.sandboxMetrics.current.toFixed(2)} A`);
+      this.badge(ctx, w / 2, 54, inducedOnly ? "유도 전류가 흘러요" : `${arrangement} · 전류가 흘러요`);
     }
-    else if (s.sandboxConnections.some((item) => item.kind === "induction")) this.badge(ctx, w / 2, 54, `유도 전압 ${s.sandboxMetrics.inducedVoltage.toFixed(2)} V`);
+    else if (s.sandboxConnections.some((item) => item.kind === "induction")) this.badge(ctx, w / 2, 54, "유도 전압이 생겼어요");
   }
 
   private sandboxObject(ctx: CanvasRenderingContext2D, object: ElectromagnetismSandboxObject, w: number, h: number, current: number, selected: boolean, time = 0): void {
@@ -621,7 +648,7 @@ export class ElectromagnetismRenderer {
     if (object.kind === "charge") {
       const positive = object.value >= 0;
       const radius = 20 + Math.sqrt(Math.abs(object.value) / 1e-6) * 5;
-      this.charge(ctx, point, positive ? 1 : -1, selected ? `${positive ? "+" : "−"}${Math.abs(object.value * 1e6).toFixed(1)} μC` : "", radius);
+      this.charge(ctx, point, positive ? 1 : -1, selected ? positive ? "+ 양전하" : "− 음전하" : "", radius);
       if (selected) {
         const handle = this.pixel(sandboxVelocityHandle(object), w, h);
         this.arrow(ctx, point, { x: handle.x - point.x, y: handle.y - point.y }, palette.purple, "", Math.hypot(handle.x - point.x, handle.y - point.y));
@@ -632,7 +659,7 @@ export class ElectromagnetismRenderer {
     else if (object.kind === "battery") this.batterySymbol(ctx, point, object.value, object.direction ?? 1, selected);
     else if (object.kind === "resistor") {
       this.resistorSymbol(ctx, point.x - 54, point.x + 54, point.y, palette.purple, 4, resistorZigzagCount(object.value));
-      if (selected) this.miniTag(ctx, point.x, point.y + 32, `${object.value.toFixed(0)} Ω`, palette.purple);
+      if (selected) this.miniTag(ctx, point.x, point.y + 32, `저항 · ${qualitativeLevel(object.value, 2, 20, ["작음", "보통", "큼"])}`, palette.purple);
     }
     else if (object.kind === "bulb") {
       const power = sandboxBulbPower(current, object.value); const brightness = sandboxBulbBrightness(current, object.value); const lit = brightness > 0.01;
@@ -646,7 +673,7 @@ export class ElectromagnetismRenderer {
       ctx.fillStyle = palette.ink; ctx.beginPath(); ctx.roundRect(point.x - 15, point.y + 21, 30, 14, 4); ctx.fill();
       ctx.strokeStyle = palette.ink; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(point.x - 42, point.y + 20); ctx.lineTo(point.x - 15, point.y + 26); ctx.moveTo(point.x + 15, point.y + 26); ctx.lineTo(point.x + 42, point.y + 20); ctx.stroke();
       ctx.strokeStyle = "rgba(255,255,255,.55)"; ctx.lineWidth = 1.5; for (const y of [25, 30]) { ctx.beginPath(); ctx.moveTo(point.x - 11, point.y + y - 5); ctx.lineTo(point.x + 11, point.y + y - 5); ctx.stroke(); }
-      if (selected || lit) this.miniTag(ctx, point.x, point.y + 58, lit ? `밝기 ${Math.round(brightness * 100)}% · ${power.toFixed(1)} W` : `${object.value.toFixed(0)} Ω · 꺼짐`, palette.gold);
+      if (selected || lit) this.miniTag(ctx, point.x, point.y + 58, lit ? `전구 · ${qualitativeLevel(brightness, 0, 1, ["어두움", "보통", "밝음"])}` : "전구 꺼짐", palette.gold);
     }
     else if (object.kind === "switch") {
       ctx.strokeStyle = palette.ink; ctx.lineWidth = 5; ctx.beginPath(); ctx.moveTo(point.x - 34, point.y + 8); ctx.lineTo(point.x - 14, point.y + 8); ctx.moveTo(point.x + 14, point.y + 8); ctx.lineTo(point.x + 34, point.y + 8); ctx.stroke();
@@ -664,12 +691,12 @@ export class ElectromagnetismRenderer {
       if (Math.abs(voltage) > 0.05) for (const offset of [-22, 0, 22]) this.arrow(ctx, { x: voltage >= 0 ? leftPlate + 7 : rightPlate - 7, y: point.y + offset }, { x: voltage >= 0 ? 1 : -1, y: 0 }, palette.field, "", Math.max(8, gap - 14));
       ctx.fillStyle = voltage >= 0 ? palette.positive : palette.negative; ctx.font = "800 18px system-ui"; ctx.textAlign = "center"; ctx.fillText(voltage >= 0 ? "+" : "−", leftPlate - 14, point.y + 6);
       ctx.fillStyle = voltage >= 0 ? palette.negative : palette.positive; ctx.fillText(voltage >= 0 ? "−" : "+", rightPlate + 14, point.y + 6);
-      if (selected) this.miniTag(ctx, point.x, point.y + 58, `${object.value.toFixed(1)} mm · ${voltage.toFixed(1)} V`, palette.field);
+      if (selected) this.miniTag(ctx, point.x, point.y + 58, `판 간격 ${qualitativeLevel(object.value, 1, 10, ["좁음", "보통", "넓음"])} · ${Math.abs(voltage) > 0.05 ? "충전됨" : "비어 있음"}`, palette.field);
     }
     else if (object.kind === "current-wire") {
       ctx.fillStyle = palette.ink; ctx.beginPath(); ctx.arc(point.x, point.y, 29, 0, TAU); ctx.fill();
       ctx.fillStyle = "#fff"; ctx.font = "800 25px system-ui"; ctx.textAlign = "center"; ctx.fillText(object.value >= 0 ? "⊙" : "⊗", point.x, point.y + 8);
-      if (selected) this.miniTag(ctx, point.x, point.y + 46, `${Math.abs(object.value).toFixed(1)} A`, palette.magnetic);
+      if (selected) this.miniTag(ctx, point.x, point.y + 46, `전류 · ${qualitativeLevel(Math.abs(object.value), 0, 9)}`, palette.magnetic);
     }
     else if (object.kind === "field-region") this.magneticFieldRegion(ctx, point, object.value, selected);
     else if (object.kind === "magnet") this.barMagnet(ctx, point, 48, 27, object.direction ?? 1);
@@ -684,12 +711,12 @@ export class ElectromagnetismRenderer {
       ctx.fillStyle = "#dce6f3"; ctx.strokeStyle = palette.ink; ctx.lineWidth = 4; ctx.beginPath(); ctx.arc(point.x, point.y, 39, 0, TAU); ctx.fill(); ctx.stroke();
       ctx.save(); ctx.translate(point.x, point.y); ctx.rotate(time * Math.min(12, Math.abs(current) * 4) * Math.sign(current || 1)); ctx.strokeStyle = palette.purple; ctx.lineWidth = 7;
       for (let blade = 0; blade < 3; blade += 1) { ctx.rotate(TAU / 3); ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(28, 0); ctx.stroke(); } ctx.restore();
-      this.miniTag(ctx, point.x, point.y + 58, Math.abs(current) > 0.01 ? `전동기 ${Math.abs(current).toFixed(2)} A` : "전동기 멈춤", Math.abs(current) > 0.01 ? palette.purple : palette.muted);
+      this.miniTag(ctx, point.x, point.y + 58, Math.abs(current) > 0.01 ? "전동기 회전 중" : "전동기 멈춤", Math.abs(current) > 0.01 ? palette.purple : palette.muted);
     }
     else if (object.kind === "generator") {
       ctx.fillStyle = object.enabled === false ? "#e8edf4" : "#fff3c9"; ctx.strokeStyle = object.enabled === false ? palette.muted : palette.gold; ctx.lineWidth = 5; ctx.beginPath(); ctx.arc(point.x, point.y, 39, 0, TAU); ctx.fill(); ctx.stroke();
       ctx.save(); ctx.translate(point.x, point.y); ctx.rotate(object.enabled === false ? 0 : time * 6); ctx.strokeStyle = palette.positive; ctx.lineWidth = 6; ctx.beginPath(); ctx.moveTo(-22, 0); ctx.lineTo(22, 0); ctx.moveTo(0, -22); ctx.lineTo(0, 22); ctx.stroke(); ctx.restore();
-      this.miniTag(ctx, point.x, point.y + 58, object.enabled === false ? "발전기 멈춤" : `발전 ${object.value.toFixed(0)} V`, object.enabled === false ? palette.muted : palette.gold);
+      this.miniTag(ctx, point.x, point.y + 58, object.enabled === false ? "발전기 멈춤" : "발전 중", object.enabled === false ? palette.muted : palette.gold);
     }
     else if (object.kind === "transformer") {
       ctx.strokeStyle = "#68778b"; ctx.lineWidth = 12; ctx.beginPath(); ctx.roundRect(point.x - 58, point.y - 42, 116, 84, 10); ctx.stroke();
@@ -737,7 +764,7 @@ export class ElectromagnetismRenderer {
       this.miniTag(ctx, point.x + 42, point.y - 42, leftNorth ? "S" : "N", leftNorth ? palette.negative : palette.positive);
     }
     ctx.restore();
-    if (energized) this.miniTag(ctx, point.x, point.y + 51, `전자석 · ${Math.abs(current).toFixed(2)} A`, palette.magnetic);
+    if (energized) this.miniTag(ctx, point.x, point.y + 51, "전자석 · 전류 흐름", palette.magnetic);
     else if (selected) this.miniTag(ctx, point.x, point.y + 51, `${Math.round(object.value)}회 코일`, palette.gold);
   }
 
@@ -986,7 +1013,7 @@ export class ElectromagnetismRenderer {
     ctx.fillStyle = palette.positive; ctx.font = "800 16px system-ui"; ctx.textAlign = "center";
     ctx.fillText("+", point.x + direction * 30, point.y - 12); ctx.fillStyle = palette.ink; ctx.fillText("−", point.x - direction * 30, point.y - 12);
     ctx.restore();
-    this.miniTag(ctx, point.x, point.y + 38, `${voltage.toFixed(1)} V`, selected ? palette.positive : palette.ink);
+    this.miniTag(ctx, point.x, point.y + 38, `전지 · ${qualitativeLevel(Math.abs(voltage), 1, 12)}`, selected ? palette.positive : palette.ink);
   }
 
   private connectionPoint(object: ElectromagnetismSandboxObject, toward: ElectromagnetismSandboxObject, w: number, h: number): Vector2 {
@@ -1077,10 +1104,4 @@ export class ElectromagnetismRenderer {
     ctx.fillStyle = palette.ink; ctx.font = "600 14px system-ui"; ctx.textAlign = "center"; ctx.fillText(text, x, y);
   }
 
-  private compact(value: number): string {
-    const absolute = Math.abs(value);
-    if (absolute >= 1000) return value.toExponential(2);
-    if (absolute >= 10) return value.toFixed(1);
-    return value.toFixed(2);
-  }
 }

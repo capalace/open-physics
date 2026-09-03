@@ -121,7 +121,7 @@ export class SubjectRouteSession {
     const route: SubjectRoute = { screen: "lab", labId };
     const url = subjectRouteUrl(new URL(window.location.href), this.options.definition, route);
     window.history.pushState({ ...window.history.state, openPhysicsLabRoute: this.options.definition.id }, "", url);
-    this.options.onRoute(route, "navigation");
+    this.applyRoute(route, "navigation");
   }
 
   returnToSelection(): void {
@@ -132,7 +132,7 @@ export class SubjectRouteSession {
     const route: SubjectRoute = { screen: "selection" };
     const url = subjectRouteUrl(new URL(window.location.href), this.options.definition, route);
     window.history.replaceState(window.history.state, "", url);
-    this.options.onRoute(route, "history");
+    this.applyRoute(route, "history");
   }
 
   dispose(): void {
@@ -153,7 +153,13 @@ export class SubjectRouteSession {
         subjectRouteUrl(currentUrl, this.options.definition, route),
       );
     }
+    this.applyRoute(route, source);
+  }
+
+  private applyRoute(route: SubjectRoute, source: SubjectRouteSource): void {
     this.options.onRoute(route, source);
+    if (route.screen !== "lab") return;
+    requestAnimationFrame(() => window.scrollTo({ top: 0, left: 0, behavior: "auto" }));
   }
 }
 

@@ -107,6 +107,9 @@ body[data-subject="electromagnetism"][data-subject-screen="selection"] .workspac
 .subject-electromagnetism .em-readout > div { margin-top: 8px; padding: 10px 0; border-bottom: 1px solid #edf1f6; }
 .subject-electromagnetism .em-readout > div > span { color: #8793a5; font-size: 12px; font-weight: 700; }
 .subject-electromagnetism .em-readout output { color: var(--em-blue); font-size: 13px; font-weight: 900; }
+.subject-electromagnetism [data-em-measure-value],
+.subject-electromagnetism [data-em-secondary-value],
+.subject-electromagnetism [data-em-peak-voltage] { display: none; }
 .subject-electromagnetism .em-readout .em-measurement-memory { margin-top: 10px; border: 1px solid #d8c6ed; border-radius: 9px; padding: 10px; background: #f6f0fc; }
 .subject-electromagnetism .em-readout .em-measurement-memory output { color: #7950a8; }
 .subject-electromagnetism .em-readout .em-result-direction { margin-top: 10px; border: 1px solid #bddfd2; border-radius: 9px; padding: 10px; background: #ecf8f3; }

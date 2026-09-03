@@ -44,17 +44,16 @@ export function renderLabGraph(canvas: HTMLCanvasElement, graph: PlaygroundGraph
   context.lineWidth = 1;
   for (let line = 0; line <= 2; line += 1) {
     const y = plotTop + plotHeight * line / 2;
-    const value = maximum - (maximum - minimum) * line / 2;
     context.beginPath();
     context.moveTo(plotLeft, y);
     context.lineTo(plotLeft + plotWidth, y);
     context.stroke();
     context.textAlign = "right";
-    context.fillText(formatGraphValue(value), plotLeft - 7, y + 4);
+    context.fillText(["높음", "중간", "낮음"][line], plotLeft - 7, y + 4);
   }
-  context.fillText(`${formatGraphValue(firstTime)}초`, plotLeft + 22, height - 7);
+  context.fillText("처음", plotLeft + 22, height - 7);
   context.textAlign = "right";
-  context.fillText(`${formatGraphValue(lastTime)}초`, width - GRAPH_PADDING.right, height - 7);
+  context.fillText("지금", width - GRAPH_PADDING.right, height - 7);
 
   graph.series.forEach((series, seriesIndex) => {
     const points = graph.samples

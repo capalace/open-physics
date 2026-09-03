@@ -1,9 +1,43 @@
 import { describe, expect, it } from "vitest";
 import { WAVES_LAB_IDS } from "./catalog";
-import { WavesModel, wavesPrimaryControlRatio } from "./models";
-import { hitTest, primaryHandle } from "./renderer";
+import { WavesModel } from "./models";
+import { dopplerWavefronts, hitTest, primaryHandle, wavesInteractionAffordance } from "./renderer";
 
 describe("waves model", () => {
+  it("distinguishes movable apparatus from dedicated value handles", () => {
+    const kinds = Object.fromEntries(WAVES_LAB_IDS.map((id) => [id, wavesInteractionAffordance(new WavesModel(id).snapshot())?.kind]));
+    expect(kinds).toEqual({
+      source: "handle", propagation: "handle", interference: "object", "standing-wave": "handle",
+      resonance: "handle", sound: "handle", doppler: "object", communication: "handle",
+    });
+  });
+
+  it("keeps animated oscillations slow enough to follow by eye", () => {
+    for (const id of ["source", "standing-wave", "sound"] as const) {
+      const model = new WavesModel(id);
+      let previous = model.displacementAt(1.37);
+      let zeroCrossings = 0;
+      for (let frame = 0; frame < 120; frame += 1) {
+        model.step(1 / 120);
+        const current = model.displacementAt(1.37);
+        if (current !== 0 && Math.sign(current) !== Math.sign(previous)) zeroCrossings += 1;
+        previous = current;
+      }
+      expect(zeroCrossings, id).toBeLessThanOrEqual(8);
+    }
+  });
+
+  it("advances Doppler wavefronts while running and freezes them when paused", () => {
+    const model = new WavesModel("doppler");
+    const initial = dopplerWavefronts(model.snapshot());
+    model.step(0.2);
+    const advanced = dopplerWavefronts(model.snapshot());
+    expect(advanced).not.toEqual(initial);
+    model.setRunning(false);
+    model.step(0.2);
+    expect(dopplerWavefronts(model.snapshot())).toEqual(advanced);
+  });
+
   it("resets every guided experiment to the same deterministic state", () => {
     for (const id of WAVES_LAB_IDS) {
       const model = new WavesModel(id);
@@ -12,16 +46,6 @@ describe("waves model", () => {
       model.step(0.1);
       model.reset();
       expect(model.snapshot()).toEqual(initial);
-    }
-  });
-
-  it("offers the same normalized control to keyboard and pointer interfaces", () => {
-    for (const id of WAVES_LAB_IDS) {
-      const model = new WavesModel(id);
-      model.setPrimaryControlRatio(0);
-      expect(wavesPrimaryControlRatio(model.snapshot()), `${id} low`).toBeCloseTo(0);
-      model.setPrimaryControlRatio(1);
-      expect(wavesPrimaryControlRatio(model.snapshot()), `${id} high`).toBeCloseTo(1);
     }
   });
 

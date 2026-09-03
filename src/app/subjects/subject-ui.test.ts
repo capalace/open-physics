@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { wavesDefinition } from "./waves/catalog";
-import { learningTermsFor, subjectBrowserMarkup, subjectGuideMarkup, subjectPickerMarkup, subjectSandboxGuideMarkup, termGlossaryMarkup } from "./subject-ui";
+import { learningTermsFor, subjectBrowserMarkup, subjectCanvasPromptMarkup, subjectGuideMarkup, subjectPickerMarkup, subjectPrimaryControlMarkup, subjectSandboxGuideMarkup, termGlossaryMarkup } from "./subject-ui";
 
 describe("shared subject UI", () => {
   it("keeps subject navigation inside the experiment selection screen", () => {
@@ -9,6 +9,8 @@ describe("shared subject UI", () => {
     expect(markup).toContain('href="?view=selection" data-subject="mechanics"');
     expect(markup).toContain('href="?subject=light&amp;view=selection"');
     expect(markup).toContain('data-subject="waves" class="is-active" aria-current="page"');
+    expect(markup).toContain('aria-label="물리 영역 선택"');
+    expect(markup).not.toContain("<span>물리 영역</span>");
   });
 
   it("renders every experiment browser in the mechanics order and class contract", () => {
@@ -24,7 +26,8 @@ describe("shared subject UI", () => {
     expect(markup).toContain('class="preset-icon purple"');
     expect(markup).toContain('class="preset-icon blue"');
     expect(markup.indexOf('data-lab-id="sandbox"')).toBeLessThan(markup.indexOf('data-lab-id="source"'));
-    expect(markup).toContain('<span class="topic-label">파동의 시작</span>');
+    expect(markup).not.toContain('class="topic-label"');
+    expect(markup).not.toContain("파동의 시작");
   });
 
   it("uses concise browser copy without shortening the dedicated guide", () => {
@@ -61,6 +64,13 @@ describe("shared subject UI", () => {
     expect(sandbox).not.toContain('class="lab-law"');
   });
 
+  it("puts the first direct action beside the Canvas", () => {
+    const markup = subjectCanvasPromptMarkup();
+    expect(markup).toContain("바로 해보기");
+    expect(markup).toContain("주황 표시를 직접 끌어 보세요");
+    expect(markup).toContain('role="note"');
+  });
+
   it("renders a compact, accessible glossary for the active experiment", () => {
     const markup = termGlossaryMarkup([
       { name: "전압", description: "전하를 움직이게 하는 전기적인 차이예요." },
@@ -79,5 +89,19 @@ describe("shared subject UI", () => {
     expect(terms).toHaveLength(3);
     expect(terms.map((term) => term.name)).toEqual([lab.law.title, "구동 주파수", lab.graph.yLabel]);
     expect(subjectGuideMarkup(lab)).toContain("용어 알아보기");
+  });
+
+  it("shows a real physical value, quick conditions, and the immediate result", () => {
+    const markup = subjectPrimaryControlMarkup({
+      label: "구동 주파수", ariaLabel: "구동 주파수 (Hz)", ratio: .5, value: "5.0 Hz",
+      low: "느리게", high: "빠르게", attribute: "data-test-range",
+      presets: [{ label: "3 Hz", ratio: .25 }, { label: "공명 5 Hz", ratio: .5 }, { label: "7 Hz", ratio: .75 }],
+      result: "공명! 진폭 8.3배", resultTone: "success",
+    });
+    expect(markup).toContain("5.0 Hz");
+    expect(markup).toContain('aria-valuetext="5.0 Hz"');
+    expect(markup).toContain('data-subject-control-preset="50"');
+    expect(markup).toContain("공명! 진폭 8.3배");
+    expect(markup).not.toContain(">50%</output>");
   });
 });

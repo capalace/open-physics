@@ -25,6 +25,7 @@ export const INDUCTION_COIL = { x: 0.62, y: 0.5 } as const;
 export const PARTICLE_START = { x: 0.2, y: 0.55 } as const;
 export const PARTICLE_TARGETS = [{ x: 0.34, y: 0.47 }, { x: 0.44, y: 0.38 }, { x: 0.5, y: 0.3 }] as const;
 export const GENERATOR_CENTER = { x: 0.36, y: 0.5 } as const;
+export const ELECTROMAGNETIC_FORCE_CONTROL_SPAN = 0.3;
 export const TRANSFORMER_TRACK = { minX: 0.3, maxX: 0.7 } as const;
 
 export interface ElectromagnetismSandboxObject {
@@ -278,7 +279,7 @@ export class ElectromagnetismModel {
     if (this.mode === "electromagnetic-force") {
       const horizontal = point.x - 0.5;
       if (Math.abs(horizontal) > 0.025) this.sign = horizontal >= 0 ? 1 : -1;
-      this.level = clamp(Math.abs(horizontal) / 0.3, 0.5, 1.5);
+      this.level = clamp(Math.abs(horizontal) / ELECTROMAGNETIC_FORCE_CONTROL_SPAN, 0.5, 1.5);
       return;
     }
     if (this.mode === "charged-particle") {

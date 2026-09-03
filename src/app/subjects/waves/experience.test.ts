@@ -1,5 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
 import { WavesListenerRegistry } from "./experience";
+// @ts-expect-error -- node:fs is available in the Vitest runtime.
+import { readFileSync } from "node:fs";
+
+const source = readFileSync(new URL("./experience.ts", import.meta.url), "utf8");
 
 describe("waves experience lifecycle", () => {
   it("drops old inspector listeners immediately and all remaining listeners on unmount", () => {
@@ -27,5 +31,12 @@ describe("waves experience lifecycle", () => {
     nextInspector.dispatchEvent(new Event("click"));
     expect(persistentAction).toHaveBeenCalledOnce();
     expect(nextAction).toHaveBeenCalledOnce();
+  });
+});
+
+describe("waves sandbox observations", () => {
+  it("keeps the relationship graph available in the empty lab", () => {
+    expect(source).toContain("배치한 파동 보기");
+    expect(source).toContain("if (this.graphCanvas.isConnected) drawGraph");
   });
 });

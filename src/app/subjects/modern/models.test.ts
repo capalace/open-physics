@@ -1,15 +1,35 @@
 import { describe, expect, it } from "vitest";
 import { MODERN_LAB_IDS } from "./catalog";
 import { deterministicDensityQuantiles, ModernModel } from "./models";
-import { graphMarker, hitTest, primaryHandle } from "./renderer";
+import { graphMarker, hitTest, modernInteractionAffordance, modernVisualPhase, primaryHandle } from "./renderer";
 
 describe("modern-physics model", () => {
+  it("distinguishes movable apparatus from dedicated value handles", () => {
+    const kinds = Object.fromEntries(MODERN_LAB_IDS.map((id) => [id, modernInteractionAffordance(new ModernModel(id).snapshot())?.kind]));
+    expect(kinds).toEqual({
+      relativity: "object", "gravity-spacetime": "handle", atoms: "handle", photoelectric: "object",
+      "matter-waves": "object", quantum: "handle", tunneling: "object", nuclei: "object",
+      "mass-energy": "handle", semiconductors: "handle",
+    });
+  });
+
   it("resets each guided lab to its deterministic initial state", () => {
     for (const id of MODERN_LAB_IDS) {
       const model = new ModernModel(id); const initial = model.snapshot();
       model.dragPrimary(910, 100); model.step(0.1); model.reset();
       expect(model.snapshot()).toEqual(initial);
     }
+  });
+  it("advances visual phases and nuclear decay only while running", () => {
+    const model = new ModernModel("nuclei");
+    const before = model.snapshot();
+    model.step(0.2);
+    const moving = model.snapshot();
+    expect(modernVisualPhase(moving.animationTime)).not.toBe(modernVisualPhase(before.animationTime));
+    expect(moving.elapsedYears).toBeGreaterThan(before.elapsedYears);
+    model.setRunning(false); model.step(0.2);
+    expect(model.snapshot().animationTime).toBe(moving.animationTime);
+    expect(model.snapshot().elapsedYears).toBe(moving.elapsedYears);
   });
   it("maps the relativity pointer to a subluminal speed and the spacetime graph", () => {
     const model = new ModernModel("relativity"); const before = model.snapshot(); const handle = primaryHandle(before);
@@ -26,13 +46,6 @@ describe("modern-physics model", () => {
       expect(afterHandle.x, `${id} x`).toBeCloseTo(handle.x);
       expect(afterHandle.y, `${id} y`).toBeCloseTo(handle.y);
       expect(after.measurement, id).toBe(before.measurement);
-    }
-  });
-  it("offers an equivalent keyboard-friendly ratio control for every guided lab", () => {
-    for (const id of MODERN_LAB_IDS) {
-      const model = new ModernModel(id); model.setPrimaryControlRatio(0.8);
-      expect(model.snapshot().measurement).not.toBe("");
-      expect(model.primaryHandle()).not.toBeNull();
     }
   });
   it("places primary handles on the apparatus described by each lab", () => {

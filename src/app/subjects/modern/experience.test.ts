@@ -1,6 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
 import { modernGraphLegendMarkup, ModernListenerRegistry } from "./experience";
 import { modernDefinition } from "./catalog";
+// @ts-expect-error -- node:fs is available in the Vitest runtime.
+import { readFileSync } from "node:fs";
+
+const source = readFileSync(new URL("./experience.ts", import.meta.url), "utf8");
 
 describe("modern experience helpers", () => {
   it("renders every graph series label with its catalog color", () => {
@@ -21,5 +25,9 @@ describe("modern experience helpers", () => {
     expect(oldAction).not.toHaveBeenCalled(); expect(persistentAction).toHaveBeenCalledOnce(); expect(nextAction).toHaveBeenCalledOnce();
     registry.disposeAll(); persistent.dispatchEvent(new Event("click")); nextInspector.dispatchEvent(new Event("click"));
     expect(persistentAction).toHaveBeenCalledOnce(); expect(nextAction).toHaveBeenCalledOnce();
+  });
+  it("keeps the detection graph available in the empty lab", () => {
+    expect(source).toContain("검출 신호 비교");
+    expect(source).toContain("if (this.graphCanvas.isConnected) drawModernGraph");
   });
 });

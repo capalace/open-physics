@@ -5,11 +5,12 @@ import {
   type SubjectHosts,
   type SubjectRoute,
 } from "../subject-experience";
-import { subjectBrowserMarkup, subjectGuideMarkup, subjectSandboxGuideMarkup, subjectSelectionMarkup, subjectSettingsHeaderMarkup } from "../subject-ui";
+import { subjectBrowserMarkup, subjectCanvasPromptMarkup, subjectGuideMarkup, subjectSandboxGuideMarkup, subjectSelectionMarkup, subjectSettingsHeaderMarkup } from "../subject-ui";
 import { WAVES_LAB_IDS, wavesDefinition, type WavesLabId } from "./catalog";
-import { WavesModel, wavesPrimaryControlRatio, type WaveDeviceKind, type WavesSnapshot } from "./models";
+import { WavesModel, type WaveDeviceKind, type WavesSnapshot } from "./models";
 import { drawGraph, WavesRenderer } from "./renderer";
 import "./style.css";
+import { formatDisplayNumber } from "../../format-value";
 
 const palette: readonly { kind: WaveDeviceKind; label: string }[] = [
   { kind: "source", label: "파원" },
@@ -19,6 +20,37 @@ const palette: readonly { kind: WaveDeviceKind; label: string }[] = [
   { kind: "observer", label: "관찰자" },
   { kind: "detector", label: "검출기" },
 ];
+
+export function wavesPrimaryControlValue(snapshot: WavesSnapshot): string {
+  switch (snapshot.mode) {
+    case "source": return `${snapshot.amplitude.toFixed(0)} cm`;
+    case "propagation": return `${snapshot.speed.toFixed(0)} m/s`;
+    case "interference": return `${snapshot.sourceSpacing.toFixed(0)} cm`;
+    case "standing-wave": return `${snapshot.harmonic}배음`;
+    case "resonance": return `${formatDisplayNumber(snapshot.frequency)} Hz`;
+    case "sound": return `${snapshot.amplitude.toFixed(0)} Pa`;
+    case "doppler": return `${snapshot.sourceVelocity.toFixed(0)} m/s`;
+    case "communication": return `${snapshot.frequency.toFixed(0)} MHz`;
+    case "sandbox": return "";
+  }
+}
+
+export function wavesPrimaryOutcome(snapshot: WavesSnapshot): { text: string; tone: "neutral" | "success" | "warning" } {
+  switch (snapshot.mode) {
+    case "source": return { text: `상대 세기 ${formatDisplayNumber(snapshot.amplitude ** 2 / 100)}`, tone: "neutral" };
+    case "propagation": return { text: `파장 ${formatDisplayNumber(snapshot.wavelength)} m`, tone: "neutral" };
+    case "interference": return { text: "보강·상쇄 무늬의 위치가 이동해요", tone: "neutral" };
+    case "standing-wave": return { text: `줄에 ${snapshot.harmonic + 1}개의 마디`, tone: "success" };
+    case "resonance": {
+      const resonating = Math.abs(snapshot.frequency - snapshot.naturalFrequency) < 0.35;
+      return { text: `${resonating ? "공명! " : ""}진폭 ${formatDisplayNumber(snapshot.response)}배`, tone: resonating ? "success" : "neutral" };
+    }
+    case "sound": return { text: `상대 세기 ${formatDisplayNumber(snapshot.amplitude ** 2 / 100)}`, tone: "neutral" };
+    case "doppler": return { text: `관찰 주파수 ${snapshot.observedFrequency.toFixed(0)} Hz`, tone: "neutral" };
+    case "communication": return { text: `파장 ${formatDisplayNumber(snapshot.wavelength)} m`, tone: "neutral" };
+    case "sandbox": return { text: "", tone: "neutral" };
+  }
+}
 
 type ListenerScope = "persistent" | "inspector";
 
@@ -134,7 +166,9 @@ class WavesController implements SubjectController {
     shell.classList.add("subject-lab-screen");
     shell.dataset.subjectLabScreen = "";
     shell.hidden = true;
-    shell.append(toolbar, this.canvas);
+    shell.append(toolbar);
+    shell.insertAdjacentHTML("beforeend", subjectCanvasPromptMarkup());
+    shell.append(this.canvas);
     this.hosts.workspace.replaceChildren(shell);
   }
 
@@ -167,6 +201,8 @@ class WavesController implements SubjectController {
     toolbar.classList.toggle("is-sandbox", mode === "sandbox");
     this.require<HTMLElement>(this.hosts.experimentPanel, "[data-subject-settings-tools]").hidden = mode !== "sandbox";
     this.require<HTMLElement>(this.hosts.experimentPanel, "[data-subject-settings-title]").textContent = mode === "sandbox" ? "실험실 도구" : "바꿔 볼 조건";
+    this.require<HTMLElement>(this.hosts.experimentPanel, ".subject-settings-header > div").hidden = mode !== "sandbox";
+    this.require<HTMLElement>(this.hosts.workspace, "[data-subject-action-prompt]").hidden = mode === "sandbox";
     this.renderInspector();
     this.refreshReadout();
   }
@@ -202,21 +238,18 @@ class WavesController implements SubjectController {
       "장치를 옮길 때 파동이 멈추고, 놓으면 새 배치에서 다시 이어지는지 보세요.",
     )}`;
     this.measurement.className = "waves-experience__measurement";
-    article.append(this.measurement); fragment.append(article);
+    const graph = document.createElement("section");
+    graph.className = "waves-experience__graph";
+    graph.innerHTML = "<h3>배치한 파동 보기</h3><p>파동의 높이 / 위치</p>";
+    this.graphCanvas.className = "waves-experience__graph-canvas";
+    graph.append(this.measurement, this.graphCanvas);
+    article.append(graph); fragment.append(article);
   }
 
   private renderDeviceSettings(snapshot: WavesSnapshot): void {
     const host = this.require<HTMLElement>(this.hosts.experimentPanel, "[data-subject-device-settings]");
     host.replaceChildren();
-    if (this.active !== "sandbox") {
-      const lab = wavesDefinition.labs.find((item) => item.id === this.active)!;
-      const ratio = wavesPrimaryControlRatio(snapshot) ?? 0;
-      const controlName = lab.controls[0].split(" · ")[0];
-      host.innerHTML = `<label class="subject-direct-control"><span>${controlName}</span><input type="range" min="0" max="100" step="1" value="${Math.round(ratio * 100)}" data-waves-primary-range aria-label="${lab.controls[0]}"><div><small>낮게</small><output>${Math.round(ratio * 100)}%</output><small>높게</small></div></label><p class="subject-settings-hint">슬라이더나 캔버스의 손잡이로 같은 조건을 바꿀 수 있어요.</p>`;
-      const range = this.require<HTMLInputElement>(host, "[data-waves-primary-range]");
-      this.listen(range, "input", () => { this.model.setPrimaryControlRatio(Number(range.value) / 100); this.refreshReadout(); }, "inspector");
-      return;
-    }
+    if (this.active !== "sandbox") return;
     const list = document.createElement("ul"); list.className = "waves-experience__device-list";
     snapshot.devices.forEach((item) => {
       const row = document.createElement("li"); row.textContent = palette.find(({ kind }) => kind === item.kind)?.label ?? item.kind;
@@ -230,18 +263,11 @@ class WavesController implements SubjectController {
   private refreshReadout(): void {
     const snapshot = this.model.snapshot();
     this.measurement.textContent = snapshot.measurement;
-    const range = this.hosts.experimentPanel.querySelector<HTMLInputElement>("[data-waves-primary-range]");
-    const ratio = wavesPrimaryControlRatio(snapshot);
-    if (range && ratio !== null) {
-      range.value = String(Math.round(ratio * 100));
-      const output = range.parentElement?.querySelector("output");
-      if (output) output.textContent = `${Math.round(ratio * 100)}%`;
-    }
     const play = this.hosts.workspace.querySelector<HTMLButtonElement>(".transport-controls .primary-button");
     if (play) { play.textContent = snapshot.running ? "Ⅱ 일시정지" : "▶ 실행"; play.dataset.running = String(snapshot.running); }
     const run = this.hosts.workspace.querySelector<HTMLElement>(".run-indicator");
     if (run) { run.textContent = snapshot.running ? "실행 중" : "멈춤"; run.dataset.running = String(snapshot.running); }
-    if (this.active !== "sandbox" && this.graphCanvas.isConnected) drawGraph(this.graphCanvas, snapshot);
+    if (this.graphCanvas.isConnected) drawGraph(this.graphCanvas, snapshot);
   }
 
   private require<T extends Element>(root: ParentNode, selector: string): T {

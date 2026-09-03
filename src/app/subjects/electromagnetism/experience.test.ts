@@ -23,7 +23,7 @@ describe("electromagnetism canvas legend", () => {
 
     const trial = circuitTrialSummary(model.snapshot());
 
-    expect(trial?.condition).toBe("병렬 · 전지 12 V");
+    expect(trial?.condition).toBe("병렬 · 전지 강함");
     expect(trial?.values.map((value) => value.label)).toEqual(["전체 회로 전류", "전구 하나의 전력"]);
   });
 
@@ -53,7 +53,7 @@ describe("electromagnetism canvas legend", () => {
 
   it("ties the redesigned apparatus labs to observable physical outcomes", () => {
     expect(rendererSource).toContain("particleTargetsHit");
-    expect(rendererSource).toContain("플래시 밝기");
+    expect(rendererSource).toContain("플래시 ·");
     expect(rendererSource).toContain("부하가 커서 전동기가 멈췄어요");
     expect(rendererSource).toContain("손을 멈추면 꺼져요");
     expect(rendererSource).toContain("applianceTargetVoltage");
@@ -160,7 +160,7 @@ describe("electromagnetism canvas legend", () => {
     expect(experienceSource).toContain("sandboxVelocityHandle");
     expect(experienceSource).toContain('data-em-sandbox-action="charge-motion"');
     expect(experienceSource).toContain('data-em-sandbox-action="field-direction"');
-    expect(experienceSource).toContain("전류 ${Math.abs(selectedCurrent).toFixed(2)} A가 흘러 전자석이 되었어요.");
+    expect(experienceSource).toContain("전류가 흘러 전자석이 되었어요.");
     expect(rendererSource).toContain("magneticFieldRegion");
     expect(rendererSource).toContain("sandboxCoil");
     expect(rendererSource).toContain("로런츠 힘");

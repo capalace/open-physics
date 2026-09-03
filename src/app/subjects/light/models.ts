@@ -9,8 +9,36 @@ import {
   telescopeMagnification,
 } from "../../../physics/laws/optics";
 import { lightLab, type LightLabId } from "./catalog";
+import { formatDisplayNumber } from "../../format-value";
 
 export type LightSceneId = LightLabId | "sandbox";
+export const LIGHT_CANVAS_CONTROLLED_LABS = [
+  "propagation",
+  "reflection",
+  "refraction",
+  "total-internal-reflection",
+  "lenses",
+  "prism",
+  "diffraction",
+  "polarization",
+  "instruments",
+] as const satisfies readonly LightLabId[];
+export type CanvasControlledLightLabId = (typeof LIGHT_CANVAS_CONTROLLED_LABS)[number];
+export const lightUsesCanvasControl = (sceneId: LightSceneId): sceneId is CanvasControlledLightLabId =>
+  (LIGHT_CANVAS_CONTROLLED_LABS as readonly LightSceneId[]).includes(sceneId);
+
+export const lightInteractiveDeviceId = (sceneId: LightSceneId): string | null => {
+  switch (sceneId) {
+    case "propagation": case "refraction": case "total-internal-reflection": return "source";
+    case "reflection": return "mirror";
+    case "lenses": return "object";
+    case "prism": return "prism";
+    case "diffraction": return "slit";
+    case "polarization": return "analyzer";
+    case "instruments": return "eyepiece";
+    case "laser": case "sandbox": return null;
+  }
+};
 export type LightDeviceKind = "source" | "mirror" | "boundary" | "lens" | "prism" | "slit" | "screen";
 export interface Point { x: number; y: number }
 export interface LightDevice extends Point {
@@ -49,6 +77,10 @@ const normalizeAngle = (radians: number): number => Math.atan2(Math.sin(radians)
 const pointAlong = (from: Point, angle: number, length: number): Point => ({
   x: from.x + Math.cos(angle) * length,
   y: from.y + Math.sin(angle) * length,
+});
+const transformedPoint = (from: Point, local: Point, angle: number): Point => ({
+  x: from.x + local.x * Math.cos(angle) - local.y * Math.sin(angle),
+  y: from.y + local.x * Math.sin(angle) + local.y * Math.cos(angle),
 });
 const device = (
   id: string, kind: LightDeviceKind, label: string, x: number, y: number, angle = 0, protectedDevice = true,
@@ -123,6 +155,22 @@ export class LightLabModel {
     }
   }
 
+  primaryControlValue(snapshot: LightSnapshot = this.snapshot()): string {
+    switch (this.sceneId) {
+      case "propagation": return `${((300 - this.parameters.sourceY) / CM_TO_PX).toFixed(1)} cm`;
+      case "reflection": return `${degrees(this.parameters.mirrorAngle).toFixed(0)}°`;
+      case "refraction": return `${(snapshot.graphCurrent?.x ?? 0).toFixed(1)}°`;
+      case "total-internal-reflection": return `${(snapshot.graphCurrent?.x ?? 0).toFixed(1)}°`;
+      case "lenses": return `${((480 - this.parameters.objectX) / CM_TO_PX).toFixed(1)} cm`;
+      case "prism": return `${degrees(this.parameters.prismAngle).toFixed(0)}°`;
+      case "diffraction": return `${(this.parameters.slitSeparation * 1e6).toFixed(0)} μm`;
+      case "polarization": return `${Math.abs(degrees(this.parameters.analyzerAngle)).toFixed(0)}°`;
+      case "instruments": return `${this.parameters.eyepieceFocalCm.toFixed(1)} cm`;
+      case "laser": return `${this.parameters.laserPump.toFixed(0)}%`;
+      case "sandbox": return "";
+    }
+  }
+
   setPrimaryControlRatio(value: number): void {
     if (!Number.isFinite(value) || this.sceneId === "sandbox") return;
     const ratio = clamp(value, 0, 1);
@@ -160,9 +208,9 @@ export class LightLabModel {
     return true;
   }
 
-  pointerDown(point: Point): boolean {
+  pointerDown(point: Point, controlHitRadius = 42): boolean {
     const handle = this.controlHandle();
-    if (this.sceneId !== "sandbox" && handle && Math.hypot(point.x - handle.x, point.y - handle.y) <= 30) {
+    if (this.sceneId !== "sandbox" && handle && Math.hypot(point.x - handle.x, point.y - handle.y) <= controlHitRadius) {
       this.drag = { type: "control" };
       return true;
     }
@@ -192,11 +240,10 @@ export class LightLabModel {
       case "refraction": this.parameters.refractionSourceX = clamp(point.x, 120, 430); break;
       case "total-internal-reflection": this.parameters.internalSourceX = clamp(point.x, 130, 445); break;
       case "lenses": this.parameters.objectX = clamp(point.x, 120, 370); break;
-      case "prism": this.parameters.prismAngle = Math.atan2(point.y - 300, point.x - 500); break;
+      case "prism": this.parameters.prismAngle = Math.atan2(point.y - 300, point.x - 500) + Math.PI / 2; break;
       case "diffraction": this.parameters.slitSeparation = clamp(Math.abs(point.y - 300) * 6e-6, 80e-6, 500e-6); break;
       case "polarization": this.parameters.analyzerAngle = Math.atan2(point.y - 300, point.x - 590); break;
-      case "instruments": this.parameters.eyepieceFocalCm = clamp((420 - point.y) / 18, 3, 12); break;
-      case "laser": this.parameters.laserPump = clamp((point.x - 120) / 720 * 100, 0, 100); break;
+      case "instruments": this.parameters.eyepieceFocalCm = clamp((point.x - 630) / CM_TO_PX, 3, 12); break;
       default: return false;
     }
     this.syncControlledDevices();
@@ -303,15 +350,15 @@ export class LightLabModel {
   private controlHandle(): Point | null {
     switch (this.sceneId) {
       case "propagation": return { x: 120, y: this.parameters.sourceY };
-      case "reflection": return pointAlong({ x: 500, y: 300 }, this.parameters.mirrorAngle, 75);
+      case "reflection": return pointAlong({ x: 500, y: 300 }, this.parameters.mirrorAngle, 70);
       case "refraction": return { x: this.parameters.refractionSourceX, y: 100 };
       case "total-internal-reflection": return { x: this.parameters.internalSourceX, y: 500 };
       case "lenses": return { x: this.parameters.objectX, y: 220 };
-      case "prism": return pointAlong({ x: 500, y: 300 }, this.parameters.prismAngle, 75);
+      case "prism": return transformedPoint({ x: 500, y: 300 }, { x: 0, y: -65 }, this.parameters.prismAngle);
       case "diffraction": return { x: 470, y: 300 + this.parameters.slitSeparation / 6e-6 };
-      case "polarization": return pointAlong({ x: 590, y: 300 }, this.parameters.analyzerAngle, 58);
-      case "instruments": return { x: 630 + this.parameters.eyepieceFocalCm * CM_TO_PX, y: 420 - this.parameters.eyepieceFocalCm * 18 };
-      case "laser": return { x: 120 + this.parameters.laserPump / 100 * 720, y: 500 };
+      case "polarization": return pointAlong({ x: 590, y: 300 }, this.parameters.analyzerAngle, 90);
+      case "instruments": return { x: 630 + this.parameters.eyepieceFocalCm * CM_TO_PX, y: 300 };
+      case "laser": return null;
       default: return null;
     }
   }
@@ -440,7 +487,7 @@ export class LightLabModel {
         outgoing[1],
         ...outgoing.slice(2),
       ],
-      graph, graphCurrent: { x: currentDistanceCm, y: clamp(magnification, -6, 6) }, graphValue: `상거리 ${Number.isFinite(imageDistancePx) ? (imageDistancePx / CM_TO_PX).toFixed(1) : "∞"} cm · 배율 ${magnification.toFixed(2)}배`, handle: this.controlHandle(), image,
+      graph, graphCurrent: { x: currentDistanceCm, y: clamp(magnification, -6, 6) }, graphValue: `상거리 ${Number.isFinite(imageDistancePx) ? formatDisplayNumber(imageDistancePx / CM_TO_PX) : "∞"} cm · 배율 ${formatDisplayNumber(magnification)}배`, handle: this.controlHandle(), image,
     };
   }
 

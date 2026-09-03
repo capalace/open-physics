@@ -1,4 +1,9 @@
-import type { LightDevice, LightSnapshot, Point } from "./models";
+import { lightInteractiveDeviceId, type LightDevice, type LightSnapshot, type Point } from "./models";
+import {
+  drawInteractionLabel,
+  drawLabBackdrop,
+  LAB_CANVAS,
+} from "../canvas-theme";
 
 const WORLD_WIDTH = 960;
 const WORLD_HEIGHT = 600;
@@ -43,15 +48,15 @@ export class LightRenderer {
   draw(snapshot: LightSnapshot): void {
     const ctx = this.context;
     ctx.clearRect(0, 0, WORLD_WIDTH, WORLD_HEIGHT);
-    const background = ctx.createLinearGradient(0, 0, 0, WORLD_HEIGHT);
-    background.addColorStop(0, "#081426");
-    background.addColorStop(1, "#111d33");
-    ctx.fillStyle = background;
-    ctx.fillRect(0, 0, WORLD_WIDTH, WORLD_HEIGHT);
-    this.drawGrid(ctx);
+    drawLabBackdrop(ctx, WORLD_WIDTH, WORLD_HEIGHT, 40);
     if (snapshot.sceneId === "refraction" || snapshot.sceneId === "total-internal-reflection") {
-      ctx.fillStyle = "rgba(50, 150, 220, .18)";
+      const water = ctx.createLinearGradient(0, 300, 0, WORLD_HEIGHT);
+      water.addColorStop(0, "rgba(76, 169, 220, .13)");
+      water.addColorStop(1, "rgba(76, 145, 205, .28)");
+      ctx.fillStyle = water;
       ctx.fillRect(0, 300, WORLD_WIDTH, 300);
+      ctx.strokeStyle = "rgba(49,141,201,.55)"; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(0, 300); ctx.lineTo(WORLD_WIDTH, 300); ctx.stroke();
     }
     for (const ray of snapshot.rays) {
       ctx.save();
@@ -68,7 +73,7 @@ export class LightRenderer {
     }
     if (snapshot.normal) {
       ctx.save();
-      ctx.strokeStyle = "rgba(255,255,255,.55)";
+      ctx.strokeStyle = "rgba(83,96,120,.58)";
       ctx.setLineDash([6, 6]);
       ctx.beginPath();
       ctx.moveTo(snapshot.normal.from.x, snapshot.normal.from.y);
@@ -76,35 +81,45 @@ export class LightRenderer {
       ctx.stroke();
       ctx.restore();
     }
-    for (const item of snapshot.devices) this.drawDevice(ctx, item, snapshot.screenIntensity);
+    const interactiveDeviceId = lightInteractiveDeviceId(snapshot.sceneId);
+    for (const item of snapshot.devices) this.drawDevice(ctx, item, snapshot.screenIntensity, item.id === interactiveDeviceId);
+    const interactiveDevice = snapshot.devices.find((item) => item.id === interactiveDeviceId);
+    if (interactiveDevice && snapshot.handle) {
+      const offset = interactiveDevice.id === "object" ? 96
+        : interactiveDevice.kind === "lens" || interactiveDevice.kind === "slit" ? 106
+          : interactiveDevice.kind === "mirror" || interactiveDevice.kind === "boundary" || interactiveDevice.kind === "prism" ? 76
+            : 38;
+      drawInteractionLabel(ctx, snapshot.handle, "직접 끌기", offset);
+    }
     if (snapshot.image && Number.isFinite(snapshot.image.x)) this.drawImageArrow(ctx, snapshot.image);
     if (snapshot.screenPattern) this.drawPattern(ctx, snapshot.screenPattern);
-    if (snapshot.handle) this.drawHandle(ctx, snapshot.handle);
     this.drawGraph(snapshot);
   }
 
-  private drawGrid(ctx: CanvasRenderingContext2D): void {
-    ctx.save();
-    ctx.strokeStyle = "rgba(154, 187, 230, .07)";
-    ctx.lineWidth = 1;
-    for (let x = 0; x <= WORLD_WIDTH; x += 40) {
-      ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, WORLD_HEIGHT); ctx.stroke();
-    }
-    for (let y = 0; y <= WORLD_HEIGHT; y += 40) {
-      ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(WORLD_WIDTH, y); ctx.stroke();
-    }
-    ctx.restore();
-  }
-
-  private drawDevice(ctx: CanvasRenderingContext2D, item: LightDevice, intensity = 1): void {
+  private drawDevice(ctx: CanvasRenderingContext2D, item: LightDevice, intensity = 1, interactive = false): void {
     ctx.save();
     ctx.translate(item.x, item.y);
     ctx.rotate(item.angle ?? 0);
     ctx.lineWidth = 4;
+    if (interactive) this.drawInteractiveGlow(ctx, item);
+    if (item.id === "object") {
+      ctx.strokeStyle = "#e58b37"; ctx.fillStyle = "#e58b37"; ctx.lineWidth = 6;
+      ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(0, -80); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(0, -88); ctx.lineTo(-10, -68); ctx.lineTo(10, -68); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = LAB_CANVAS.ink; ctx.font = "600 15px system-ui"; ctx.textAlign = "center"; ctx.fillText(item.label, 0, 32);
+      ctx.restore(); return;
+    }
+    if (item.id === "eye") {
+      ctx.strokeStyle = "#536078"; ctx.fillStyle = "#fff"; ctx.lineWidth = 4;
+      ctx.beginPath(); ctx.ellipse(0, 0, 42, 23, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+      ctx.fillStyle = "#5575e8"; ctx.beginPath(); ctx.arc(0, 0, 12, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = LAB_CANVAS.ink; ctx.font = "600 15px system-ui"; ctx.textAlign = "center"; ctx.fillText(item.label, 0, 55);
+      ctx.restore(); return;
+    }
     switch (item.kind) {
       case "source":
         ctx.fillStyle = "#ffd34d"; ctx.shadowColor = "#ffd34d"; ctx.shadowBlur = 20;
-        ctx.beginPath(); ctx.arc(0, 0, 18, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(0, 0, 18, 0, Math.PI * 2); ctx.fill(); ctx.shadowBlur = 0; ctx.strokeStyle = "#b97700"; ctx.stroke();
         for (let angle = 0; angle < Math.PI * 2; angle += Math.PI / 4) {
           ctx.beginPath(); ctx.moveTo(Math.cos(angle) * 24, Math.sin(angle) * 24); ctx.lineTo(Math.cos(angle) * 34, Math.sin(angle) * 34); ctx.strokeStyle = "#ffd34d"; ctx.stroke();
         }
@@ -138,22 +153,46 @@ export class LightRenderer {
         }
         break;
       case "screen":
-        ctx.fillStyle = `rgba(255,224,102,${0.12 + intensity * 0.55})`; ctx.strokeStyle = "#d8e5ff";
+        ctx.fillStyle = `rgba(255,224,102,${0.12 + intensity * 0.55})`; ctx.strokeStyle = "#718096";
         ctx.fillRect(-8, -110, 16, 220); ctx.strokeRect(-8, -110, 16, 220);
         break;
     }
     ctx.rotate(-(item.angle ?? 0));
-    ctx.fillStyle = "rgba(235,243,255,.86)";
+    ctx.fillStyle = LAB_CANVAS.ink;
     ctx.font = "600 15px system-ui";
     ctx.textAlign = "center";
     ctx.fillText(item.label, 0, 132);
     ctx.restore();
   }
 
-  private drawHandle(ctx: CanvasRenderingContext2D, handle: Point): void {
+  private drawInteractiveGlow(ctx: CanvasRenderingContext2D, item: LightDevice): void {
     ctx.save();
-    ctx.fillStyle = "#ff9f1c"; ctx.strokeStyle = "#fff"; ctx.lineWidth = 3;
-    ctx.beginPath(); ctx.arc(handle.x, handle.y, 13, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+    ctx.strokeStyle = "rgba(255, 159, 28, .82)";
+    ctx.shadowColor = "#ffb347";
+    ctx.shadowBlur = 22;
+    ctx.lineWidth = 8;
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    ctx.setLineDash([7, 7]);
+    ctx.beginPath();
+    if (item.id === "object") {
+      ctx.moveTo(0, 5); ctx.lineTo(0, -94);
+    } else if (item.kind === "source") {
+      ctx.arc(0, 0, 30, 0, Math.PI * 2);
+    } else if (item.kind === "mirror") {
+      ctx.moveTo(-76, 0); ctx.lineTo(76, 0);
+    } else if (item.kind === "boundary") {
+      ctx.moveTo(-96, 0); ctx.lineTo(96, 0);
+    } else if (item.kind === "lens") {
+      ctx.ellipse(0, 0, 27, 102, 0, 0, Math.PI * 2);
+    } else if (item.kind === "prism") {
+      ctx.moveTo(0, -72); ctx.lineTo(69, 50); ctx.lineTo(-69, 50); ctx.closePath();
+    } else if (item.kind === "slit") {
+      ctx.rect(-16, -108, 32, 216);
+    } else if (item.kind === "screen") {
+      ctx.rect(-17, -118, 34, 236);
+    }
+    ctx.stroke();
     ctx.restore();
   }
 
@@ -181,7 +220,7 @@ export class LightRenderer {
     const height = this.graphHeight;
     ctx.setTransform(this.graphRatio, 0, 0, this.graphRatio, 0, 0);
     ctx.clearRect(0, 0, width, height);
-    ctx.fillStyle = "#0c1830"; ctx.fillRect(0, 0, width, height);
+    ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, width, height);
     const left = 48;
     const right = 16;
     const top = 36;
@@ -194,11 +233,10 @@ export class LightRenderer {
     const maxY = Math.max(0, ...points.map((point) => point.y), snapshot.graphCurrent?.y ?? Number.NEGATIVE_INFINITY, minY + 1e-6);
     const sx = (value: number) => left + (value - minX) / Math.max(1e-9, maxX - minX) * (width - left - right);
     const sy = (value: number) => height - bottom - (value - minY) / Math.max(1e-9, maxY - minY) * (height - top - bottom);
-    const tick = (value: number) => Math.abs(value) >= 100 ? value.toFixed(0) : Math.abs(value) >= 10 ? value.toFixed(1) : value.toFixed(2);
-    ctx.strokeStyle = "rgba(220,235,255,.35)"; ctx.lineWidth = 2;
+    ctx.strokeStyle = "#cbd5e1"; ctx.lineWidth = 2;
     ctx.beginPath(); ctx.moveTo(left, top); ctx.lineTo(left, height - bottom); ctx.lineTo(width - right, height - bottom); ctx.stroke();
     ctx.font = "11px system-ui";
-    ctx.fillStyle = "rgba(220,235,255,.72)";
+    ctx.fillStyle = LAB_CANVAS.muted;
     ctx.textAlign = "center";
     ctx.textBaseline = "top";
     for (let index = 0; index <= 4; index += 1) {
@@ -206,7 +244,7 @@ export class LightRenderer {
       const xValue = minX + (maxX - minX) * fraction;
       const x = sx(xValue);
       ctx.beginPath(); ctx.moveTo(x, height - bottom); ctx.lineTo(x, height - bottom + 4); ctx.stroke();
-      ctx.fillText(tick(xValue), x, height - bottom + 6);
+      if (index === 0 || index === 4) ctx.fillText(index === 0 ? "작음" : "큼", x, height - bottom + 6);
     }
     ctx.textAlign = "right";
     ctx.textBaseline = "middle";
@@ -215,7 +253,7 @@ export class LightRenderer {
       const yValue = minY + (maxY - minY) * fraction;
       const y = sy(yValue);
       ctx.beginPath(); ctx.moveTo(left - 4, y); ctx.lineTo(left, y); ctx.stroke();
-      ctx.fillText(tick(yValue), left - 7, y);
+      if (index === 0 || index === 4) ctx.fillText(index === 0 ? "낮음" : "높음", left - 7, y);
     }
     ctx.strokeStyle = snapshot.graphSeries.color; ctx.lineWidth = 3; ctx.beginPath();
     points.forEach((point, index) => index === 0 ? ctx.moveTo(sx(point.x), sy(point.y)) : ctx.lineTo(sx(point.x), sy(point.y)));
@@ -230,7 +268,7 @@ export class LightRenderer {
     ctx.textBaseline = "middle";
     ctx.fillStyle = snapshot.graphSeries.color;
     ctx.fillRect(left, 14, 18, 4);
-    ctx.fillStyle = "#e7f0ff";
+    ctx.fillStyle = LAB_CANVAS.ink;
     ctx.font = "600 12px system-ui";
     ctx.fillText(`${snapshot.graphIsCurrentState ? "현재 " : ""}${snapshot.graphSeries.label}`, left + 25, 16);
   }

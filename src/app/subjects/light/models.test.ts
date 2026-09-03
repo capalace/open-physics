@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { LIGHT_LAB_IDS, type LightLabId } from "./catalog";
-import { LightLabModel, type Point } from "./models";
+import { LIGHT_CANVAS_CONTROLLED_LABS, LightLabModel, lightInteractiveDeviceId, type Point } from "./models";
 
 const drags: Record<LightLabId, { from: Point; to: Point }> = {
   propagation: { from: { x: 120, y: 225 }, to: { x: 120, y: 380 } },
@@ -32,7 +32,7 @@ describe("light lab model", () => {
     }
   });
 
-  it("offers every guided control as a normalized keyboard-operable value", () => {
+  it("offers every settings-panel control as a normalized value", () => {
     for (const id of LIGHT_LAB_IDS) {
       const model = new LightLabModel(id);
       model.setPrimaryControlRatio(0);
@@ -40,14 +40,15 @@ describe("light lab model", () => {
       model.setPrimaryControlRatio(1);
       expect(model.primaryControlRatio(), `${id} high`).toBeCloseTo(1);
       expect(model.snapshot().graphValue.length).toBeGreaterThan(0);
+      expect(model.primaryControlValue()).toMatch(/(cm|°|μm|%)/);
     }
   });
 
   it("uses each lab's pointer handle to change both physical output and graph snapshot", () => {
-    for (const id of LIGHT_LAB_IDS) {
+    for (const id of LIGHT_CANVAS_CONTROLLED_LABS) {
       const model = new LightLabModel(id);
       const before = model.snapshot();
-      expect(model.pointerDown(drags[id].from), `${id} handle`).toBe(true);
+      expect(model.pointerDown(before.handle!), `${id} apparatus`).toBe(true);
       expect(model.pointerMove(drags[id].to), `${id} drag`).toBe(true);
       model.pointerUp();
       const after = model.snapshot();
@@ -56,6 +57,44 @@ describe("light lab model", () => {
       expect({ rays: after.rays, image: after.image, pattern: after.screenPattern, intensity: after.screenIntensity }, `${id} Canvas output`)
         .not.toEqual({ rays: before.rays, image: before.image, pattern: before.screenPattern, intensity: before.screenIntensity });
     }
+  });
+
+  it("keeps every Canvas-controlled apparatus point directly under the pointer", () => {
+    const targets: Record<Exclude<LightLabId, "laser">, Point> = {
+      propagation: { x: 120, y: 380 },
+      reflection: { x: 570, y: 300 },
+      refraction: { x: 390, y: 100 },
+      "total-internal-reflection": { x: 420, y: 500 },
+      lenses: { x: 340, y: 220 },
+      prism: { x: 565, y: 300 },
+      diffraction: { x: 470, y: 380 },
+      polarization: { x: 680, y: 300 },
+      instruments: { x: 750, y: 300 },
+    };
+
+    for (const [id, target] of Object.entries(targets) as [Exclude<LightLabId, "laser">, Point][]) {
+      const model = new LightLabModel(id);
+      const initialPoint = model.snapshot().handle;
+      expect(initialPoint, `${id} apparatus point`).not.toBeNull();
+      expect(model.pointerDown(initialPoint!), `${id} pointer down`).toBe(true);
+      expect(model.pointerMove(target), `${id} pointer move`).toBe(true);
+      model.pointerUp();
+      expect.soft(model.snapshot().handle?.x, `${id} x`).toBeCloseTo(target.x, 5);
+      expect.soft(model.snapshot().handle?.y, `${id} y`).toBeCloseTo(target.y, 5);
+    }
+
+    const laser = new LightLabModel("laser");
+    expect(laser.snapshot().handle).toBeNull();
+  });
+
+  it("identifies exactly one visible apparatus to emphasize in each directly controlled lab", () => {
+    expect(LIGHT_CANVAS_CONTROLLED_LABS).toHaveLength(9);
+    for (const id of LIGHT_CANVAS_CONTROLLED_LABS) {
+      const snapshot = new LightLabModel(id).snapshot();
+      expect(snapshot.devices.some((device) => device.id === lightInteractiveDeviceId(id)), id).toBe(true);
+    }
+    expect(lightInteractiveDeviceId("laser")).toBeNull();
+    expect(lightInteractiveDeviceId("sandbox")).toBeNull();
   });
 
   it("places the real lens image at the intersection of both principal rays", () => {
@@ -181,7 +220,7 @@ describe("light lab model", () => {
     expect(incomingSlopes[0]).toBeCloseTo(incomingSlopes[1], 10);
     expect(before.devices.find((item) => item.id === "eyepiece")?.x).toBe(690);
     expect(model.pointerDown(before.handle!)).toBe(true);
-    model.pointerMove({ x: before.handle!.x, y: 250 });
+    model.pointerMove({ x: 740, y: before.handle!.y });
     model.pointerUp();
     const after = model.snapshot();
     expect(after.devices.find((item) => item.id === "eyepiece")?.x).not.toBe(690);

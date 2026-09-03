@@ -62,19 +62,23 @@ describe("physics subject shell", () => {
     expect(styles).not.toContain("max(520px, calc(100dvh - 54px))");
     expect(subjectStyles).toMatch(/\.subject-lab-screen\s*\{[^}]*display:\s*flex;[^}]*height:\s*100%;[^}]*min-height:\s*0/s);
     expect(subjectStyles).toMatch(/@media \(min-width: 701px\)[\s\S]*\.waves-experience__canvas,[\s\S]*\.modern-experience__canvas[\s\S]*min-height:\s*0 !important/s);
-    expect(subjectStyles).toMatch(/\.thermal-experience\s*\{[^}]*grid-template-rows:\s*auto minmax\(0, 1fr\)/s);
+    expect(subjectStyles).toMatch(/\.thermal-experience\s*\{[^}]*grid-template-rows:\s*auto auto/s);
   });
 
   it("gives the mobile playground more room and an explicit focus control", () => {
     expect(styles).toMatch(/@media \(max-width: 700px\)[\s\S]*\.workspace\s*\{[^}]*padding:\s*8px/s);
     expect(styles).toMatch(/@media \(max-width: 700px\)[\s\S]*\.focus-button\s*\{[^}]*display:\s*inline-flex/s);
-    expect(styles).toMatch(/\.app-layout\.is-focus-mode \.canvas-frame\s*\{[^}]*height:\s*calc\(100dvh - 130px\)/s);
-    expect(styles).toMatch(/body\[data-subject="mechanics"\]\[data-subject-screen="lab"\] \.canvas-frame\s*\{[^}]*height:\s*min\(56dvh, 420px\)/s);
+    expect(styles).toMatch(/\.app-layout\.is-focus-mode \.canvas-frame\s*\{[^}]*width:\s*100%;[^}]*height:\s*clamp\(360px, 58svh, 420px\)/s);
+    expect(styles).toMatch(/body\[data-subject="mechanics"\]\[data-subject-screen="lab"\] \.canvas-frame\s*\{[^}]*height:\s*clamp\(360px, 58svh, 420px\);[^}]*aspect-ratio:\s*auto/s);
     expect(styles).toMatch(/\.mobile-settings-drawer\[open\], \.mobile-tools-drawer\[open\]\s*\{[^}]*position:\s*fixed;[^}]*max-height:\s*calc\(100dvh - 70px\);[^}]*overflow-y:\s*auto/s);
     expect(styles).toMatch(/\.mechanics-interaction-tip,[\s\S]*max-width:\s*calc\(100% - 28px\)/s);
     expect(mechanicsEntry).toContain("window.innerWidth > 700 && window.innerWidth <= 940");
+    expect(bootstrap).toContain("if (enabled && window.innerWidth <= 700) window.scrollTo(0, 0)");
+    expect(mechanicsEntry).toContain("if (enabled && window.innerWidth <= 700) window.scrollTo(0, 0)");
     expect(mechanicsEntry).toContain("if (mobileQuery.matches && mobileTools.open) mobileSettings.open = false");
     expect(mechanicsEntry).toContain("if (mobileQuery.matches && mobileSettings.open) mobileTools.open = false");
+    expect(mechanicsEntry).toContain("mobileTools.open = false");
+    expect(bootstrap).toContain("drawer.open = false");
   });
 
   it("opens every subject on its routed experiment selector", () => {
@@ -92,5 +96,13 @@ describe("physics subject shell", () => {
       expect(source).toContain("SubjectRouteSession");
       expect(source).toMatch(/subjectSelectionMarkup|data-em-selection-screen/);
     }
+  });
+
+  it("does not duplicate direct Canvas manipulation with left-side range controls", () => {
+    for (const subject of ["waves", "thermal", "modern"]) {
+      expect(subjectEntries[subject]).not.toMatch(new RegExp(`data-${subject}-primary-range`));
+    }
+    expect(subjectEntries.electromagnetism).not.toContain("data-em-direct-range");
+    expect(subjectEntries.light).toContain("lightUsesCanvasControl");
   });
 });

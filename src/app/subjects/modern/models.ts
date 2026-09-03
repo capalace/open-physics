@@ -12,6 +12,7 @@ import {
   remainingParticles,
 } from "../../../physics/laws/modern";
 import type { ModernLabId } from "./catalog";
+import { formatDisplayNumber } from "../../format-value";
 
 export const MODERN_WORLD = { width: 1000, height: 600 } as const;
 export type ModernDeviceKind = "photon-source" | "metal" | "atom" | "barrier" | "detector" | "nucleus";
@@ -154,22 +155,6 @@ export function modernPrimaryHandle(snapshot: ModernSnapshot): ModernControlPoin
   }
 }
 
-export function modernPrimaryControlRatio(snapshot: ModernSnapshot): number | null {
-  switch (snapshot.mode) {
-    case "relativity": return ratioBetween(snapshot.speedFraction, 0, 0.95);
-    case "gravity-spacetime": return snapshot.gravityStrength;
-    case "atoms": return ratioBetween(snapshot.quantumNumber, 2, 6);
-    case "photoelectric": return ratioBetween(snapshot.photonFrequency, 0.2, 1.2);
-    case "matter-waves": return ratioBetween(snapshot.momentum, 0.5, 5);
-    case "quantum": return ratioBetween(snapshot.spread, 0.3, 2);
-    case "tunneling": return ratioBetween(snapshot.barrierWidth, 0.05, 0.6);
-    case "nuclei": return ratioBetween(snapshot.elapsedYears, 0, 40);
-    case "mass-energy": return ratioBetween(snapshot.massDefect, 0.001, 0.02);
-    case "semiconductors": return ratioBetween(snapshot.voltage, -0.1, 0.7);
-    case "sandbox": return null;
-  }
-}
-
 export class ModernModel {
   private state: ModernState;
   constructor(mode: ModernLabId | "sandbox" = "relativity") { this.state = initialState(mode); }
@@ -184,6 +169,7 @@ export class ModernModel {
       const elapsed = Math.min(seconds, 0.1);
       this.state.animationTime += elapsed;
       if (this.state.mode === "sandbox") this.state.elapsedYears = Math.min(40, this.state.elapsedYears + elapsed);
+      if (this.state.mode === "nuclei") this.state.elapsedYears = Math.min(40, this.state.elapsedYears + elapsed * 2);
     }
   }
 
@@ -223,22 +209,6 @@ export class ModernModel {
 
   primaryHandle(): ModernControlPoint | null {
     return modernPrimaryHandle(this.snapshot());
-  }
-
-  setPrimaryControlRatio(value: number): void {
-    const ratio = clamp(value, 0, 1);
-    switch (this.state.mode) {
-      case "relativity": this.dragPrimary(valueAtRatio(ratio, 420, 900), 270); break;
-      case "gravity-spacetime": this.dragPrimary(valueAtRatio(ratio, 200, 800), 500); break;
-      case "atoms": this.dragPrimary(200, hydrogenLevelY(Math.round(valueAtRatio(ratio, 2, 6)))); break;
-      case "photoelectric": case "matter-waves": this.dragPrimary(valueAtRatio(ratio, 100, 400), 300); break;
-      case "quantum": this.dragPrimary(500 + valueAtRatio(ratio, 0.3, 2) * 140, 300); break;
-      case "tunneling": this.dragPrimary(550 + valueAtRatio(ratio, 0.05, 0.6) * 240, 300); break;
-      case "nuclei": this.dragPrimary(valueAtRatio(ratio, 600, 900), 300); break;
-      case "mass-energy": this.dragPrimary(valueAtRatio(ratio, 200, 800), 500); break;
-      case "semiconductors": this.dragPrimary(valueAtRatio(ratio, 300, 700), 450); break;
-      case "sandbox": break;
-    }
   }
 
   addDevice(kind: ModernDeviceKind): string {
@@ -289,22 +259,22 @@ export class ModernModel {
   private measurement(v: { gamma: number; transitionEnergy: number; electronEnergy: number; wavelengthNm: number; transmission: number; remainingNuclei: number; currentMilliamp: number; gravityClockRate: number; releasedEnergyMeV: number }): string {
     const s = this.state;
     switch (s.mode) {
-      case "relativity": return `속도 ${s.speedFraction.toFixed(2)} c · γ ${v.gamma.toFixed(2)}`;
-      case "gravity-spacetime": return `중력 세기 ${s.gravityStrength.toFixed(2)} · 가까운 시계 ${(v.gravityClockRate * 100).toFixed(1)}%`;
-      case "atoms": return `n=${s.quantumNumber} → n=1 · 광자 ${v.transitionEnergy.toFixed(2)} eV`;
-      case "photoelectric": return `빛 ${s.photonFrequency.toFixed(2)} PHz · 전자 ${v.electronEnergy.toFixed(2)} eV`;
-      case "matter-waves": return `운동량 ${s.momentum.toFixed(2)}×10⁻²⁴ kg·m/s · λ ${v.wavelengthNm.toFixed(2)} nm`;
-      case "quantum": return `위치 퍼짐 Δx=${s.spread.toFixed(2)} nm · 운동량 불확정성 ${(.5 / s.spread).toFixed(2)} ℏ/nm`;
-      case "tunneling": return `장벽 ${s.barrierWidth.toFixed(2)} nm · 투과 ${(v.transmission * 100).toFixed(1)}%`;
-      case "nuclei": return `${s.elapsedYears.toFixed(1)}년 · 남은 핵 ${v.remainingNuclei.toFixed(0)}/${INITIAL_NUCLEI}`;
-      case "mass-energy": return `질량 결손 ${s.massDefect.toFixed(3)} u · ${v.releasedEnergyMeV.toFixed(2)} MeV`;
-      case "semiconductors": return `${s.voltage.toFixed(2)} V · ${v.currentMilliamp.toFixed(2)} mA`;
+      case "relativity": return `속도 ${formatDisplayNumber(s.speedFraction)} c · γ ${formatDisplayNumber(v.gamma)}`;
+      case "gravity-spacetime": return `중력 세기 ${formatDisplayNumber(s.gravityStrength)} · 가까운 시계 ${formatDisplayNumber(v.gravityClockRate * 100)}%`;
+      case "atoms": return `n=${s.quantumNumber} → n=1 · 광자 ${formatDisplayNumber(v.transitionEnergy)} eV`;
+      case "photoelectric": return `빛 ${formatDisplayNumber(s.photonFrequency)} PHz · 전자 ${formatDisplayNumber(v.electronEnergy)} eV`;
+      case "matter-waves": return `운동량 ${formatDisplayNumber(s.momentum)}×10⁻²⁴ kg·m/s · λ ${formatDisplayNumber(v.wavelengthNm)} nm`;
+      case "quantum": return `위치 퍼짐 Δx=${formatDisplayNumber(s.spread)} nm · 운동량 불확정성 ${formatDisplayNumber(.5 / s.spread)} ℏ/nm`;
+      case "tunneling": return `장벽 ${formatDisplayNumber(s.barrierWidth)} nm · 투과 ${formatDisplayNumber(v.transmission * 100)}%`;
+      case "nuclei": return `${formatDisplayNumber(s.elapsedYears)}년 · 남은 핵 ${formatDisplayNumber(v.remainingNuclei, 0)}/${INITIAL_NUCLEI}`;
+      case "mass-energy": return `질량 결손 ${formatDisplayNumber(s.massDefect, 3)} u · ${formatDisplayNumber(v.releasedEnergyMeV)} MeV`;
+      case "semiconductors": return `${formatDisplayNumber(s.voltage)} V · ${formatDisplayNumber(v.currentMilliamp)} mA`;
       case "sandbox": {
         const readings = this.sandboxReadings();
         const signal = readings.length > 0
           ? readings.reduce((sum, reading) => sum + reading.signal, 0) / readings.length
           : 0;
-        return `장치 ${s.devices.length}개 · ${s.running ? "실행 중" : "배치 중 · 멈춤"} · 검출 신호 ${(signal * 100).toFixed(1)}% · 핵 관찰 ${s.elapsedYears.toFixed(1)}년`;
+        return `장치 ${s.devices.length}개 · ${s.running ? "실행 중" : "배치 중 · 멈춤"} · 검출 신호 ${formatDisplayNumber(signal * 100)}% · 핵 관찰 ${formatDisplayNumber(s.elapsedYears)}년`;
       }
     }
   }

@@ -1,7 +1,24 @@
 import { describe, expect, it } from "vitest";
-import { rectangularLoopPoint, resistorZigzagCount, wrappedPhase } from "./renderer";
+import { electromagnetismDirectHandle, isElectromagnetismDirectManipulationMode, rectangularLoopPoint, resistorZigzagCount, wrappedPhase } from "./renderer";
+import { ElectromagnetismModel } from "./models";
 
 describe("electromagnetism visual motion", () => {
+  it("identifies the guided labs whose apparatus is dragged directly", () => {
+    expect(["charge", "potential", "electrostatic-induction", "circuits", "capacitors", "electronics", "magnetic-field", "magnetic-materials", "electromagnetic-force", "charged-particle", "induction", "electromagnet", "motor", "generator", "transformer"].every((mode) =>
+      isElectromagnetismDirectManipulationMode(mode as Parameters<typeof isElectromagnetismDirectManipulationMode>[0]))).toBe(true);
+  });
+
+  it("uses the same visible handle position for force, motor and generator hit testing", () => {
+    const force = new ElectromagnetismModel("electromagnetic-force").snapshot();
+    const motor = new ElectromagnetismModel("motor").snapshot();
+    const generator = new ElectromagnetismModel("generator").snapshot();
+
+    expect(electromagnetismDirectHandle(force)?.x).toBeCloseTo(0.8);
+    expect(electromagnetismDirectHandle(force)?.y).toBeCloseTo(0.3);
+    expect(electromagnetismDirectHandle(motor)).toEqual({ x: 0.5, y: 0.17 });
+    expect(electromagnetismDirectHandle(generator)).toEqual(generator.probe);
+  });
+
   it("moves current markers around the complete circuit instead of one fixed edge", () => {
     const bounds = [10, 110, 20, 70] as const;
 

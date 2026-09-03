@@ -11,6 +11,7 @@ import {
   waveSpeed,
 } from "../../../physics/laws/waves";
 import type { WavesLabId } from "./catalog";
+import { formatDisplayNumber } from "../../format-value";
 
 export const WAVE_WORLD = { width: 1000, height: 600 } as const;
 
@@ -74,6 +75,11 @@ interface WaveState {
 }
 
 const clamp = (value: number, min: number, max: number): number => Math.min(max, Math.max(min, value));
+
+/** Keeps physical frequency readouts intact while slowing the displayed phase to an observable rate. */
+export const visualOscillationFrequency = (frequency: number): number =>
+  clamp(frequency * 0.05, 0.7, 3);
+
 const pointSeries = (
   count: number,
   valueAt: (ratio: number) => number,
@@ -113,20 +119,6 @@ function initialState(mode: WavesLabId | "sandbox"): WaveState {
   }
 }
 
-export function wavesPrimaryControlRatio(snapshot: WavesSnapshot): number | null {
-  switch (snapshot.mode) {
-    case "source": return (snapshot.amplitude - 12) / 76;
-    case "propagation": return (snapshot.speed - 60) / 240;
-    case "interference": return (snapshot.sourceSpacing - 80) / 320;
-    case "standing-wave": return (snapshot.harmonic - 1) / 4;
-    case "resonance": return (snapshot.frequency - 1) / 8;
-    case "sound": return (snapshot.amplitude - 5) / 65;
-    case "doppler": return (snapshot.sourceVelocity + 100) / 250;
-    case "communication": return (snapshot.frequency - 50) / 250;
-    case "sandbox": return null;
-  }
-}
-
 export class WavesModel {
   private state: WaveState;
 
@@ -138,21 +130,6 @@ export class WavesModel {
   reset(): void { this.state = initialState(this.state.mode); }
   setRunning(running: boolean): void { this.state.running = running; }
   toggleRunning(): void { this.state.running = !this.state.running; }
-
-  setPrimaryControlRatio(value: number): void {
-    if (!Number.isFinite(value) || this.state.mode === "sandbox") return;
-    const ratio = clamp(value, 0, 1);
-    switch (this.state.mode) {
-      case "source": this.dragPrimary(120, 600 * (1 - ratio)); break;
-      case "propagation": this.dragPrimary(70 + ratio * 860, 500); break;
-      case "interference": this.dragPrimary(180, 340 + ratio * 160); break;
-      case "standing-wave": this.dragPrimary(70 + ratio * 860, 500); break;
-      case "resonance": this.dragPrimary(70 + ratio * 860, 500); break;
-      case "sound": this.dragPrimary(140, 600 * (1 - ratio)); break;
-      case "doppler": this.dragPrimary(130 + ratio * 590, 300); break;
-      case "communication": this.dragPrimary(70 + ratio * 860, 500); break;
-    }
-  }
 
   step(seconds: number): void {
     if (!Number.isFinite(seconds) || seconds < 0) throw new RangeError("Step duration must be finite and non-negative.");
@@ -217,7 +194,7 @@ export class WavesModel {
     const { mode, amplitude, frequency, speed, time, sourceSpacing, harmonic } = this.state;
     const wavelength = speed / frequency;
     const k = waveNumber(wavelength);
-    const omega = angularFrequencyFromFrequency(frequency);
+    const omega = angularFrequencyFromFrequency(visualOscillationFrequency(frequency));
     if (mode === "interference") {
       const half = sourceSpacing / 200;
       const r1 = Math.hypot(xMeters, yMeters - half);
@@ -287,19 +264,19 @@ export class WavesModel {
 
   private measurement(observedFrequency: number, response: number, wavelength: number): string {
     switch (this.state.mode) {
-      case "source": return `진폭 ${this.state.amplitude.toFixed(0)} cm · 상대 세기 ${(relativeIntensity(this.state.amplitude) / 100).toFixed(1)}`;
-      case "propagation": return `속력 ${this.state.speed.toFixed(0)} m/s · 파장 ${wavelength.toFixed(1)} m`;
+      case "source": return `진폭 ${formatDisplayNumber(this.state.amplitude, 0)} cm · 상대 세기 ${formatDisplayNumber(relativeIntensity(this.state.amplitude) / 100)}`;
+      case "propagation": return `속력 ${formatDisplayNumber(this.state.speed, 0)} m/s · 파장 ${formatDisplayNumber(wavelength)} m`;
       case "interference": return `파원 간격 ${this.state.sourceSpacing.toFixed(0)} cm`;
-      case "standing-wave": return `${this.state.harmonic}배음 · ${fixedStringHarmonicFrequency(this.state.harmonic, this.state.speed, 8).toFixed(1)} Hz`;
-      case "resonance": return `구동 ${this.state.frequency.toFixed(1)} Hz · 응답 ${response.toFixed(1)}배`;
-      case "sound": return `압력 진폭 ${this.state.amplitude.toFixed(0)} Pa · 상대 세기 ${(relativeIntensity(this.state.amplitude) / 100).toFixed(1)}`;
+      case "standing-wave": return `${this.state.harmonic}배음 · ${formatDisplayNumber(fixedStringHarmonicFrequency(this.state.harmonic, this.state.speed, 8))} Hz`;
+      case "resonance": return `구동 ${formatDisplayNumber(this.state.frequency)} Hz · 응답 ${formatDisplayNumber(response)}배`;
+      case "sound": return `압력 진폭 ${formatDisplayNumber(this.state.amplitude, 0)} Pa · 상대 세기 ${formatDisplayNumber(relativeIntensity(this.state.amplitude) / 100)}`;
       case "doppler": return `파원 ${this.state.sourceVelocity.toFixed(0)} m/s · 관찰 ${observedFrequency.toFixed(0)} Hz`;
-      case "communication": return `반송파 ${this.state.frequency.toFixed(0)} MHz · 파장 ${wavelength.toFixed(2)} m`;
+      case "communication": return `반송파 ${formatDisplayNumber(this.state.frequency, 0)} MHz · 파장 ${formatDisplayNumber(wavelength)} m`;
       case "sandbox": {
         const probes = this.state.devices.filter((item) => item.kind === "detector" || item.kind === "observer");
         const readings = probes.map((probe) => {
           const value = Math.abs(this.displacementAt(probe.x / 100, probe.y / 100));
-          return `${probe.kind === "detector" ? "검출기" : "관찰자"} ${value.toFixed(1)} cm`;
+          return `${probe.kind === "detector" ? "검출기" : "관찰자"} ${formatDisplayNumber(value)} cm`;
         });
         return [`장치 ${this.state.devices.length}개`, this.state.running ? "실행 중" : "배치 중 · 멈춤", ...readings].join(" · ");
       }
@@ -310,7 +287,7 @@ export class WavesModel {
     const s = this.state;
     switch (s.mode) {
       case "source":
-        return pointSeries(65, (ratio) => travelingWave(s.amplitude, waveNumber(s.speed / s.frequency), angularFrequencyFromFrequency(s.frequency), ratio * 8, s.time), (ratio) => ratio * 8);
+        return pointSeries(65, (ratio) => travelingWave(s.amplitude, waveNumber(s.speed / s.frequency), angularFrequencyFromFrequency(visualOscillationFrequency(s.frequency)), ratio * 8, s.time), (ratio) => ratio * 8);
       case "propagation":
         return withCurrentPoint(
           pointSeries(41, (ratio) => (60 + ratio * 240) / s.frequency, (ratio) => 60 + ratio * 240),
@@ -334,7 +311,7 @@ export class WavesModel {
           resonanceResponse(s.frequency, s.naturalFrequency, 0.12),
         );
       case "sound":
-        return pointSeries(65, (ratio) => s.amplitude * Math.sin(2 * Math.PI * s.frequency * (ratio * 0.01 - s.time)), (ratio) => ratio * 10);
+        return pointSeries(65, (ratio) => s.amplitude * Math.sin(2 * Math.PI * (s.frequency * ratio * 0.01 - visualOscillationFrequency(s.frequency) * s.time)), (ratio) => ratio * 10);
       case "doppler":
         return withCurrentPoint(
           pointSeries(65, (ratio) => dopplerFrequency(s.frequency, s.speed, 0, -100 + ratio * 250), (ratio) => -100 + ratio * 250),

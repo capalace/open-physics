@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { ThermalWorld, type ThermalSceneId, type ThermalTool } from "./models";
+import { thermalLatticeMotion } from "./renderer";
 
 describe("ThermalWorld", () => {
   it("resets every guided scene to an identical deterministic state", () => {
@@ -51,6 +52,17 @@ describe("ThermalWorld", () => {
     const engine = new ThermalWorld("heat-engine"); engine.step(0.4); const first = engine.snapshot(); engine.step(0.4); const second = engine.snapshot();
     expect(second.volume).not.toBeCloseTo(first.volume);
     expect(second.pressure).not.toBeCloseTo(first.pressure);
+  });
+
+  it("animates solid lattice motion while running and freezes it when paused", () => {
+    const world = new ThermalWorld("phase-change");
+    const before = world.snapshot();
+    const initial = thermalLatticeMotion(before.time, 4, before.temperature + 273.15);
+    world.step(0.2);
+    const moving = world.snapshot();
+    expect(thermalLatticeMotion(moving.time, 4, moving.temperature + 273.15)).not.toEqual(initial);
+    world.pause(); world.step(0.2);
+    expect(world.snapshot().time).toBe(moving.time);
   });
 
   it("keeps guided apparatus protected and supports every sandbox tool lifecycle", () => {

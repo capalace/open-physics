@@ -19,11 +19,11 @@
 .waves-experience__lab:hover, .waves-experience__lab.is-active { border-color: #38bdf8; background: #0e4c68; }
 .waves-experience__lab--sandbox { margin-top: 18px; border-style: dashed; }
 
-.waves-experience { height: 100%; min-height: 520px; display: flex; flex-direction: column; overflow: hidden; border-radius: 18px; background: #07182a; }
-.waves-experience__toolbar { display: flex; gap: 8px; padding: 10px 12px; background: rgba(3,16,28,.92); }
+.waves-experience { height: 100%; min-height: 520px; display: flex; flex-direction: column; overflow: hidden; border-radius: 18px; background: #f4f6fa; }
+.waves-experience__toolbar { display: flex; gap: 8px; padding: 10px 12px; background: #fff; }
 .waves-experience__toolbar button, .waves-experience__palette button, .waves-experience__device-list button {
   min-height: 40px; padding: 8px 13px; border: 1px solid rgba(125,211,252,.35); border-radius: 10px;
-  background: #123e58; color: #e0f2fe; font-weight: 700; cursor: pointer;
+  background: #fff; color: #34405a; font-weight: 700; cursor: pointer;
 }
 .waves-experience__canvas { display: block; width: 100%; min-height: 460px; flex: 1; touch-action: none; cursor: grab; }
 .waves-experience__canvas:active { cursor: grabbing; }
@@ -38,8 +38,8 @@
 .waves-experience__observe, .waves-experience__term, .waves-experience__law, .waves-experience__graph { padding: 12px; border-radius: 12px; background: #eef5f8; color: #243d4e; }
 .waves-experience__term { margin-top: 10px; color: #2d6075; }
 .waves-experience__law code { display: inline-block; padding: 7px 10px; border-radius: 8px; background: #06121e; color: #7dd3fc; font-size: 1rem; }
-.waves-experience__measurement { min-height: 28px; margin: 10px 0 6px; color: #786000; font-weight: 800; }
-.waves-experience__graph-canvas { display: block; width: 100%; height: 220px; border-radius: 10px; }
+.waves-experience__measurement { display: none; }
+.waves-experience__graph-canvas { display: block; width: 100%; height: 220px; border: 1px solid #d7e0eb; border-radius: 10px; }
 .waves-experience__device-list { margin: 14px 0; padding: 0; list-style: none; }
 .waves-experience__device-list li { display: flex; align-items: center; justify-content: space-between; padding: 7px 0; border-bottom: 1px solid #d2e3ea; }
 .waves-experience__device-list button { min-height: 40px; color: #fecdd3; }

@@ -41,6 +41,7 @@ if (activeSubject === "mechanics") {
     hosts.experimentPanel.setAttribute("aria-label", `${experience.definition.label} 실험 선택`);
     hosts.workspace.setAttribute("aria-label", `${experience.definition.label} 물리 월드`);
     const controller = experience.mount(hosts);
+    const uninstallToolsDrawer = installSubjectToolsDrawer(hosts.experimentPanel);
     const uninstallFocusMode = installSubjectFocusMode(hosts, controller);
     controller.resize();
     document.body.dataset.appReady = "true";
@@ -49,10 +50,40 @@ if (activeSubject === "mechanics") {
     window.addEventListener("pagehide", (event) => {
       if (event.persisted) return;
       window.removeEventListener("resize", resize);
+      uninstallToolsDrawer();
       uninstallFocusMode();
       controller.unmount();
     });
   }
+}
+
+function installSubjectToolsDrawer(experimentPanel: HTMLElement): () => void {
+  const tools = experimentPanel.querySelector<HTMLElement>("[data-subject-settings-tools], [data-em-sandbox-tools]");
+  if (!tools || tools.closest(".subject-tools-drawer")) return () => undefined;
+  const drawer = document.createElement("details");
+  drawer.className = "subject-tools-drawer";
+  const summary = document.createElement("summary");
+  summary.textContent = "도구 추가";
+  tools.before(drawer);
+  drawer.append(summary, tools);
+  const media = window.matchMedia("(max-width: 700px)");
+  const sync = (mobile: boolean): void => { drawer.open = !mobile; };
+  sync(media.matches);
+  const onChange = (event: MediaQueryListEvent): void => sync(event.matches);
+  const closeAfterToolUse = (event: Event): void => {
+    if (!media.matches || !(event.target as Element | null)?.closest("button")) return;
+    requestAnimationFrame(() => {
+      drawer.open = false;
+      document.querySelector<HTMLElement>(".subject-lab-screen:not([hidden]) .world-toolbar")
+        ?.scrollIntoView({ block: "start" });
+    });
+  };
+  media.addEventListener("change", onChange);
+  drawer.addEventListener("click", closeAfterToolUse);
+  return () => {
+    media.removeEventListener("change", onChange);
+    drawer.removeEventListener("click", closeAfterToolUse);
+  };
 }
 
 async function loadExperience(subject: SubjectId): Promise<SubjectExperience | null> {
@@ -78,7 +109,10 @@ function installSubjectFocusMode(hosts: SubjectHosts, controller: { resize(): vo
     button.setAttribute("aria-pressed", String(enabled));
     button.textContent = enabled ? "▦ 설정 보기" : "⛶ 크게 보기";
     button.title = enabled ? "설정 패널 다시 열기 (Esc)" : "설정 패널을 접고 실험 공간 크게 보기";
-    requestAnimationFrame(() => controller.resize());
+    requestAnimationFrame(() => {
+      if (enabled && window.innerWidth <= 700) window.scrollTo(0, 0);
+      controller.resize();
+    });
   };
   button.addEventListener("click", () => setFocusMode(!appLayout.classList.contains("is-focus-mode")));
   const onKeyDown = (event: KeyboardEvent): void => {

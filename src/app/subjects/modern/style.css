@@ -47,14 +47,14 @@
   flex-direction: column;
   overflow: hidden;
   border-radius: 18px;
-  background: #070b1e;
+  background: #f4f6fa;
 }
 
 .modern-experience__toolbar {
   display: flex;
   gap: 8px;
   padding: 10px 12px;
-  background: rgba(4, 6, 20, .94);
+  background: #fff;
 }
 
 .modern-experience__toolbar button,
@@ -64,8 +64,8 @@
   padding: 8px 13px;
   border: 1px solid rgba(165, 180, 252, .35);
   border-radius: 10px;
-  background: #252b62;
-  color: #eef2ff;
+  background: #fff;
+  color: #34405a;
   font-weight: 700;
   cursor: pointer;
 }
@@ -123,13 +123,10 @@
 }
 
 .modern-experience__measurement {
-  min-height: 28px;
-  margin: 10px 0 6px;
-  color: #856308;
-  font-weight: 800;
+  display: none;
 }
 
-.modern-experience__graph-canvas { width: 100%; height: 220px; display: block; border-radius: 10px; }
+.modern-experience__graph-canvas { width: 100%; height: 220px; display: block; border: 1px solid #d7e0eb; border-radius: 10px; }
 .modern-experience__device-list { margin: 14px 0; padding: 0; list-style: none; }
 .modern-experience__device-list li {
   padding: 7px 0;

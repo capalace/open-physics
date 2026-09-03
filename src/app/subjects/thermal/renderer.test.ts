@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { ThermalWorld } from "./models";
-import { ThermalRenderer } from "./renderer";
+import { ThermalRenderer, thermalInteractionAffordance } from "./renderer";
 
 function interactiveCanvas() {
   const listeners = new Map<string, (event: PointerEvent) => void>();
@@ -24,6 +24,30 @@ function interactiveCanvas() {
 }
 
 describe("ThermalRenderer direct manipulation", () => {
+  it("distinguishes movable apparatus from dedicated value handles", () => {
+    const scenes = ["particles", "heat-transfer", "thermal-expansion", "phase-change", "gas", "heat-energy", "heat-engine", "entropy"] as const;
+    const kinds = Object.fromEntries(scenes.map((scene) => [scene, thermalInteractionAffordance(new ThermalWorld(scene).snapshot())?.kind]));
+    expect(kinds).toEqual({
+      particles: "handle", "heat-transfer": "handle", "thermal-expansion": "handle", "phase-change": "handle",
+      gas: "object", "heat-energy": "handle", "heat-engine": "handle", entropy: "object",
+    });
+  });
+
+  it("changes the pointer cursor to match the interaction type", () => {
+    const handleCanvas = interactiveCanvas();
+    const handleRenderer = new ThermalRenderer(new ThermalWorld("particles"), handleCanvas.canvas);
+    handleCanvas.pointer("pointermove", 120, 260);
+    expect(handleCanvas.canvas.style.cursor).toBe("ns-resize");
+    handleRenderer.destroy();
+
+    const objectCanvas = interactiveCanvas();
+    const objectRenderer = new ThermalRenderer(new ThermalWorld("gas"), objectCanvas.canvas);
+    objectCanvas.pointer("pointermove", 574, 190);
+    expect(objectCanvas.canvas.style.cursor).toBe("grab");
+    objectRenderer.destroy();
+  });
+
+
   it("turns a pointer drag into a model, particle and graph change", () => {
     const world = new ThermalWorld("particles");
     const before = world.snapshot();
@@ -86,5 +110,17 @@ describe("ThermalRenderer direct manipulation", () => {
     pointer("pointermove", 120, 100);
     expect(world.snapshot().control).toBeCloseTo(0.42);
     expect(removeEventListener).toHaveBeenCalledTimes(4);
+  });
+
+  it("resizes the drawing buffer without overriding the responsive CSS size", () => {
+    const world = new ThermalWorld("particles");
+    const { canvas } = interactiveCanvas();
+    const renderer = new ThermalRenderer(world, canvas);
+    renderer.resize(640, 400);
+    expect(canvas.width).toBe(640);
+    expect(canvas.height).toBe(400);
+    expect(canvas.style.width ?? "").toBe("");
+    expect(canvas.style.height ?? "").toBe("");
+    renderer.destroy();
   });
 });

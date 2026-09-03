@@ -29,4 +29,14 @@ describe("remaining physics subject coverage", () => {
       expect(new Set(graphTitles).size, `${subject.id} graphs`).toBe(subject.labs.length);
     }
   });
+
+  it("guides directly manipulated labs to the highlighted Canvas apparatus", () => {
+    for (const subject of [wavesDefinition, thermalDefinition, modernDefinition]) {
+      expect(subject.labs.every((lab) => lab.steps[0].includes("조절 핸들") || lab.steps[0].includes("직접")), subject.id).toBe(true);
+      expect(subject.labs.flatMap((lab) => lab.steps).join(" "), subject.id).not.toContain("왼쪽 설정");
+    }
+    const lightDirectLabs = lightDefinition.labs.filter((lab) => lab.id !== "laser");
+    expect(lightDirectLabs.every((lab) => lab.steps[0].includes("빛나는"))).toBe(true);
+    expect(lightDefinition.labs.find((lab) => lab.id === "laser")?.steps[0]).toContain("왼쪽 설정");
+  });
 });

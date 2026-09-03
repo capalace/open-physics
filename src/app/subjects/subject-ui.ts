@@ -11,7 +11,6 @@ const subjectChoices = [
 
 export function subjectPickerMarkup(activeSubject: SubjectDefinition["id"]): string {
   return `<nav class="subject-picker" aria-label="물리 영역 선택">
-    <span>물리 영역</span>
     <div>${subjectChoices.map(([id, label]) => {
       const href = id === "mechanics" ? "?view=selection" : `?subject=${id}&amp;view=selection`;
       const current = id === activeSubject ? ' class="is-active" aria-current="page"' : "";
@@ -37,6 +36,39 @@ export function subjectSettingsHeaderMarkup(): string {
     <button class="subject-back-button" type="button" data-subject-back>← 실험 선택</button>
     <div><span class="eyebrow">실험 설정</span><h2 data-subject-settings-title>바꿔 볼 조건</h2></div>
   </div>`;
+}
+
+export function subjectCanvasPromptMarkup(): string {
+  return `<div class="subject-action-prompt" data-subject-action-prompt role="note">
+    <span>바로 해보기</span>
+    <strong>주황 표시를 직접 끌어 보세요.</strong>
+  </div>`;
+}
+
+export interface SubjectPrimaryControlOptions {
+  readonly label: string;
+  readonly ariaLabel: string;
+  readonly ratio: number;
+  readonly value: string;
+  readonly low: string;
+  readonly high: string;
+  readonly attribute: `data-${string}`;
+  readonly result?: string;
+  readonly resultTone?: "neutral" | "success" | "warning";
+  readonly presets?: readonly { readonly label: string; readonly ratio: number }[];
+}
+
+/** Renders a guided control with a real physical value instead of an arbitrary percentage. */
+export function subjectPrimaryControlMarkup(options: SubjectPrimaryControlOptions): string {
+  const percent = Math.round(Math.max(0, Math.min(1, options.ratio)) * 100);
+  return `<section class="subject-direct-control">
+    <span>${escapeHtml(options.label)}</span>
+    <output class="subject-direct-control__value" data-subject-control-value>${escapeHtml(options.value)}</output>
+    <input type="range" min="0" max="100" step="1" value="${percent}" ${options.attribute} aria-label="${escapeHtml(options.ariaLabel)}" aria-valuetext="${escapeHtml(options.value)}">
+    <div><small>${escapeHtml(options.low)}</small><small>${escapeHtml(options.high)}</small></div>
+    ${options.presets?.length ? `<div class="subject-control-presets" aria-label="빠른 조건 선택">${options.presets.map((preset) => `<button type="button" data-subject-control-preset="${Math.round(Math.max(0, Math.min(1, preset.ratio)) * 100)}">${escapeHtml(preset.label)}</button>`).join("")}</div>` : ""}
+    ${options.result ? `<span class="subject-control-result" data-tone="${options.resultTone ?? "neutral"}"><small>지금 결과</small><strong data-subject-control-result>${escapeHtml(options.result)}</strong></span>` : ""}
+  </section>`;
 }
 
 export interface SubjectBrowserOptions {
@@ -77,7 +109,6 @@ export function subjectBrowserMarkup(
   definition: SubjectDefinition,
   options: SubjectBrowserOptions,
 ): string {
-  const categories = [...new Set(definition.labs.map((lab) => lab.category))];
   const buttonClass = `${options.buttonClass} quick-start`;
   const sandboxClass = `${buttonClass}${options.sandboxClass ? ` ${options.sandboxClass}` : ""}`;
 
@@ -88,19 +119,15 @@ export function subjectBrowserMarkup(
         <span>${definition.labs.length + 1}개 선택</span>
       </div>
       <div class="quick-start-list${options.listClass ? ` ${options.listClass}` : ""}">
-        <span class="topic-label">나만의 실험</span>
         <button class="${sandboxClass}" type="button" ${options.choiceAttribute}="sandbox">
           <span class="preset-icon purple">✦</span>
           <span><strong>${escapeHtml(definition.sandboxTitle)}</strong><small>${escapeHtml(definition.sandboxDescription)}</small></span>
         </button>
-        ${categories.map((category) => `
-          <span class="topic-label">${escapeHtml(category)}</span>
-          ${definition.labs.filter((lab) => lab.category === category).map((lab) => `
-            <button class="${buttonClass}" type="button" ${options.choiceAttribute}="${escapeHtml(lab.id)}">
-              <span class="preset-icon blue">${escapeHtml(lab.icon)}</span>
-              <span><strong>${escapeHtml(lab.selectionTitle ?? lab.title)}</strong><small>${escapeHtml(lab.selectionDescription ?? lab.question)}</small></span>
-            </button>
-          `).join("")}
+        ${definition.labs.map((lab) => `
+          <button class="${buttonClass}" type="button" ${options.choiceAttribute}="${escapeHtml(lab.id)}">
+            <span class="preset-icon blue">${escapeHtml(lab.icon)}</span>
+            <span><strong>${escapeHtml(lab.selectionTitle ?? lab.title)}</strong><small>${escapeHtml(lab.selectionDescription ?? lab.question)}</small></span>
+          </button>
         `).join("")}
       </div>
     </section>`;

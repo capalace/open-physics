@@ -13,11 +13,11 @@
 .light-experience__list .preset-icon { color: #4d7bd0; font-size: 1.35rem; text-align: center; }
 .light-experience__list small { color: #6b7890; }
 
-.light-experience__workspace { position: relative; min-width: 0; background: #081426; }
+.light-experience__workspace { position: relative; min-width: 0; background: #f4f6fa; }
 .light-experience__stage { position: relative; width: 100%; height: 100%; min-height: 480px; }
 .light-experience__stage canvas { display: block; width: 100%; height: 100%; min-height: 480px; touch-action: none; cursor: grab; }
 .light-experience__stage canvas:active { cursor: grabbing; }
-.light-experience__value { position: absolute; left: 18px; bottom: 18px; padding: 10px 14px; border: 1px solid rgba(160,205,255,.28); border-radius: 999px; color: #f4f8ff; background: rgba(5,14,29,.82); font-weight: 750; font-size: 1rem; backdrop-filter: blur(8px); }
+.light-experience__value { display: none; pointer-events: none; }
 
 .light-experience__inspector { overflow: auto; padding: 20px; color: #20324e; background: #fff; }
 .light-experience__inspector h2 { margin: 5px 0 12px; font-size: 1.55rem; }
@@ -34,7 +34,7 @@
 .light-experience__palette button:disabled { opacity: .45; cursor: default; }
 .light-experience__graph { margin-top: 20px; }
 .light-experience__graph h3 { margin: 0 0 8px; font-size: 1.05rem; }
-.light-experience__graph canvas { width: 100%; height: 230px; border-radius: 12px; }
+.light-experience__graph canvas { width: 100%; height: 230px; border: 1px solid #d7e0eb; border-radius: 12px; }
 .light-experience__axes { margin-top: 6px; color: #66758e; font-size: .85rem; }
 @media (max-width: 760px) {
   .light-experience__stage,

@@ -1,9 +1,10 @@
 import { SubjectRouteSession, type SubjectController, type SubjectExperience, type SubjectHosts, type SubjectRoute } from "../subject-experience";
-import { subjectBrowserMarkup, subjectGuideMarkup, subjectSandboxGuideMarkup, subjectSelectionMarkup, subjectSettingsHeaderMarkup } from "../subject-ui";
+import { subjectBrowserMarkup, subjectCanvasPromptMarkup, subjectGuideMarkup, subjectSandboxGuideMarkup, subjectSelectionMarkup, subjectSettingsHeaderMarkup } from "../subject-ui";
 import { thermalDefinition, thermalLab, type ThermalLabId } from "./catalog";
 import { ThermalWorld, type ThermalSceneId, type ThermalTool } from "./models";
 import { renderThermalGraph, ThermalRenderer } from "./renderer";
 import "./style.css";
+import { formatDisplayNumber, formatSignedDisplayNumber } from "../../format-value";
 
 const sandboxGraph = {
   kind: "line" as const,
@@ -20,16 +21,36 @@ const palette: ReadonlyArray<{ type: ThermalTool; label: string }> = [
   { type: "thermometer", label: "온도계" },
 ];
 
-const guidedControlLabels: Record<ThermalLabId, { label: string; low: string; high: string }> = {
-  particles: { label: "가열 세기", low: "차갑게", high: "뜨겁게" },
-  "heat-transfer": { label: "연결 재료", low: "단열체", high: "전도체" },
-  "thermal-expansion": { label: "막대 온도", low: "낮게", high: "높게" },
-  "phase-change": { label: "가한 열", low: "적게", high: "많이" },
-  gas: { label: "피스톤 위치", low: "압축", high: "팽창" },
-  "heat-energy": { label: "물질의 양", low: "적게", high: "많이" },
-  "heat-engine": { label: "뜨거운 저장고 온도", low: "낮게", high: "높게" },
-  entropy: { label: "칸막이", low: "닫힘", high: "열림" },
-};
+export function thermalPrimaryControlValue(snapshot: ReturnType<ThermalWorld["snapshot"]>): string {
+  switch (snapshot.scene) {
+    case "particles": return `${snapshot.temperature.toFixed(0)} K`;
+    case "heat-transfer": return `열전도 ${(snapshot.control * 100).toFixed(0)}%`;
+    case "thermal-expansion": return `${snapshot.temperature.toFixed(0)} °C`;
+    case "phase-change": return `${snapshot.energy.toFixed(0)} kJ`;
+    case "gas": return `${formatDisplayNumber(snapshot.volume)} L`;
+    case "heat-energy": return `${formatDisplayNumber(snapshot.mass)} kg`;
+    case "heat-engine": return `${snapshot.temperature.toFixed(0)} K`;
+    case "entropy": return snapshot.control < 0.05 ? "칸막이 닫힘" : `섞임 ${(snapshot.control * 100).toFixed(0)}%`;
+    case "sandbox": return "";
+  }
+}
+
+export function thermalPrimaryOutcome(snapshot: ReturnType<ThermalWorld["snapshot"]>): { text: string; tone: "neutral" | "success" | "warning" } {
+  switch (snapshot.scene) {
+    case "particles": return { text: `입자 평균 속력 ${formatDisplayNumber(Math.sqrt(snapshot.temperature / 300))}배`, tone: "neutral" };
+    case "heat-transfer": return { text: `누적 이동 열 ${formatDisplayNumber(snapshot.energy)} kJ`, tone: snapshot.energy > 10 ? "success" : "neutral" };
+    case "thermal-expansion": return { text: `길이 변화 ${formatSignedDisplayNumber(snapshot.expansion, 2)} mm`, tone: "neutral" };
+    case "phase-change": {
+      const phase = snapshot.liquidFraction <= 0 ? "고체" : snapshot.liquidFraction >= 1 ? "액체" : `녹는 중 ${(snapshot.liquidFraction * 100).toFixed(0)}%`;
+      return { text: `${phase} · ${formatDisplayNumber(snapshot.temperature)} °C`, tone: snapshot.liquidFraction > 0 && snapshot.liquidFraction < 1 ? "success" : "neutral" };
+    }
+    case "gas": return { text: `압력 ${formatDisplayNumber(snapshot.pressure)} kPa`, tone: snapshot.volume < 10 ? "warning" : "neutral" };
+    case "heat-energy": return { text: `온도 변화 ${formatDisplayNumber(snapshot.temperature - 20)} °C`, tone: "neutral" };
+    case "heat-engine": return { text: `최대 효율 ${(snapshot.efficiency * 100).toFixed(0)}% · 일 ${snapshot.energy.toFixed(0)} J`, tone: "success" };
+    case "entropy": return { text: `엔트로피 변화 ${formatDisplayNumber(snapshot.entropy)} J/K`, tone: snapshot.entropy > 0 ? "success" : "neutral" };
+    case "sandbox": return { text: "", tone: "neutral" };
+  }
+}
 
 export class ThermalExperienceController implements SubjectController {
   readonly world = new ThermalWorld("sandbox");
@@ -41,7 +62,7 @@ export class ThermalExperienceController implements SubjectController {
   private readonly routeSession: SubjectRouteSession;
 
   constructor(private readonly hosts: SubjectHosts) {
-    hosts.workspace.innerHTML = `<section class="thermal-experience subject-lab-screen" data-subject-lab-screen hidden><div class="thermal-toolbar world-toolbar" aria-label="열 실험 실행"><div class="transport-controls"><button class="primary-button" type="button" data-action="play">▶ 실행</button><button class="icon-button text-button" type="button" data-action="step">한 단계</button><button class="icon-button text-button" type="button" data-action="reset">↻ 처음으로</button></div><div class="toolbar-divider"></div><span class="run-indicator" data-running="false">멈춤</span></div><canvas class="thermal-canvas" aria-label="열 실험 장면"></canvas></section>`;
+    hosts.workspace.innerHTML = `<section class="thermal-experience subject-lab-screen" data-subject-lab-screen hidden><div class="thermal-toolbar world-toolbar" aria-label="열 실험 실행"><div class="transport-controls"><button class="primary-button" type="button" data-action="play">▶ 실행</button><button class="icon-button text-button" type="button" data-action="step">한 단계</button><button class="icon-button text-button" type="button" data-action="reset">↻ 처음으로</button></div><div class="toolbar-divider"></div><span class="run-indicator" data-running="false" aria-live="polite">멈춤</span></div>${subjectCanvasPromptMarkup()}<canvas class="thermal-canvas" aria-label="열 실험 장면"></canvas></section>`;
     const browser = subjectBrowserMarkup(thermalDefinition, {
       rootClass: "thermal-panel",
       listClass: "thermal-lab-list",
@@ -63,9 +84,8 @@ export class ThermalExperienceController implements SubjectController {
 
   resize(): void {
     const shell = this.hosts.workspace.querySelector<HTMLElement>(".thermal-experience")!;
-    const toolbar = shell.querySelector<HTMLElement>(".thermal-toolbar")!;
-    const width = Math.max(520, shell.clientWidth || 900);
-    const height = Math.max(180, shell.clientHeight - toolbar.offsetHeight - 12 || 560);
+    const width = Math.max(320, shell.clientWidth || 900);
+    const height = width * (window.matchMedia("(max-width: 700px)").matches ? 3 / 4 : 5 / 8);
     this.renderer.resize(width, height);
     this.refresh();
   }
@@ -102,10 +122,12 @@ export class ThermalExperienceController implements SubjectController {
     controlHost.replaceChildren();
     this.hosts.workspace.querySelector(".world-toolbar")?.classList.toggle("is-sandbox", this.world.scene === "sandbox");
     this.hosts.experimentPanel.querySelector<HTMLElement>("[data-subject-settings-title]")!.textContent = this.world.scene === "sandbox" ? "실험실 도구" : "바꿔 볼 조건";
+    this.hosts.experimentPanel.querySelector<HTMLElement>(".subject-settings-header > div")!.hidden = this.world.scene !== "sandbox";
+    this.hosts.workspace.querySelector<HTMLElement>("[data-subject-action-prompt]")!.hidden = this.world.scene === "sandbox";
     if (this.world.scene === "sandbox") {
       guide.innerHTML = subjectSandboxGuideMarkup(
         thermalDefinition,
-        ["위 도구에서 장치를 추가해요.", "장치를 끌어 서로 가까이 놓아요.", "손잡이로 세기를 바꾸고 측정해요."],
+        ["위 도구에서 장치를 추가해요.", "장치를 끌어 서로 가까이 놓아요.", "선택한 장치의 설정을 바꾸고 측정해요."],
         "장면의 입자 운동과 온도·압력 측정이 함께 달라지는지 보세요.",
       );
       paletteHost.hidden = false;
@@ -121,12 +143,6 @@ export class ThermalExperienceController implements SubjectController {
     }
     paletteHost.hidden = true;
     const lab = thermalLab(this.world.scene as ThermalLabId);
-    const control = guidedControlLabels[this.world.scene as ThermalLabId];
-    const ratio = this.world.snapshot().control;
-    controlHost.innerHTML = `<label class="subject-direct-control"><span>${control.label}</span><input type="range" min="0" max="100" step="1" value="${Math.round(ratio * 100)}" data-thermal-primary-range aria-label="${control.label}"><div><small>${control.low}</small><output>${Math.round(ratio * 100)}%</output><small>${control.high}</small></div></label><p class="subject-settings-hint">슬라이더나 캔버스의 손잡이로 같은 조건을 바꿀 수 있어요.</p>`;
-    controlHost.querySelector<HTMLInputElement>("[data-thermal-primary-range]")!.addEventListener("input", (event) => {
-      this.world.setControl(Number((event.target as HTMLInputElement).value) / 100); this.refresh();
-    });
     guide.innerHTML = subjectGuideMarkup(lab);
     const card = this.hosts.inspectorPanel.querySelector<HTMLElement>(".thermal-graph-card")!;
     card.hidden = false;
@@ -169,12 +185,6 @@ export class ThermalExperienceController implements SubjectController {
     const run = this.hosts.workspace.querySelector<HTMLElement>(".run-indicator");
     if (run) { run.textContent = this.world.running ? "실행 중" : "멈춤"; run.dataset.running = String(this.world.running); }
     const snapshot = this.world.snapshot();
-    const range = this.hosts.experimentPanel.querySelector<HTMLInputElement>("[data-thermal-primary-range]");
-    if (range) {
-      range.value = String(Math.round(snapshot.control * 100));
-      const output = range.parentElement?.querySelector("output");
-      if (output) output.textContent = `${Math.round(snapshot.control * 100)}%`;
-    }
     if (this.world.scene !== "sandbox") {
       renderThermalGraph(this.graphCanvas, snapshot, thermalLab(this.world.scene).graph);
       const current = this.hosts.inspectorPanel.querySelector<HTMLElement>(".thermal-current");
@@ -184,7 +194,7 @@ export class ThermalExperienceController implements SubjectController {
       const current = this.hosts.inspectorPanel.querySelector<HTMLElement>(".thermal-current");
       if (current) {
         const measured = snapshot.thermometerReadings[0]?.temperature ?? snapshot.temperature;
-        current.textContent = `온도계 ${measured.toFixed(1)} K · 압력 ${snapshot.pressure.toFixed(1)} kPa · 열 흐름 ${snapshot.heatFlow.toFixed(1)}`;
+        current.textContent = `온도계 ${formatDisplayNumber(measured)} K · 압력 ${formatDisplayNumber(snapshot.pressure)} kPa · 열 흐름 ${formatDisplayNumber(snapshot.heatFlow)}`;
       }
     }
   }
@@ -192,13 +202,13 @@ export class ThermalExperienceController implements SubjectController {
   private currentValue(snapshot: ReturnType<ThermalWorld["snapshot"]>): string {
     switch (snapshot.scene) {
       case "particles": return `현재 ${snapshot.temperature.toFixed(0)} K`;
-      case "heat-transfer": return `누적 ${snapshot.energy.toFixed(2)} kJ`;
-      case "thermal-expansion": return `${snapshot.temperature.toFixed(0)} °C · ΔL ${snapshot.expansion >= 0 ? "+" : ""}${snapshot.expansion.toFixed(2)} mm`;
-      case "phase-change": return `${snapshot.energy.toFixed(0)} kJ · ${snapshot.temperature.toFixed(1)} °C`;
-      case "gas": return `${snapshot.volume.toFixed(1)} L · ${snapshot.pressure.toFixed(1)} kPa`;
-      case "heat-energy": return `${snapshot.mass.toFixed(2)} kg · ΔT ${(snapshot.temperature - 20).toFixed(1)} °C`;
-      case "heat-engine": return `${snapshot.volume.toFixed(1)} L · ${snapshot.pressure.toFixed(1)} kPa · 효율 ${(snapshot.efficiency * 100).toFixed(0)}%`;
-      case "entropy": return `섞임 ${(snapshot.control * 100).toFixed(0)}% · ΔS ${snapshot.entropy.toFixed(2)} J/K`;
+      case "heat-transfer": return `누적 ${formatDisplayNumber(snapshot.energy)} kJ`;
+      case "thermal-expansion": return `${formatDisplayNumber(snapshot.temperature, 0)} °C · ΔL ${formatSignedDisplayNumber(snapshot.expansion, 2)} mm`;
+      case "phase-change": return `${formatDisplayNumber(snapshot.energy, 0)} kJ · ${formatDisplayNumber(snapshot.temperature)} °C`;
+      case "gas": return `${formatDisplayNumber(snapshot.volume)} L · ${formatDisplayNumber(snapshot.pressure)} kPa`;
+      case "heat-energy": return `${formatDisplayNumber(snapshot.mass)} kg · ΔT ${formatDisplayNumber(snapshot.temperature - 20)} °C`;
+      case "heat-engine": return `${formatDisplayNumber(snapshot.volume)} L · ${formatDisplayNumber(snapshot.pressure)} kPa · 효율 ${formatDisplayNumber(snapshot.efficiency * 100, 0)}%`;
+      case "entropy": return `섞임 ${formatDisplayNumber(snapshot.control * 100, 0)}% · ΔS ${formatDisplayNumber(snapshot.entropy)} J/K`;
       case "sandbox": return "";
     }
   }

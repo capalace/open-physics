@@ -12,6 +12,16 @@ body[data-subject]:not([data-subject="mechanics"]) {
   --subject-line: #e1e6ee;
 }
 
+body:is([data-subject="electromagnetism"], [data-subject="light"], [data-subject="thermal"]) {
+  --subject-canvas-aspect: 8 / 5;
+  --subject-canvas-focus-width: calc((100dvh - 130px) * 8 / 5);
+}
+
+body:is([data-subject="waves"], [data-subject="modern"]) {
+  --subject-canvas-aspect: 5 / 3;
+  --subject-canvas-focus-width: calc((100dvh - 130px) * 5 / 3);
+}
+
 /* Routed subject screens: selection uses the full content width; labs restore three roles. */
 body[data-subject-screen="selection"] .app-layout {
   display: block;
@@ -48,8 +58,7 @@ body[data-subject-screen="selection"] .workspace {
   background: #fff;
   box-shadow: 0 5px 18px #22304a0a;
 }
-.subject-picker > span { flex: none; color: #647187; font-size: 13px; font-weight: 850; }
-.subject-picker > div { display: flex; flex-wrap: wrap; gap: 6px; }
+.subject-picker > div { display: flex; width: 100%; flex-wrap: wrap; gap: 6px; }
 .subject-picker a {
   min-height: 38px;
   border-radius: 9px;
@@ -68,7 +77,6 @@ body[data-subject-screen="selection"] .workspace {
   gap: 10px !important;
 }
 
-.subject-selection-screen .topic-label { grid-column: 1 / -1; margin-top: 10px; }
 .subject-selection-screen .quick-start { min-height: 76px !important; padding: 11px 13px !important; }
 .subject-selection-screen .quick-start strong,
 .subject-selection-screen .quick-start small {
@@ -82,6 +90,35 @@ body[data-subject-screen="selection"] .workspace {
   height: 100%;
   min-height: 0;
   flex-direction: column;
+}
+
+.subject-action-prompt {
+  display: flex;
+  min-height: 42px;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 10px;
+  border-bottom: 1px solid #f0d7ca;
+  padding: 8px 14px;
+  background: #fff8f3;
+  color: #6f4938;
+  font-size: 13px;
+  line-height: 1.35;
+}
+.subject-action-prompt[hidden] { display: none; }
+.subject-action-prompt span {
+  flex: 0 0 auto;
+  border-radius: 999px;
+  padding: 4px 8px;
+  background: #e05c3f;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 900;
+}
+.subject-action-prompt strong { font-weight: 800; }
+
+@media (max-width: 700px) {
+  .subject-action-prompt { align-items: flex-start; padding: 8px 10px; font-size: 12px; }
 }
 .subject-settings-header { margin-bottom: 18px; }
 .subject-settings-header > div { margin-top: 18px; }
@@ -105,6 +142,10 @@ body[data-subject-screen="selection"] .workspace {
   display: grid;
   gap: 8px;
 }
+
+.subject-tools-drawer { display: contents; }
+.subject-tools-drawer > summary { display: none; }
+.subject-tools-drawer:has(> [hidden]) { display: none; }
 
 .subject-settings-tools .palette-label { display: block; margin: 12px 0 2px; color: #66758b; font-size: 12px; font-weight: 850; }
 .subject-settings-tools button { min-height: 42px; }
@@ -146,6 +187,52 @@ body[data-subject="mechanics"] #experiment-panel .creation-controls.subject-sett
   .subject-picker a { flex: 1 1 calc(33.333% - 6px); text-align: center; }
 }
 
+@media (max-width: 700px) {
+  body[data-subject="thermal"] { --subject-canvas-aspect: 4 / 3; }
+
+  .subject-tools-drawer {
+    display: block;
+    border: 1px solid var(--subject-line, #dfe5ee);
+    border-radius: 12px;
+    padding: 0 12px;
+    background: #fff;
+    box-shadow: 0 4px 14px #22304a0a;
+  }
+
+  .subject-tools-drawer > summary {
+    display: flex;
+    min-height: 46px;
+    align-items: center;
+    color: #536078;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 800;
+  }
+
+  .subject-tools-drawer[open] {
+    position: fixed;
+    z-index: 40;
+    right: 8px;
+    bottom: max(8px, env(safe-area-inset-bottom));
+    left: 8px;
+    max-height: calc(100dvh - 70px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    border-color: #cbd6e7;
+    box-shadow: 0 18px 60px #1d294052;
+  }
+
+  .subject-tools-drawer[open] > summary { border-bottom: 1px solid var(--subject-line, #dfe5ee); }
+  .subject-tools-drawer[open] > summary {
+    position: sticky;
+    z-index: 2;
+    top: 0;
+    background: #fff;
+  }
+  .subject-tools-drawer > .subject-settings-tools,
+  .subject-tools-drawer > .em-palette { padding: 12px 0; }
+}
+
 body[data-subject]:not([data-subject="mechanics"]) :is(
   .subject-electromagnetism,
   .waves-experience__experiments,
@@ -177,8 +264,127 @@ body[data-subject]:not([data-subject="mechanics"]) :is(
   line-height: 1.45;
 }
 
+.subject-direct-control > span {
+  color: #334155;
+  font-size: 13px;
+}
+
+.subject-direct-control__value {
+  width: fit-content;
+  max-width: 100%;
+  border-radius: 9px;
+  padding: 7px 10px;
+  background: #eaf0ff;
+  color: #3659c7;
+  font-size: 16px;
+  font-weight: 900;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+
+.subject-control-result {
+  display: grid;
+  gap: 3px;
+  border-radius: 10px;
+  padding: 10px;
+  background: #f1f5f9;
+  color: #334155;
+}
+
+.subject-control-result small { color: #64748b; font-size: 11px; }
+.subject-control-result strong { font-size: 13px; line-height: 1.45; }
+.subject-control-result[data-tone="success"] { background: #e9f8f0; color: #137052; }
+.subject-control-result[data-tone="warning"] { background: #fff4df; color: #915b00; }
+
+/* Keep relationships in the graph without crowding the lab with live numbers. */
+.subject-direct-control__value,
+.subject-control-result { display: none; }
+
+.subject-control-presets {
+  display: grid !important;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 5px !important;
+}
+
+.subject-control-presets button {
+  min-width: 0;
+  min-height: 34px;
+  border: 1px solid #dbe3ef;
+  border-radius: 8px;
+  padding: 5px;
+  background: #fff;
+  color: #536078;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.subject-control-presets button:hover { border-color: #8ca2ef; background: #f0f4ff; color: #3659c7; }
+
 .subject-direct-control input,
-.em-direct-control input { width: 100%; accent-color: #5575e8; }
+.em-direct-control input {
+  width: 100%;
+  height: 30px;
+  margin: 0;
+  appearance: none;
+  background: transparent;
+  cursor: ew-resize;
+}
+
+.subject-direct-control input::-webkit-slider-runnable-track,
+.em-direct-control input::-webkit-slider-runnable-track {
+  height: 7px;
+  border: 1px solid #cbd5e1;
+  border-radius: 999px;
+  background: #e8edf4;
+  box-shadow: inset 0 1px 2px rgb(30 41 59 / 8%);
+}
+
+.subject-direct-control input::-webkit-slider-thumb,
+.em-direct-control input::-webkit-slider-thumb {
+  width: 22px;
+  height: 22px;
+  margin-top: -8px;
+  appearance: none;
+  border: 4px solid #fff;
+  border-radius: 50%;
+  background: var(--subject-accent, #5575e8);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--subject-accent, #5575e8) 55%, white), 0 3px 8px rgb(30 41 59 / 22%);
+}
+
+.subject-direct-control input::-moz-range-track,
+.em-direct-control input::-moz-range-track {
+  height: 7px;
+  border: 1px solid #cbd5e1;
+  border-radius: 999px;
+  background: #e8edf4;
+  box-shadow: inset 0 1px 2px rgb(30 41 59 / 8%);
+}
+
+.subject-direct-control input::-moz-range-progress,
+.em-direct-control input::-moz-range-progress {
+  height: 7px;
+  border-radius: 999px;
+  background: var(--subject-accent, #5575e8);
+}
+
+.subject-direct-control input::-moz-range-thumb,
+.em-direct-control input::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border: 4px solid #fff;
+  border-radius: 50%;
+  background: var(--subject-accent, #5575e8);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--subject-accent, #5575e8) 55%, white), 0 3px 8px rgb(30 41 59 / 22%);
+}
+
+.subject-direct-control input:focus-visible,
+.em-direct-control input:focus-visible {
+  border-radius: 999px;
+  outline: 3px solid color-mix(in srgb, var(--subject-accent, #5575e8) 34%, transparent);
+  outline-offset: 2px;
+}
 
 .subject-direct-control div,
 .em-direct-control div { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
@@ -327,6 +533,8 @@ body[data-subject]:not([data-subject="mechanics"]) :is(
   .thermal-experience,
   .modern-experience
 ) {
+  height: auto;
+  min-height: 0;
   overflow: visible;
   border-radius: 0;
   background: transparent;
@@ -454,10 +662,25 @@ body[data-subject]:not([data-subject="mechanics"]) :is(
   .thermal-canvas,
   .modern-experience__canvas
 ) {
+  width: 100%;
+  height: auto;
+  min-height: 0;
   overflow: hidden;
+  flex: 0 0 auto;
   border: 1px solid #d7dfea;
   border-radius: 15px;
   box-shadow: 0 14px 40px #26344f12;
+  aspect-ratio: var(--subject-canvas-aspect);
+}
+
+body[data-subject]:not([data-subject="mechanics"]) :is(
+  .em-canvas-frame canvas,
+  .light-experience__stage canvas
+) {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  aspect-ratio: inherit;
 }
 
 /* Inspector: shared hierarchy, readable copy, and restrained information cards. */
@@ -644,7 +867,40 @@ body[data-subject]:not([data-subject="mechanics"]) :is(
   ) { flex-wrap: wrap; }
 }
 
-/* Viewport-bound lab layouts must shrink their canvases instead of growing past the screen. */
+@media (max-width: 700px) {
+  body[data-subject]:not([data-subject="mechanics"])[data-subject-screen="lab"] :is(
+    .em-canvas-frame,
+    .waves-experience__canvas,
+    .light-experience__stage,
+    .thermal-canvas,
+    .modern-experience__canvas
+  ) {
+    width: 100%;
+    height: clamp(360px, 58svh, 420px);
+    min-height: 360px;
+    aspect-ratio: auto;
+    scroll-margin-top: 62px;
+  }
+
+  body[data-subject]:not([data-subject="mechanics"])[data-subject-screen="lab"] :is(
+    .em-canvas-frame canvas,
+    .light-experience__stage canvas
+  ) { height: 100%; min-height: 100%; aspect-ratio: auto; }
+
+  body[data-subject]:not([data-subject="mechanics"])[data-subject-screen="lab"] .app-layout.is-focus-mode :is(
+    .em-canvas-frame,
+    .waves-experience__canvas,
+    .light-experience__stage,
+    .thermal-canvas,
+    .modern-experience__canvas
+  ) {
+    width: 100%;
+    height: clamp(360px, 58svh, 420px);
+    align-self: center;
+  }
+}
+
+/* Keep the world geometry intact; constrained viewports scroll instead of squeezing the Canvas. */
 @media (min-width: 701px) {
   body[data-subject-screen="lab"] .subject-lab-screen {
     height: 100% !important;
@@ -661,11 +917,11 @@ body[data-subject]:not([data-subject="mechanics"]) :is(
   ) { min-height: 0 !important; }
 
   body[data-subject="thermal"][data-subject-screen="lab"] .thermal-experience {
-    grid-template-rows: auto minmax(0, 1fr);
+    grid-template-rows: auto auto;
   }
 
   body[data-subject="thermal"][data-subject-screen="lab"] .thermal-canvas {
     width: 100%;
-    height: 100%;
+    height: auto;
   }
 }
